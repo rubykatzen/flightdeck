@@ -5,11 +5,6 @@ on:
   pull_request:
 jobs:
   lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: rubykatzen/baseline/.github/actions/lint-yamllint@v0.5.3
-      - uses: rubykatzen/baseline/.github/actions/lint-pymarkdown@v0.5.3
-      - uses: rubykatzen/baseline/.github/actions/lint-ruff@v0.5.3
-      - uses: rubykatzen/baseline/.github/actions/lint-shellcheck@v0.5.3
-      - uses: rubykatzen/baseline/.github/actions/lint-actionlint@v0.5.3
+    uses: rubykatzen/baseline/.github/workflows/lint-shared.yml@v0.7.2
+    with:
+      linters: yamllint, pymarkdown, ruff, shellcheck, actionlint
