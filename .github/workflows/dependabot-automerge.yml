@@ -2,7 +2,10 @@ name: Dependabot Automerge
 on:
   pull_request_target:
     types: [opened, reopened, synchronize]
+permissions:
+  contents: write
+  pull-requests: write
 jobs:
   merge:
-    uses: rubykatzen/releaser/.github/workflows/dependabot-automerge-shared.yml@v0.4.1
+    uses: rubykatzen/releaser/.github/workflows/dependabot-automerge-shared.yml@v0.5
     secrets: inherit
