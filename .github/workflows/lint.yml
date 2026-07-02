@@ -7,4 +7,4 @@ jobs:
   lint:
     uses: rubykatzen/baseline/.github/workflows/lint-shared.yml@v0.7.2
     with:
-      linters: yamllint, pymarkdown, ruff, shellcheck, actionlint
+      linters: yamllint, pymarkdown, ruff, shellcheck, actionlint, pre-commit
