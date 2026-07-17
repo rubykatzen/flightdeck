@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 jobs:
   intake:
-    uses: rubykatzen/starcast/.github/workflows/intake-issue-shared.yml@v0.2.0
+    uses: rubykatzen/starcast/.github/workflows/intake-issue-shared.yml@v0.2
     with:
       project_owner: dupmachine
       project_number: 4
