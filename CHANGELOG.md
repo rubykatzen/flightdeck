@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+## [v0.2.3] - 2026-07-31
+
+- fix: mount postgres-18 volume at /var/lib/postgresql (#78)
+- chore: remove intake-issue-clarification.yml push-model caller
+- chore: add Clarification intake workflow (#76)
+- chore(deps): bump https://github.com/rubykatzen/baseline
+- chore(deps): bump https://github.com/rubykatzen/baseline
+- chore(deps): bump https://github.com/rubykatzen/baseline
+- fix: bump lint-shared to @v0.7 and pre-commit rev to v0.7.5
+- fix: set dependabot schedule time to 10:00
+- chore: switch pre-commit to rubykatzen/baseline, enable sync check
+- ci: add explicit workflow permissions
+- chore(deps): use v0.5 workflow ref
+- chore: switch lint to shared workflow
+- chore: scope dependabot automerge permissions
+- chore: point dependabot automerge to v0.5
+- chore: pin releaser workflows to v0.5
+- chore(deps): bump rubykatzen/releaser from 0.4.1 to 0.5.9
+- chore(deps): bump rubykatzen/releaser/.github/workflows/telegram-release-notify-shared.yml
+- chore(deps): bump rubykatzen/releaser/.github/workflows/dependabot-automerge-shared.yml
+- chore(deps): bump https://github.com/dupmachine/workflows
+
 ## [v0.2.2] - 2026-06-19
 
 - chore: migrate release workflow from baseline to releaser (#51)
