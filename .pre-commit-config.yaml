@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/rubykatzen/baseline
-    rev: v0.12.0 # x-release-please-version
+    rev: v0.12.0
     hooks:
       - id: yamllint
       - id: pymarkdown
