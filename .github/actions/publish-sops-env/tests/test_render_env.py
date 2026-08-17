@@ -38,7 +38,7 @@ class RenderEnvTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "manifest.yml"
             path.write_text(
-                "release_repo: dupmachine/secrets\n"
+                "release_repo: example/secrets\n"
                 "keys: [master, server]\n"
                 "env:\n"
                 "  TOKEN: FIRST\n"
@@ -61,7 +61,7 @@ class RenderEnvTest(unittest.TestCase):
             env_path = root / ".env"
             outputs_path = root / "outputs"
             manifest_path.write_text(
-                "release_repo: dupmachine/secrets\n"
+                "release_repo: example/secrets\n"
                 "release_asset: mainframe.sops.env\n"
                 "keys: [master, server]\n"
                 "env:\n"
@@ -82,7 +82,7 @@ class RenderEnvTest(unittest.TestCase):
                 os.environ.update(old_env)
             self.assertEqual(result, 0)
             self.assertIn("TOKEN=secret\n", env_path.read_text())
-            self.assertIn("release_repo=dupmachine/secrets\n", outputs_path.read_text())
+            self.assertIn("release_repo=example/secrets\n", outputs_path.read_text())
             self.assertIn("release_tag=\n", outputs_path.read_text())
             self.assertIn("release_asset=mainframe.sops.env\n", outputs_path.read_text())
             self.assertIn("keys=master,server\n", outputs_path.read_text())

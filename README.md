@@ -90,7 +90,7 @@ Target servers need Docker, Docker Compose, GitHub CLI (`gh`), SOPS, and the ser
 ansible-playbook ansible/deploy-docker-apps.yml \
   -i mainframe, \
   -u root \
-  -e docker_apps_env_ref=dupmachine/flightdeck-config@latest:docker-apps--mainframe.sops.env
+  -e docker_apps_env_ref=<owner>/<secrets-repo>@latest:<server>.sops.env
 ```
 
 The `docker_apps_env_ref` format is `owner/repo@tag:asset`. Use an immutable semver tag for a pinned deploy, or `@latest` to resolve GitHub's latest release at deploy time. The playbook downloads the asset, decrypts it with the server-local SOPS age key (`docker_apps_sops_age_key_file`), links shared `.env` and `apps-data` into a timestamped release, switches `current`, and runs `./deploy.sh`.
@@ -114,8 +114,8 @@ Optional extra app bundles can be merged into the release before deploy:
 ansible-playbook ansible/deploy-docker-apps.yml \
   -i mainframe, \
   -u root \
-  -e docker_apps_env_ref=dupmachine/flightdeck-config@latest:docker-apps--mainframe.sops.env \
-  -e '{"docker_apps_extra_refs":["dupmachine/flightdeck-config@latest"]}'
+  -e docker_apps_env_ref=<owner>/<secrets-repo>@latest:<server>.sops.env \
+  -e '{"docker_apps_extra_refs":["<owner>/<extra-repo>@latest"]}'
 ```
 
 Extra bundles must contain an `apps/` directory. Extra app names cannot conflict with apps from the core bundle or earlier extra bundles.
@@ -252,7 +252,7 @@ The script stops each app one at a time, creates a zip archive, restarts it, the
 | **databasus** | Database management UI |
 | **rybbit** | Web analytics |
 
-Additional apps live in the optional `dupmachine/flightdeck-config` catalog (`apps/`) and can be merged at deploy time with `docker_apps_extra_refs`.
+Additional apps can live in an optional extra catalog repo (`apps/` directory) and be merged at deploy time with `docker_apps_extra_refs`.
 
 ## ⚙️ Configuration
 
@@ -262,7 +262,7 @@ Variables use a scoped env model:
 
 **1. Server env (`/.env`)**:
 
-Contains all variables for this server: shared `APPS_*`, per-app variables, and the comma-separated `APPS` list. Deployed by Ansible from an encrypted `dupmachine-secrets` release asset.
+Contains all variables for this server: shared `APPS_*`, per-app variables, and the comma-separated `APPS` list. Deployed by Ansible from an encrypted secrets release asset.
 
 ```bash
 APPS                        # Comma-separated apps to deploy on this server
