@@ -1,0 +1,8 @@
+name: Embedder
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+jobs:
+  embedder:
+    uses: rubykatzen/baseline/.github/workflows/embedder-shared.yml@v0.12.0

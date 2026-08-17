@@ -2,6 +2,7 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
+<!-- baseline fragment: message-prefix -->
 ## Message Prefix
 
 Prefix every user-visible agent message with the agent emoji followed by the
@@ -14,12 +15,38 @@ Replace `OWNER/REPO` with the current GitHub repository name.
 Use the emoji to identify the agent:
 
 - `🤖` Codex
-- `🤔` Claude Code
-- `🖊️` Cursor
+- `🧠` Claude Code
+- `🖱️` Cursor
+- `🥽` GitHub Copilot
 - `🧩` unknown or other agent
 
 This applies to chat replies, PR comments, review comments, issue comments,
 status updates, and any other written communication.
+<!-- /baseline fragment: message-prefix -->
+
+<!-- baseline fragment: message-suffix -->
+## Message Suffix
+
+End every user-visible agent message with a blank line followed by a final
+line containing exactly three emoji relevant to the message context:
+
+`EMOJI EMOJI EMOJI`
+<!-- /baseline fragment: message-suffix -->
+
+<!-- baseline fragment: embedded-fragments -->
+## Embedded Fragments
+
+This repository uses [Baseline](https://github.com/rubykatzen/baseline) to
+verify shared content fragments across repositories.
+
+Do not change a required fragment only in the consuming repository. Change
+the fragment in `config/embedder.yml` in Baseline and release it. Dependabot
+will then update the Baseline workflow version in consuming repositories and
+CI will show the required fragment diff.
+
+A repository-specific exception must be declared through the `skip` input of
+`embedder-shared.yml`.
+<!-- /baseline fragment: embedded-fragments -->
 
 ## Repository Overview
 
