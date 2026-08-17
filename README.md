@@ -90,7 +90,7 @@ Target servers need Docker, Docker Compose, GitHub CLI (`gh`), SOPS, and the ser
 ansible-playbook ansible/deploy-docker-apps.yml \
   -i mainframe, \
   -u root \
-  -e docker_apps_env_ref=dupmachine/secrets@latest:docker-apps--mainframe.sops.env
+  -e docker_apps_env_ref=dupmachine/flightdeck-config@latest:docker-apps--mainframe.sops.env
 ```
 
 The `docker_apps_env_ref` format is `owner/repo@tag:asset`. Use an immutable semver tag for a pinned deploy, or `@latest` to resolve GitHub's latest release at deploy time. The playbook downloads the asset, decrypts it with the server-local SOPS age key (`docker_apps_sops_age_key_file`), links shared `.env` and `apps-data` into a timestamped release, switches `current`, and runs `./deploy.sh`.
@@ -114,8 +114,8 @@ Optional extra app bundles can be merged into the release before deploy:
 ansible-playbook ansible/deploy-docker-apps.yml \
   -i mainframe, \
   -u root \
-  -e docker_apps_env_ref=dupmachine/secrets@latest:docker-apps--mainframe.sops.env \
-  -e '{"docker_apps_extra_refs":["dupmachine/docker-apps-extra@latest"]}'
+  -e docker_apps_env_ref=dupmachine/flightdeck-config@latest:docker-apps--mainframe.sops.env \
+  -e '{"docker_apps_extra_refs":["dupmachine/flightdeck-config@latest"]}'
 ```
 
 Extra bundles must contain an `apps/` directory. Extra app names cannot conflict with apps from the core bundle or earlier extra bundles.
@@ -252,7 +252,7 @@ The script stops each app one at a time, creates a zip archive, restarts it, the
 | **databasus** | Database management UI |
 | **rybbit** | Web analytics |
 
-Additional apps live in the optional `dupmachine/docker-apps-extra` catalog and can be merged at deploy time with `docker_apps_extra_refs`.
+Additional apps live in the optional `dupmachine/flightdeck-config` catalog (`apps/`) and can be merged at deploy time with `docker_apps_extra_refs`.
 
 ## ⚙️ Configuration
 
