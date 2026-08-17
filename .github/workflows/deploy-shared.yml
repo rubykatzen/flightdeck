@@ -1,0 +1,69 @@
+name: Deploy (shared)
+on:
+  workflow_call:
+    inputs:
+      flightdeck-ref:
+        description: Flightdeck ref whose ansible/deploy.yml to run (e.g. a release tag).
+        type: string
+        default: main
+      inventory:
+        description: Ansible inventory, e.g. a comma-separated Tailscale host list.
+        type: string
+        required: true
+      user:
+        description: SSH user for the Ansible connection.
+        type: string
+        default: root
+      extra-vars:
+        description: JSON object passed to ansible-playbook as -e (flightdeck_app_ref, flightdeck_env_ref, etc).
+        type: string
+        required: true
+      tailscale-oauth-client-id:
+        description: Tailscale OAuth client ID used to join the tailnet.
+        type: string
+        required: true
+      tailscale-tags:
+        description: Comma-separated ACL tags for the ephemeral tailnet node.
+        type: string
+        default: tag:ci
+    secrets:
+      ssh-private-key:
+        description: SSH private key used to connect to the inventory hosts.
+        required: true
+      tailscale-oauth-secret:
+        description: Tailscale OAuth client secret used to join the tailnet.
+        required: true
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          repository: rubykatzen/flightdeck
+          ref: ${{ inputs.flightdeck-ref }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - run: pip install ansible-core
+        shell: bash
+      - uses: tailscale/github-action@v3
+        with:
+          oauth-client-id: ${{ inputs.tailscale-oauth-client-id }}
+          oauth-secret: ${{ secrets.tailscale-oauth-secret }}
+          tags: ${{ inputs.tailscale-tags }}
+      - name: Load SSH key
+        shell: bash
+        run: |
+          eval "$(ssh-agent -s)"
+          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
+          ssh-add - <<< "${{ secrets.ssh-private-key }}"
+      - name: Run playbook
+        shell: bash
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: "false"
+        run: |
+          ansible-playbook ansible/deploy.yml \
+            -i "${{ inputs.inventory }}" \
+            -u "${{ inputs.user }}" \
+            -e "${{ inputs.extra-vars }}"

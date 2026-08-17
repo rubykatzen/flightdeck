@@ -436,7 +436,7 @@ If you're evaluating alternatives, these projects solve a similar problem from d
 
 ## ⚙️ GitHub Actions
 
-This repository provides two reusable composite actions under `.github/actions/`.
+This repository provides two reusable composite actions under `.github/actions/` and one reusable workflow, `deploy-shared.yml`.
 
 ---
 
@@ -513,6 +513,36 @@ env:
 ```
 
 Secrets take precedence over Variables when both contain the same source key. Every source key must exist or the action fails.
+
+---
+
+### `deploy-shared.yml`
+
+Runs [`ansible/deploy.yml`](ansible/deploy.yml) from this repository against hosts reachable over [Tailscale](https://tailscale.com/), without exposing them publicly. Intended to be called from a private consumer repository that owns the actual deploy secrets (SSH key, Tailscale OAuth client, `flightdeck_env_ref`, etc.) — this repository does not hold any deploy secrets itself.
+
+```yaml
+jobs:
+  deploy:
+    uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@main
+    with:
+      flightdeck-ref: v1.2.3                                        # default: main
+      inventory: 100.64.0.1,100.64.0.2                               # required
+      user: root                                                     # default: root
+      extra-vars: |
+        {"flightdeck_app_ref":"rubykatzen/flightdeck@v1.2.3",
+         "flightdeck_env_ref":"<owner>/<secrets-repo>@latest:<server>.sops.env",
+         "flightdeck_extra_refs":[],
+         "flightdeck_path":"~/flightdeck",
+         "flightdeck_keep_releases":5,
+         "flightdeck_sops_age_key_file":"/home/deploy/.config/sops/age/keys.txt"}
+      tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
+      tailscale-tags: tag:ci                                         # default: tag:ci
+    secrets:
+      ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+```
+
+`extra-vars` is a JSON object passed through as `ansible-playbook -e` — see [Ansible Deploy](#ansible-deploy) above for what each `flightdeck_*` key means. The runner joins the caller's tailnet as an ephemeral node tagged `tag:ci` by default; override `tailscale-tags` if the tailnet's ACL policy requires something else.
 
 ## 📝 License
 
