@@ -1,49 +1,49 @@
-- name: Deploy Docker Apps
+- name: Deploy Flightdeck
   hosts: all
   become: true
   tasks:
-    - name: Read Docker Apps GitHub token
+    - name: Read Flightdeck GitHub token
       set_fact:
-        docker_apps_github_token: "{{ lookup('env', 'DOCKER_APPS_GITHUB_TOKEN') }}"
+        flightdeck_github_token: "{{ lookup('env', 'FLIGHTDECK_GITHUB_TOKEN') }}"
       no_log: true
-    - name: Require Docker Apps deploy variables
+    - name: Require Flightdeck deploy variables
       assert:
         that:
-          - docker_apps_app_ref is defined and docker_apps_app_ref | length > 0
-          - docker_apps_env_ref is defined and docker_apps_env_ref | length > 0
-          - docker_apps_extra_refs is defined
-          - docker_apps_github_token | length > 0
-          - docker_apps_path is defined and docker_apps_path | length > 0
-          - docker_apps_keep_releases is defined
-          - docker_apps_sops_age_key_file is defined and docker_apps_sops_age_key_file | length > 0
-        fail_msg: "Set docker_apps_app_ref, docker_apps_env_ref, docker_apps_extra_refs, docker_apps_path, docker_apps_keep_releases, docker_apps_sops_age_key_file, and the DOCKER_APPS_GITHUB_TOKEN environment variable"
-    - name: Apply Docker Apps paths
+          - flightdeck_app_ref is defined and flightdeck_app_ref | length > 0
+          - flightdeck_env_ref is defined and flightdeck_env_ref | length > 0
+          - flightdeck_extra_refs is defined
+          - flightdeck_github_token | length > 0
+          - flightdeck_path is defined and flightdeck_path | length > 0
+          - flightdeck_keep_releases is defined
+          - flightdeck_sops_age_key_file is defined and flightdeck_sops_age_key_file | length > 0
+        fail_msg: "Set flightdeck_app_ref, flightdeck_env_ref, flightdeck_extra_refs, flightdeck_path, flightdeck_keep_releases, flightdeck_sops_age_key_file, and the FLIGHTDECK_GITHUB_TOKEN environment variable"
+    - name: Apply Flightdeck paths
       set_fact:
-        docker_apps_release_name: "{{ ansible_facts['date_time'].iso8601_basic_short }}"
-        docker_apps_release_path: "{{ docker_apps_path }}/releases/{{ ansible_facts['date_time'].iso8601_basic_short }}"
-        docker_apps_shared_path: "{{ docker_apps_path }}/shared"
-        docker_apps_current_path: "{{ docker_apps_path }}/current"
-    - name: Ensure Docker Apps directories
+        flightdeck_release_name: "{{ ansible_facts['date_time'].iso8601_basic_short }}"
+        flightdeck_release_path: "{{ flightdeck_path }}/releases/{{ ansible_facts['date_time'].iso8601_basic_short }}"
+        flightdeck_shared_path: "{{ flightdeck_path }}/shared"
+        flightdeck_current_path: "{{ flightdeck_path }}/current"
+    - name: Ensure Flightdeck directories
       file:
         path: "{{ item }}"
         state: directory
         mode: "0755"
       loop:
-        - "{{ docker_apps_path }}"
-        - "{{ docker_apps_path }}/releases"
-        - "{{ docker_apps_shared_path }}"
+        - "{{ flightdeck_path }}"
+        - "{{ flightdeck_path }}/releases"
+        - "{{ flightdeck_shared_path }}"
     - block:
         - name: Create app package pull directory
           tempfile:
             state: directory
-            suffix: docker-apps-package
-          register: docker_apps_app_pull
-        - name: Pull Docker Apps package
+            suffix: flightdeck-package
+          register: flightdeck_app_pull
+        - name: Pull Flightdeck package
           shell: |
             set -euo pipefail
-            ref={{ docker_apps_app_ref | quote }}
-            out={{ docker_apps_app_pull.path | quote }}
-            asset=docker-apps.zip
+            ref={{ flightdeck_app_ref | quote }}
+            out={{ flightdeck_app_pull.path | quote }}
+            asset=flightdeck.zip
             repo="${ref%@*}"
             tag="${ref#*@}"
             if [ "$repo" = "$ref" ] || [ -z "$repo" ] || [ -z "$tag" ]; then
@@ -54,8 +54,8 @@
               asset="${tag#*:}"
               tag="${tag%%:*}"
             fi
-            if [ -n "${DOCKER_APPS_GITHUB_TOKEN:-}" ]; then
-              export GH_TOKEN="$DOCKER_APPS_GITHUB_TOKEN"
+            if [ -n "${FLIGHTDECK_GITHUB_TOKEN:-}" ]; then
+              export GH_TOKEN="$FLIGHTDECK_GITHUB_TOKEN"
             fi
             if [ "$tag" = "latest" ]; then
               resolved_tag="$(gh release view --repo "$repo" --json tagName --jq .tagName)"
@@ -68,46 +68,46 @@
             fi
             gh release download "$tag" --repo "$repo" --pattern "$asset" --dir "$out"
             test -f "$out/$asset"
-            if [ "$asset" != "docker-apps.zip" ]; then
-              cp "$out/$asset" "$out/docker-apps.zip"
+            if [ "$asset" != "flightdeck.zip" ]; then
+              cp "$out/$asset" "$out/flightdeck.zip"
             fi
           args:
             executable: /bin/bash
           environment:
-            DOCKER_APPS_GITHUB_TOKEN: "{{ docker_apps_github_token }}"
-        - name: Require Docker Apps bundle
+            FLIGHTDECK_GITHUB_TOKEN: "{{ flightdeck_github_token }}"
+        - name: Require Flightdeck bundle
           stat:
-            path: "{{ docker_apps_app_pull.path }}/docker-apps.zip"
-          register: docker_apps_bundle
-        - name: Fail when Docker Apps bundle is missing
+            path: "{{ flightdeck_app_pull.path }}/flightdeck.zip"
+          register: flightdeck_bundle
+        - name: Fail when Flightdeck bundle is missing
           fail:
-            msg: "docker-apps.zip was not found in {{ docker_apps_app_ref }}"
-          when: not docker_apps_bundle.stat.exists
+            msg: "flightdeck.zip was not found in {{ flightdeck_app_ref }}"
+          when: not flightdeck_bundle.stat.exists
         - name: Recreate release directory
           file:
-            path: "{{ docker_apps_release_path }}"
+            path: "{{ flightdeck_release_path }}"
             state: absent
         - name: Ensure release directory
           file:
-            path: "{{ docker_apps_release_path }}"
+            path: "{{ flightdeck_release_path }}"
             state: directory
             mode: "0755"
-        - name: Extract Docker Apps release
+        - name: Extract Flightdeck release
           unarchive:
-            src: "{{ docker_apps_app_pull.path }}/docker-apps.zip"
-            dest: "{{ docker_apps_release_path }}"
+            src: "{{ flightdeck_app_pull.path }}/flightdeck.zip"
+            dest: "{{ flightdeck_release_path }}"
             remote_src: true
         - name: Create extra packages pull directory
           tempfile:
             state: directory
-            suffix: docker-apps-extra-packages
-          register: docker_apps_extra_pull
-          when: docker_apps_extra_refs | length > 0
+            suffix: flightdeck-extra-packages
+          register: flightdeck_extra_pull
+          when: flightdeck_extra_refs | length > 0
         - name: Pull and merge extra app packages
           shell: |
             set -euo pipefail
-            extra_root={{ docker_apps_extra_pull.path | quote }}
-            release_apps={{ (docker_apps_release_path + '/apps') | quote }}
+            extra_root={{ flightdeck_extra_pull.path | quote }}
+            release_apps={{ (flightdeck_release_path + '/apps') | quote }}
             download_release_ref() {
               ref="$1"
               out="$2"
@@ -136,13 +136,13 @@
               test -f "$out/$asset"
               echo "$out/$asset"
             }
-            if [ -n "${DOCKER_APPS_GITHUB_TOKEN:-}" ]; then
-              export GH_TOKEN="$DOCKER_APPS_GITHUB_TOKEN"
+            if [ -n "${FLIGHTDECK_GITHUB_TOKEN:-}" ]; then
+              export GH_TOKEN="$FLIGHTDECK_GITHUB_TOKEN"
             fi
-            {% for ref in docker_apps_extra_refs %}
+            {% for ref in flightdeck_extra_refs %}
             package_dir="$extra_root/{{ loop.index }}"
             mkdir -p "$package_dir/pull" "$package_dir/extract"
-            bundle="$(download_release_ref {{ ref | quote }} "$package_dir/pull" docker-apps-extra.zip)"
+            bundle="$(download_release_ref {{ ref | quote }} "$package_dir/pull" flightdeck-extra.zip)"
             unzip "$bundle" -d "$package_dir/extract"
             if [ ! -d "$package_dir/extract/apps" ]; then
               echo "Extra package {{ ref }} does not contain apps/" >&2
@@ -161,18 +161,18 @@
           args:
             executable: /bin/bash
           environment:
-            DOCKER_APPS_GITHUB_TOKEN: "{{ docker_apps_github_token }}"
-          when: docker_apps_extra_refs | length > 0
+            FLIGHTDECK_GITHUB_TOKEN: "{{ flightdeck_github_token }}"
+          when: flightdeck_extra_refs | length > 0
         - name: Create env package pull directory
           tempfile:
             state: directory
-            suffix: docker-apps-env-package
-          register: docker_apps_env_pull
+            suffix: flightdeck-env-package
+          register: flightdeck_env_pull
         - name: Pull encrypted env package
           shell: |
             set -euo pipefail
-            ref={{ docker_apps_env_ref | quote }}
-            out={{ docker_apps_env_pull.path | quote }}
+            ref={{ flightdeck_env_ref | quote }}
+            out={{ flightdeck_env_pull.path | quote }}
             asset=
             repo="${ref%@*}"
             tag="${ref#*@}"
@@ -184,8 +184,8 @@
               asset="${tag#*:}"
               tag="${tag%%:*}"
             fi
-            if [ -n "${DOCKER_APPS_GITHUB_TOKEN:-}" ]; then
-              export GH_TOKEN="$DOCKER_APPS_GITHUB_TOKEN"
+            if [ -n "${FLIGHTDECK_GITHUB_TOKEN:-}" ]; then
+              export GH_TOKEN="$FLIGHTDECK_GITHUB_TOKEN"
             fi
             if [ "$tag" = "latest" ]; then
               resolved_tag="$(gh release view --repo "$repo" --json tagName --jq .tagName)"
@@ -205,31 +205,31 @@
           args:
             executable: /bin/bash
           environment:
-            DOCKER_APPS_GITHUB_TOKEN: "{{ docker_apps_github_token }}"
+            FLIGHTDECK_GITHUB_TOKEN: "{{ flightdeck_github_token }}"
         - name: Check encrypted env payload
           stat:
-            path: "{{ docker_apps_env_pull.path }}/.sops.env"
-          register: docker_apps_sops_env
+            path: "{{ flightdeck_env_pull.path }}/.sops.env"
+          register: flightdeck_sops_env
         - name: Require encrypted env payload
           fail:
-            msg: ".sops.env was not found in {{ docker_apps_env_ref }}"
-          when: not docker_apps_sops_env.stat.exists
+            msg: ".sops.env was not found in {{ flightdeck_env_ref }}"
+          when: not flightdeck_sops_env.stat.exists
         - name: Decrypt env to shared file
           shell: >
-            SOPS_AGE_KEY_FILE={{ docker_apps_sops_age_key_file | quote }}
-            sops decrypt {{ (docker_apps_env_pull.path + '/.sops.env') | quote }}
-            > {{ (docker_apps_shared_path + '/.env.tmp') | quote }}
+            SOPS_AGE_KEY_FILE={{ flightdeck_sops_age_key_file | quote }}
+            sops decrypt {{ (flightdeck_env_pull.path + '/.sops.env') | quote }}
+            > {{ (flightdeck_shared_path + '/.env.tmp') | quote }}
           no_log: true
         - name: Set env file permissions
           file:
-            path: "{{ docker_apps_shared_path }}/.env.tmp"
+            path: "{{ flightdeck_shared_path }}/.env.tmp"
             mode: "0600"
         - name: Publish env file
           command:
-            cmd: "mv {{ docker_apps_shared_path }}/.env.tmp {{ docker_apps_shared_path }}/.env"
+            cmd: "mv {{ flightdeck_shared_path }}/.env.tmp {{ flightdeck_shared_path }}/.env"
         - name: Ensure shared apps-data directory
           file:
-            path: "{{ docker_apps_shared_path }}/apps-data"
+            path: "{{ flightdeck_shared_path }}/apps-data"
             state: directory
             mode: "0755"
         - name: Link shared files into release
@@ -239,44 +239,44 @@
             state: link
             force: true
           loop:
-            - src: "{{ docker_apps_shared_path }}/.env"
-              dest: "{{ docker_apps_release_path }}/.env"
-            - src: "{{ docker_apps_shared_path }}/apps-data"
-              dest: "{{ docker_apps_release_path }}/apps-data"
+            - src: "{{ flightdeck_shared_path }}/.env"
+              dest: "{{ flightdeck_release_path }}/.env"
+            - src: "{{ flightdeck_shared_path }}/apps-data"
+              dest: "{{ flightdeck_release_path }}/apps-data"
         - name: Switch current release
           file:
-            src: "{{ docker_apps_release_path }}"
-            dest: "{{ docker_apps_current_path }}"
+            src: "{{ flightdeck_release_path }}"
+            dest: "{{ flightdeck_current_path }}"
             state: link
             force: true
-        - name: Deploy Docker Apps
+        - name: Deploy Flightdeck
           command:
             cmd: ./deploy.sh
-            chdir: "{{ docker_apps_current_path }}"
-        - name: Find Docker Apps releases
+            chdir: "{{ flightdeck_current_path }}"
+        - name: Find Flightdeck releases
           find:
-            paths: "{{ docker_apps_path }}/releases"
+            paths: "{{ flightdeck_path }}/releases"
             file_type: directory
             recurse: false
-          register: docker_apps_releases
-        - name: Remove old Docker Apps releases
+          register: flightdeck_releases
+        - name: Remove old Flightdeck releases
           file:
             path: "{{ item.path }}"
             state: absent
-          loop: "{{ (docker_apps_releases.files | sort(attribute='mtime', reverse=true))[docker_apps_keep_releases | int:] }}"
+          loop: "{{ (flightdeck_releases.files | sort(attribute='mtime', reverse=true))[flightdeck_keep_releases | int:] }}"
       always:
         - name: Remove app package pull directory
           file:
-            path: "{{ docker_apps_app_pull.path }}"
+            path: "{{ flightdeck_app_pull.path }}"
             state: absent
-          when: docker_apps_app_pull is defined and docker_apps_app_pull.path is defined
+          when: flightdeck_app_pull is defined and flightdeck_app_pull.path is defined
         - name: Remove env package pull directory
           file:
-            path: "{{ docker_apps_env_pull.path }}"
+            path: "{{ flightdeck_env_pull.path }}"
             state: absent
-          when: docker_apps_env_pull is defined and docker_apps_env_pull.path is defined
+          when: flightdeck_env_pull is defined and flightdeck_env_pull.path is defined
         - name: Remove extra packages pull directory
           file:
-            path: "{{ docker_apps_extra_pull.path }}"
+            path: "{{ flightdeck_extra_pull.path }}"
             state: absent
-          when: docker_apps_extra_pull is defined and docker_apps_extra_pull.path is defined
+          when: flightdeck_extra_pull is defined and flightdeck_extra_pull.path is defined

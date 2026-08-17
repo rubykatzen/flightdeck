@@ -11,7 +11,7 @@ on:
         required: true
         type: string
 concurrency:
-  group: release-docker-apps
+  group: release-flightdeck
 jobs:
   prepare:
     runs-on: ubuntu-latest
