@@ -87,35 +87,35 @@ The repository includes an Ansible playbook for deploying the published Flightde
 Target servers need Docker, Docker Compose, GitHub CLI (`gh`), SOPS, and the server-local age key.
 
 ```bash
-ansible-playbook ansible/deploy-docker-apps.yml \
+ansible-playbook ansible/deploy-flightdeck.yml \
   -i mainframe, \
   -u root \
-  -e docker_apps_env_ref=<owner>/<secrets-repo>@latest:<server>.sops.env
+  -e flightdeck_env_ref=<owner>/<secrets-repo>@latest:<server>.sops.env
 ```
 
-The `docker_apps_env_ref` format is `owner/repo@tag:asset`. Use an immutable semver tag for a pinned deploy, or `@latest` to resolve GitHub's latest release at deploy time. The playbook downloads the asset, decrypts it with the server-local SOPS age key (`docker_apps_sops_age_key_file`), links shared `.env` and `apps-data` into a timestamped release, switches `current`, and runs `./deploy.sh`.
+The `flightdeck_env_ref` format is `owner/repo@tag:asset`. Use an immutable semver tag for a pinned deploy, or `@latest` to resolve GitHub's latest release at deploy time. The playbook downloads the asset, decrypts it with the server-local SOPS age key (`flightdeck_sops_age_key_file`), links shared `.env` and `apps-data` into a timestamped release, switches `current`, and runs `./deploy.sh`.
 
-The `docker_apps_app_ref` defaults to `rubykatzen/flightdeck@latest`.
+The `flightdeck_app_ref` defaults to `rubykatzen/flightdeck@latest`.
 
-For private GitHub Releases, pass a token through the `DOCKER_APPS_GITHUB_TOKEN`
+For private GitHub Releases, pass a token through the `FLIGHTDECK_GITHUB_TOKEN`
 environment variable. In Semaphore, store it as a secret environment variable,
 not in the plain Variables JSON.
 
 ```bash
-DOCKER_APPS_GITHUB_TOKEN=...
+FLIGHTDECK_GITHUB_TOKEN=...
 ```
 
-When `DOCKER_APPS_GITHUB_TOKEN` is set, the playbook exports it as `GH_TOKEN`
+When `FLIGHTDECK_GITHUB_TOKEN` is set, the playbook exports it as `GH_TOKEN`
 for `gh release download`. Public releases do not need this variable.
 
 Optional extra app bundles can be merged into the release before deploy:
 
 ```bash
-ansible-playbook ansible/deploy-docker-apps.yml \
+ansible-playbook ansible/deploy-flightdeck.yml \
   -i mainframe, \
   -u root \
-  -e docker_apps_env_ref=<owner>/<secrets-repo>@latest:<server>.sops.env \
-  -e '{"docker_apps_extra_refs":["<owner>/<extra-repo>@latest"]}'
+  -e flightdeck_env_ref=<owner>/<secrets-repo>@latest:<server>.sops.env \
+  -e '{"flightdeck_extra_refs":["<owner>/<extra-repo>@latest"]}'
 ```
 
 Extra bundles must contain an `apps/` directory. Extra app names cannot conflict with apps from the core bundle or earlier extra bundles.
@@ -169,7 +169,7 @@ flightdeck/
 │
 ├── backups/                       # Backup archives (git-ignored)
 ├── ansible/
-│   └── deploy-docker-apps.yml      # Deploy published bundle and encrypted env
+│   └── deploy-flightdeck.yml      # Deploy published bundle and encrypted env
 ├── .github/
 │   ├── actions/
 │   │   ├── discover-manifest-matrix/  # Build a strategy matrix from files matching a glob
@@ -252,7 +252,7 @@ The script stops each app one at a time, creates a zip archive, restarts it, the
 | **databasus** | Database management UI |
 | **rybbit** | Web analytics |
 
-Additional apps can live in an optional extra catalog repo (`apps/` directory) and be merged at deploy time with `docker_apps_extra_refs`.
+Additional apps can live in an optional extra catalog repo (`apps/` directory) and be merged at deploy time with `flightdeck_extra_refs`.
 
 ## ⚙️ Configuration
 

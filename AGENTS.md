@@ -381,12 +381,12 @@ GitHub Actions workflow (`.github/workflows/release.yml`) publishes a Flightdeck
 
 Deployment helpers live in this repository:
 
-- `ansible/deploy-docker-apps.yml` pulls `docker_apps_app_ref`, merges optional `docker_apps_extra_refs`, pulls the server-specific encrypted env package from `docker_apps_env_ref`, decrypts `.sops.env` on the server, switches a timestamped release, and runs `./deploy.sh`
+- `ansible/deploy-flightdeck.yml` pulls `flightdeck_app_ref`, merges optional `flightdeck_extra_refs`, pulls the server-specific encrypted env package from `flightdeck_env_ref`, decrypts `.sops.env` on the server, switches a timestamped release, and runs `./deploy.sh`
 - `.github/actions/publish-sops-env/` is a local composite action for rendering env manifests from GitHub Secrets/Variables, encrypting them for age recipients, and publishing `.sops.env` as a GitHub Release asset
 
 Extra Flightdeck bundles are release assets referenced as short refs like `<owner>/<extra-repo>@latest` or `<owner>/<extra-repo>@v1.2.3`. `@latest` is resolved by the deploy playbook through GitHub's latest release API. Extra bundles must contain an `apps/` directory only adding app directories; app names may not conflict with the core bundle or earlier extras.
 
-Private release assets are supported by passing `DOCKER_APPS_GITHUB_TOKEN` as a secret environment variable to `ansible/deploy-docker-apps.yml`. In Semaphore, store it under **Secrets → Environment variables**, not in the plain Variables JSON. When the token is present, the playbook exports it as `GH_TOKEN` for `gh release download`.
+Private release assets are supported by passing `FLIGHTDECK_GITHUB_TOKEN` as a secret environment variable to `ansible/deploy-flightdeck.yml`. In Semaphore, store it under **Secrets → Environment variables**, not in the plain Variables JSON. When the token is present, the playbook exports it as `GH_TOKEN` for `gh release download`.
 
 ## Notable App Configurations
 
