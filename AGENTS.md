@@ -23,7 +23,7 @@ status updates, and any other written communication.
 
 ## Repository Overview
 
-This is a Docker-based application management system (docker-apps) that orchestrates core self-hosted services using docker-compose. The architecture uses Traefik as a reverse proxy with automatic SSL certificate management, and can merge optional extra application catalogs during Ansible deployment.
+This is a Docker-based application management system (flightdeck) that orchestrates core self-hosted services using docker-compose. The architecture uses Traefik as a reverse proxy with automatic SSL certificate management, and can merge optional extra application catalogs during Ansible deployment.
 
 ## Core Architecture
 
@@ -373,7 +373,7 @@ services:
 
 ## CI/CD
 
-GitHub Actions workflow (`.github/workflows/release.yml`) publishes a Docker Apps release bundle when a semver tag matching `v*` is pushed:
+GitHub Actions workflow (`.github/workflows/release.yml`) publishes a Flightdeck release bundle when a semver tag matching `v*` is pushed:
 
 1. Builds `docker-apps.zip` from compose files, helper scripts, examples, and README
 2. Verifies runtime state is excluded (`.env`, `apps-data`, `backups`, generated `apps/*/.env`)
@@ -384,7 +384,7 @@ Deployment helpers live in this repository:
 - `ansible/deploy-docker-apps.yml` pulls `docker_apps_app_ref`, merges optional `docker_apps_extra_refs`, pulls the server-specific encrypted env package from `docker_apps_env_ref`, decrypts `.sops.env` on the server, switches a timestamped release, and runs `./deploy.sh`
 - `.github/actions/publish-sops-env/` is a local composite action for rendering env manifests from GitHub Secrets/Variables, encrypting them for age recipients, and publishing `.sops.env` as a GitHub Release asset
 
-Extra Docker Apps bundles are release assets referenced as short refs like `dupmachine/docker-apps-extra@latest` or `dupmachine/docker-apps-extra@v1.2.3`. `@latest` is resolved by the deploy playbook through GitHub's latest release API. Extra bundles must contain an `apps/` directory only adding app directories; app names may not conflict with the core bundle or earlier extras.
+Extra Flightdeck bundles are release assets referenced as short refs like `dupmachine/docker-apps-extra@latest` or `dupmachine/docker-apps-extra@v1.2.3`. `@latest` is resolved by the deploy playbook through GitHub's latest release API. Extra bundles must contain an `apps/` directory only adding app directories; app names may not conflict with the core bundle or earlier extras.
 
 Private release assets are supported by passing `DOCKER_APPS_GITHUB_TOKEN` as a secret environment variable to `ansible/deploy-docker-apps.yml`. In Semaphore, store it under **Secrets → Environment variables**, not in the plain Variables JSON. When the token is present, the playbook exports it as `GH_TOKEN` for `gh release download`.
 
