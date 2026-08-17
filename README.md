@@ -42,7 +42,7 @@ This will:
 
 ### Release Bundle
 
-Pushing a semver tag matching `v*` publishes a deployable project bundle as a GitHub Release asset:
+Merging the [Release Please](https://github.com/googleapis/release-please) release PR tags `main` and publishes a deployable project bundle as a GitHub Release asset:
 
 ```text
 rubykatzen/flightdeck@v1.2.3
@@ -175,7 +175,7 @@ flightdeck/
 │   │   ├── discover-manifest-matrix/  # Build a strategy matrix from files matching a glob
 │   │   └── publish-sops-env/          # Encrypt env manifest and upload to GitHub Release
 │   └── workflows/
-│       └── release.yml             # Publish Flightdeck release bundle
+│       └── release-please.yml      # Release Please + publish Flightdeck release bundle
 │
 ├── .env                          # All server configuration incl. APPS list (git-ignored)
 ├── .env.example                  # Configuration template

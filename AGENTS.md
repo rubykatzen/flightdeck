@@ -373,11 +373,11 @@ services:
 
 ## CI/CD
 
-GitHub Actions workflow (`.github/workflows/release.yml`) publishes a Flightdeck release bundle when a semver tag matching `v*` is pushed:
+GitHub Actions workflow (`.github/workflows/release-please.yml`) manages releases via [Release Please](https://github.com/googleapis/release-please):
 
-1. Builds `flightdeck.zip` from compose files, helper scripts, examples, and README
-2. Verifies runtime state is excluded (`.env`, `apps-data`, `backups`, generated `apps/*/.env`)
-3. Publishes a tagged GitHub Release asset. Deploy refs may use `@latest` as a playbook-side alias for GitHub's latest release API; no mutable `latest` release/tag is created.
+1. On every push to `main`, Release Please opens/updates a `chore(main): release X.Y.Z` PR with the computed version and generated `CHANGELOG.md` entry
+2. Merging that PR tags the release and publishes a GitHub Release
+3. A second job then builds `flightdeck.zip` from compose files, helper scripts, examples, and README (verifying runtime state such as `.env`, `apps-data`, `backups`, and generated `apps/*/.env` is excluded) and uploads it as a release asset. Deploy refs may use `@latest` as a playbook-side alias for GitHub's latest release API; no mutable `latest` release/tag is created.
 
 Deployment helpers live in this repository:
 
