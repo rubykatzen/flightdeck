@@ -19,9 +19,9 @@ on:
         type: string
         required: true
       tailscale-oauth-client-id:
-        description: Tailscale OAuth client ID used to join the tailnet.
+        description: Tailscale OAuth client ID used to join the tailnet. Leave unset to skip joining a tailnet (e.g. when the runner already has network access to the inventory hosts).
         type: string
-        required: true
+        default: ""
       tailscale-tags:
         description: Comma-separated ACL tags for the ephemeral tailnet node.
         type: string
@@ -31,8 +31,8 @@ on:
         description: SSH private key used to connect to the inventory hosts.
         required: true
       tailscale-oauth-secret:
-        description: Tailscale OAuth client secret used to join the tailnet.
-        required: true
+        description: Tailscale OAuth client secret used to join the tailnet. Required only when tailscale-oauth-client-id is set.
+        required: false
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -47,6 +47,7 @@ jobs:
       - run: pip install ansible-core
         shell: bash
       - uses: tailscale/github-action@v3
+        if: inputs.tailscale-oauth-client-id != ''
         with:
           oauth-client-id: ${{ inputs.tailscale-oauth-client-id }}
           oauth-secret: ${{ secrets.tailscale-oauth-secret }}

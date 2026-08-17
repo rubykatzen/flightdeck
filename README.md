@@ -518,7 +518,9 @@ Secrets take precedence over Variables when both contain the same source key. Ev
 
 ### `deploy-shared.yml`
 
-Runs [`ansible/deploy.yml`](ansible/deploy.yml) from this repository against hosts reachable over [Tailscale](https://tailscale.com/), without exposing them publicly. Intended to be called from a private consumer repository that owns the actual deploy secrets (SSH key, Tailscale OAuth client, `flightdeck_env_ref`, etc.) — this repository does not hold any deploy secrets itself.
+Runs [`ansible/deploy.yml`](ansible/deploy.yml) from this repository against the caller-supplied inventory. Intended to be called from a private consumer repository that owns the actual deploy secrets (SSH key, `flightdeck_env_ref`, etc.) — this repository does not hold any deploy secrets itself.
+
+Tailscale is optional, not a dependency of this workflow: set `tailscale-oauth-client-id` (and the matching `tailscale-oauth-secret`) to have the runner join a tailnet as an ephemeral node before deploying. Leave both unset to skip that step entirely — e.g. when the job already runs on a self-hosted runner with network access to the inventory hosts, or reaches them some other way.
 
 ```yaml
 jobs:
@@ -535,14 +537,14 @@ jobs:
          "flightdeck_path":"~/flightdeck",
          "flightdeck_keep_releases":5,
          "flightdeck_sops_age_key_file":"/home/deploy/.config/sops/age/keys.txt"}
-      tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
+      tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}  # optional, default: unset (skip joining a tailnet)
       tailscale-tags: tag:ci                                         # default: tag:ci
     secrets:
       ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-      tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+      tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}  # optional, required only if tailscale-oauth-client-id is set
 ```
 
-`extra-vars` is a JSON object passed through as `ansible-playbook -e` — see [Ansible Deploy](#ansible-deploy) above for what each `flightdeck_*` key means. The runner joins the caller's tailnet as an ephemeral node tagged `tag:ci` by default; override `tailscale-tags` if the tailnet's ACL policy requires something else.
+`extra-vars` is a JSON object passed through as `ansible-playbook -e` — see [Ansible Deploy](#ansible-deploy) above for what each `flightdeck_*` key means.
 
 ## 📝 License
 
