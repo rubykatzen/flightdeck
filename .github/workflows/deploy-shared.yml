@@ -2,10 +2,6 @@ name: Deploy (shared)
 on:
   workflow_call:
     inputs:
-      flightdeck-ref:
-        description: Flightdeck ref whose ansible/deploy.yml to run (e.g. a release tag).
-        type: string
-        default: main
       inventory:
         description: Ansible inventory, e.g. a comma-separated Tailscale host list.
         type: string
@@ -15,7 +11,7 @@ on:
         type: string
         default: root
       extra-vars:
-        description: JSON object passed to ansible-playbook as -e (flightdeck_app_ref, flightdeck_env_ref, etc).
+        description: "JSON object passed to ansible-playbook as -e (flightdeck_env_ref, flightdeck_path, etc). flightdeck_app_ref defaults to the ref this workflow was called at (the @tag on the uses: line) and only needs to be set here to override that."
         type: string
         required: true
       tailscale-oauth-client-id:
@@ -37,10 +33,19 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: Resolve flightdeck ref
+        id: ref
+        shell: bash
+        run: |
+          ref="${{ github.workflow_ref }}"
+          ref="${ref#*@}"
+          ref="${ref#refs/tags/}"
+          ref="${ref#refs/heads/}"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
         with:
           repository: rubykatzen/flightdeck
-          ref: ${{ inputs.flightdeck-ref }}
+          ref: ${{ steps.ref.outputs.ref }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
@@ -67,4 +72,5 @@ jobs:
           ansible-playbook ansible/deploy.yml \
             -i "${{ inputs.inventory }}" \
             -u "${{ inputs.user }}" \
+            -e "{\"flightdeck_app_ref\":\"rubykatzen/flightdeck@${{ steps.ref.outputs.ref }}\"}" \
             -e "${{ inputs.extra-vars }}"

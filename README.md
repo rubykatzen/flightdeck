@@ -525,14 +525,12 @@ Tailscale is optional, not a dependency of this workflow: set `tailscale-oauth-c
 ```yaml
 jobs:
   deploy:
-    uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@main
+    uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@v1.2.3
     with:
-      flightdeck-ref: v1.2.3                                        # default: main
       inventory: 100.64.0.1,100.64.0.2                               # required
       user: root                                                     # default: root
       extra-vars: |
-        {"flightdeck_app_ref":"rubykatzen/flightdeck@v1.2.3",
-         "flightdeck_env_ref":"<owner>/<secrets-repo>@latest:<server>.sops.env",
+        {"flightdeck_env_ref":"<owner>/<secrets-repo>@latest:<server>.sops.env",
          "flightdeck_extra_refs":[],
          "flightdeck_path":"~/flightdeck",
          "flightdeck_keep_releases":5,
@@ -543,6 +541,8 @@ jobs:
       ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
       tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}  # optional, required only if tailscale-oauth-client-id is set
 ```
+
+The `@v1.2.3` pin on the `uses:` line is the only place the Flightdeck version needs to be written: it's what gets checked out to run `ansible/deploy.yml`, and it's also the default for `flightdeck_app_ref` (the release bundle the playbook downloads and deploys) unless `extra-vars` explicitly overrides it.
 
 `extra-vars` is a JSON object passed through as `ansible-playbook -e` — see [Ansible Deploy](#ansible-deploy) above for what each `flightdeck_*` key means.
 
