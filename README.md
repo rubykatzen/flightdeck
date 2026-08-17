@@ -87,7 +87,7 @@ The repository includes an Ansible playbook for deploying the published Flightde
 Target servers need Docker, Docker Compose, GitHub CLI (`gh`), SOPS, and the server-local age key.
 
 ```bash
-ansible-playbook ansible/deploy-flightdeck.yml \
+ansible-playbook ansible/deploy.yml \
   -i mainframe, \
   -u root \
   -e flightdeck_env_ref=<owner>/<secrets-repo>@latest:<server>.sops.env
@@ -111,7 +111,7 @@ for `gh release download`. Public releases do not need this variable.
 Optional extra app bundles can be merged into the release before deploy:
 
 ```bash
-ansible-playbook ansible/deploy-flightdeck.yml \
+ansible-playbook ansible/deploy.yml \
   -i mainframe, \
   -u root \
   -e flightdeck_env_ref=<owner>/<secrets-repo>@latest:<server>.sops.env \
@@ -169,7 +169,7 @@ flightdeck/
 │
 ├── backups/                       # Backup archives (git-ignored)
 ├── ansible/
-│   └── deploy-flightdeck.yml      # Deploy published bundle and encrypted env
+│   └── deploy.yml      # Deploy published bundle and encrypted env
 ├── .github/
 │   ├── actions/
 │   │   ├── discover-manifest-matrix/  # Build a strategy matrix from files matching a glob
