@@ -31,7 +31,7 @@ This is a Docker-based application management system (flightdeck) that orchestra
 
 - `apps/` - Contains core docker-compose configurations and shared compose templates
 - `apps-data/` - Persistent data storage for all running applications
-- `.env` - All environment variables for this server: shared `APPS_*`, per-app overrides, and the comma-separated `APPS` list. Deployed via Ansible from encrypted `dupmachine-secrets` release assets.
+- `.env` - All environment variables for this server: shared `APPS_*`, per-app overrides, and the comma-separated `APPS` list. Deployed via Ansible from encrypted secrets release assets.
 - Shell scripts at root for orchestration
 
 ### Docker Compose Architecture
@@ -58,7 +58,7 @@ The repository uses a modular docker-compose structure with reusable components:
 
 ### Environment Variable System
 
-Environment variables come from a single `.env` file deployed by Ansible from an encrypted `dupmachine-secrets` release asset. It contains shared `APPS_*` variables, per-app variables, and the comma-separated `APPS` list.
+Environment variables come from a single `.env` file deployed by Ansible from an encrypted secrets release asset. It contains shared `APPS_*` variables, per-app variables, and the comma-separated `APPS` list.
 
 Before starting each app, `up.sh` runs `generate-env.sh`, which calls `generate_env` from `lib.sh`. The generated `apps/{app}/.env` contains:
 
@@ -163,8 +163,8 @@ The `up.sh` script:
 
 ```bash
 # Back up all apps-data directories from a remote server to local backups/
-./backup.sh root@hawkeye.dupmachine.com
-./backup.sh root@mainframe.dupmachine.com
+./backup.sh root@server1.example.com
+./backup.sh root@server2.example.com
 ```
 
 The `backup.sh` script stops each active app, zips its `apps-data/` directory, downloads it locally, then restarts the app. Inactive apps (not in APPS) are archived without stopping.
@@ -384,7 +384,7 @@ Deployment helpers live in this repository:
 - `ansible/deploy-docker-apps.yml` pulls `docker_apps_app_ref`, merges optional `docker_apps_extra_refs`, pulls the server-specific encrypted env package from `docker_apps_env_ref`, decrypts `.sops.env` on the server, switches a timestamped release, and runs `./deploy.sh`
 - `.github/actions/publish-sops-env/` is a local composite action for rendering env manifests from GitHub Secrets/Variables, encrypting them for age recipients, and publishing `.sops.env` as a GitHub Release asset
 
-Extra Flightdeck bundles are release assets referenced as short refs like `dupmachine/flightdeck-config@latest` or `dupmachine/flightdeck-config@v1.2.3`. `@latest` is resolved by the deploy playbook through GitHub's latest release API. Extra bundles must contain an `apps/` directory only adding app directories; app names may not conflict with the core bundle or earlier extras.
+Extra Flightdeck bundles are release assets referenced as short refs like `<owner>/<extra-repo>@latest` or `<owner>/<extra-repo>@v1.2.3`. `@latest` is resolved by the deploy playbook through GitHub's latest release API. Extra bundles must contain an `apps/` directory only adding app directories; app names may not conflict with the core bundle or earlier extras.
 
 Private release assets are supported by passing `DOCKER_APPS_GITHUB_TOKEN` as a secret environment variable to `ansible/deploy-docker-apps.yml`. In Semaphore, store it under **Secrets → Environment variables**, not in the plain Variables JSON. When the token is present, the playbook exports it as `GH_TOKEN` for `gh release download`.
 
