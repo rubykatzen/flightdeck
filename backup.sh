@@ -8,8 +8,8 @@ if [ -z "$1" ]; then
 fi
 
 SERVER="$1"
-REMOTE_APPS_DATA="~/docker-apps/apps-data"
-REMOTE_PROJECT="~/docker-apps"
+REMOTE_APPS_DATA="~/flightdeck/apps-data"
+REMOTE_PROJECT="~/flightdeck"
 LOCAL_BACKUPS_DIR="$(dirname "$0")/backups"
 DATETIME=$(date +"%Y%m%d_%H%M%S")
 SERVER_NAME=$(echo "$SERVER" | sed 's/[^a-zA-Z0-9]/_/g')
@@ -30,7 +30,7 @@ APPS_LIST=$(ssh "$SERVER" "bash -c 'source $REMOTE_PROJECT/.env && echo \"\${APP
 echo "==> Found apps: $(echo "$APPS" | tr '\n' ' ')"
 echo "==> Active APPS: $APPS_LIST"
 
-REMOTE_TMP="/tmp/docker-apps-backup-$$"
+REMOTE_TMP="/tmp/flightdeck-backup-$$"
 ssh "$SERVER" "mkdir -p $REMOTE_TMP"
 
 for APP in $APPS; do

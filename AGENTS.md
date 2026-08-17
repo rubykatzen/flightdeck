@@ -375,7 +375,7 @@ services:
 
 GitHub Actions workflow (`.github/workflows/release.yml`) publishes a Flightdeck release bundle when a semver tag matching `v*` is pushed:
 
-1. Builds `docker-apps.zip` from compose files, helper scripts, examples, and README
+1. Builds `flightdeck.zip` from compose files, helper scripts, examples, and README
 2. Verifies runtime state is excluded (`.env`, `apps-data`, `backups`, generated `apps/*/.env`)
 3. Publishes a tagged GitHub Release asset. Deploy refs may use `@latest` as a playbook-side alias for GitHub's latest release API; no mutable `latest` release/tag is created.
 

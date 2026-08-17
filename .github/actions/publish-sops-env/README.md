@@ -9,7 +9,7 @@ The release must exist before this action runs. Create it in a dedicated job and
 ```yaml
 - uses: rubykatzen/flightdeck/.github/actions/publish-sops-env@main
   with:
-    manifest: projects/docker-apps/mainframe.yml   # required
+    manifest: projects/flightdeck/mainframe.yml   # required
     keys-directory: keys                           # default: keys
     release-tag: ${{ needs.release.outputs.tag }}  # default: manifest release_tag or repo name
     release-repo: ""                               # default: current repository
@@ -30,7 +30,7 @@ permissions:
 ## Manifest
 
 ```yaml
-release_asset: docker-apps--mainframe.sops.env
+release_asset: flightdeck--mainframe.sops.env
 
 keys:
   - mainframe

@@ -43,7 +43,7 @@
             set -euo pipefail
             ref={{ flightdeck_app_ref | quote }}
             out={{ flightdeck_app_pull.path | quote }}
-            asset=docker-apps.zip
+            asset=flightdeck.zip
             repo="${ref%@*}"
             tag="${ref#*@}"
             if [ "$repo" = "$ref" ] || [ -z "$repo" ] || [ -z "$tag" ]; then
@@ -68,8 +68,8 @@
             fi
             gh release download "$tag" --repo "$repo" --pattern "$asset" --dir "$out"
             test -f "$out/$asset"
-            if [ "$asset" != "docker-apps.zip" ]; then
-              cp "$out/$asset" "$out/docker-apps.zip"
+            if [ "$asset" != "flightdeck.zip" ]; then
+              cp "$out/$asset" "$out/flightdeck.zip"
             fi
           args:
             executable: /bin/bash
@@ -77,11 +77,11 @@
             FLIGHTDECK_GITHUB_TOKEN: "{{ flightdeck_github_token }}"
         - name: Require Flightdeck bundle
           stat:
-            path: "{{ flightdeck_app_pull.path }}/docker-apps.zip"
+            path: "{{ flightdeck_app_pull.path }}/flightdeck.zip"
           register: flightdeck_bundle
         - name: Fail when Flightdeck bundle is missing
           fail:
-            msg: "docker-apps.zip was not found in {{ flightdeck_app_ref }}"
+            msg: "flightdeck.zip was not found in {{ flightdeck_app_ref }}"
           when: not flightdeck_bundle.stat.exists
         - name: Recreate release directory
           file:
@@ -94,7 +94,7 @@
             mode: "0755"
         - name: Extract Flightdeck release
           unarchive:
-            src: "{{ flightdeck_app_pull.path }}/docker-apps.zip"
+            src: "{{ flightdeck_app_pull.path }}/flightdeck.zip"
             dest: "{{ flightdeck_release_path }}"
             remote_src: true
         - name: Create extra packages pull directory

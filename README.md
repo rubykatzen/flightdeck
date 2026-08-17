@@ -51,14 +51,14 @@ rubykatzen/flightdeck@latest
 
 In deploy refs, `@latest` is resolved through GitHub's latest release API. It is not a mutable `latest` tag or release.
 
-The release asset is `docker-apps.zip` with the compose files and helper scripts, but not runtime state such as `.env`, `apps-data/`, or `backups/`.
+The release asset is `flightdeck.zip` with the compose files and helper scripts, but not runtime state such as `.env`, `apps-data/`, or `backups/`.
 
 Download and unpack a bundle:
 
 ```bash
 tag="$(gh release view --repo rubykatzen/flightdeck --json tagName --jq .tagName)"
-gh release download "$tag" --repo rubykatzen/flightdeck --pattern docker-apps.zip
-unzip -q docker-apps.zip -d /opt/flightdeck/releases/latest
+gh release download "$tag" --repo rubykatzen/flightdeck --pattern flightdeck.zip
+unzip -q flightdeck.zip -d /opt/flightdeck/releases/latest
 ```
 
 ### 2. Configure Environment
@@ -486,7 +486,7 @@ The release must already exist before this action runs. Create it in a separate 
 ```yaml
 - uses: rubykatzen/flightdeck/.github/actions/publish-sops-env@main
   with:
-    manifest: projects/docker-apps/mainframe.yml   # required
+    manifest: projects/flightdeck/mainframe.yml   # required
     keys-directory: keys                           # default: keys
     release-tag: latest                            # default: manifest release_tag or repo name
     release-repo: ""                               # default: current repository
@@ -502,7 +502,7 @@ Requires `contents: write` permission on the calling job.
 **Manifest format:**
 
 ```yaml
-release_asset: docker-apps--mainframe.sops.env
+release_asset: flightdeck--mainframe.sops.env
 
 keys:
   - mainframe

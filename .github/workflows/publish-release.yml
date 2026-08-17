@@ -36,7 +36,7 @@ jobs:
       - id: bundle
         uses: ./.github/actions/build-bundle
         with:
-          bundle-name: docker-apps.zip
+          bundle-name: flightdeck.zip
           paths: |
             apps
             ansible.cfg
