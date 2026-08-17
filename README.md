@@ -98,8 +98,9 @@ The `flightdeck_env_ref` format is `owner/repo@tag:asset`. Use an immutable semv
 The `flightdeck_app_ref` defaults to `rubykatzen/flightdeck@latest`.
 
 For private GitHub Releases, pass a token through the `FLIGHTDECK_GITHUB_TOKEN`
-environment variable. In Semaphore, store it as a secret environment variable,
-not in the plain Variables JSON.
+environment variable. Store it as a secret in whatever system runs this
+playbook (e.g. a GitHub Actions secret when using `deploy-shared.yml` below),
+not in plain configuration.
 
 ```bash
 FLIGHTDECK_GITHUB_TOKEN=...
@@ -436,7 +437,7 @@ If you're evaluating alternatives, these projects solve a similar problem from d
 
 ## ⚙️ GitHub Actions
 
-This repository provides two reusable composite actions under `.github/actions/`.
+This repository provides two reusable composite actions under `.github/actions/` and one reusable workflow, `deploy-shared.yml`.
 
 ---
 
@@ -513,6 +514,38 @@ env:
 ```
 
 Secrets take precedence over Variables when both contain the same source key. Every source key must exist or the action fails.
+
+---
+
+### `deploy-shared.yml`
+
+Runs [`ansible/deploy.yml`](ansible/deploy.yml) from this repository against the caller-supplied inventory. Intended to be called from a private consumer repository that owns both the config and secrets side (SSH key, encrypted `.sops.env` releases, etc.) — this repository does not hold any deploy secrets itself. `flightdeck_env_ref` typically references that same calling repository via `${{ github.repository }}`, since it's both the config and secrets source.
+
+Tailscale is optional, not a dependency of this workflow: set `tailscale-oauth-client-id` (and the matching `tailscale-oauth-secret`) to have the runner join a tailnet as an ephemeral node before deploying. Leave both unset to skip that step entirely — e.g. when the job already runs on a self-hosted runner with network access to the inventory hosts, or reaches them some other way.
+
+```yaml
+jobs:
+  deploy:
+    uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@v1.2.3
+    with:
+      inventory: 100.64.0.1,100.64.0.2                               # required
+      user: root                                                     # default: root
+      extra-vars: |
+        {"flightdeck_env_ref":"${{ github.repository }}@latest:<server>.sops.env",
+         "flightdeck_extra_refs":[],
+         "flightdeck_path":"~/flightdeck",
+         "flightdeck_keep_releases":5,
+         "flightdeck_sops_age_key_file":"/home/deploy/.config/sops/age/keys.txt"}
+      tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}  # optional, default: unset (skip joining a tailnet)
+      tailscale-tags: tag:ci                                         # default: tag:ci
+    secrets:
+      ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}  # optional, required only if tailscale-oauth-client-id is set
+```
+
+The `@v1.2.3` pin on the `uses:` line is the only place the Flightdeck version needs to be written: it's what gets checked out to run `ansible/deploy.yml`, and it's also the default for `flightdeck_app_ref` (the release bundle the playbook downloads and deploys) unless `extra-vars` explicitly overrides it.
+
+`extra-vars` is a JSON object passed through as `ansible-playbook -e` — see [Ansible Deploy](#ansible-deploy) above for what each `flightdeck_*` key means.
 
 ## 📝 License
 
