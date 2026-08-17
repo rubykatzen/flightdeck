@@ -1,4 +1,4 @@
-# Docker Apps - Core Self-Hosted Application Runtime
+# Flightdeck - Core Self-Hosted Application Runtime
 
 A Docker-based orchestration system for deploying core self-hosted services, with optional extra application catalogs. Built with Traefik reverse proxy, automatic SSL certificate management, GitHub Release bundles, and a unified command-line interface.
 
@@ -28,8 +28,8 @@ A Docker-based orchestration system for deploying core self-hosted services, wit
 ### 1. Clone and Initialize
 
 ```bash
-git clone https://github.com/rubykatzen/docker-apps.git docker-apps
-cd docker-apps
+git clone https://github.com/rubykatzen/flightdeck.git flightdeck
+cd flightdeck
 ./up.sh
 ```
 
@@ -45,8 +45,8 @@ This will:
 Pushing a semver tag matching `v*` publishes a deployable project bundle as a GitHub Release asset:
 
 ```text
-rubykatzen/docker-apps@v1.2.3
-rubykatzen/docker-apps@latest
+rubykatzen/flightdeck@v1.2.3
+rubykatzen/flightdeck@latest
 ```
 
 In deploy refs, `@latest` is resolved through GitHub's latest release API. It is not a mutable `latest` tag or release.
@@ -56,9 +56,9 @@ The release asset is `docker-apps.zip` with the compose files and helper scripts
 Download and unpack a bundle:
 
 ```bash
-tag="$(gh release view --repo rubykatzen/docker-apps --json tagName --jq .tagName)"
-gh release download "$tag" --repo rubykatzen/docker-apps --pattern docker-apps.zip
-unzip -q docker-apps.zip -d /opt/docker-apps/releases/latest
+tag="$(gh release view --repo rubykatzen/flightdeck --json tagName --jq .tagName)"
+gh release download "$tag" --repo rubykatzen/flightdeck --pattern docker-apps.zip
+unzip -q docker-apps.zip -d /opt/flightdeck/releases/latest
 ```
 
 ### 2. Configure Environment
@@ -82,7 +82,7 @@ APPS_TIMEZONE=...
 
 ### Ansible Deploy
 
-The repository includes an Ansible playbook for deploying the published Docker Apps bundle and encrypted env package:
+The repository includes an Ansible playbook for deploying the published Flightdeck bundle and encrypted env package:
 
 Target servers need Docker, Docker Compose, GitHub CLI (`gh`), SOPS, and the server-local age key.
 
@@ -95,7 +95,7 @@ ansible-playbook ansible/deploy-docker-apps.yml \
 
 The `docker_apps_env_ref` format is `owner/repo@tag:asset`. Use an immutable semver tag for a pinned deploy, or `@latest` to resolve GitHub's latest release at deploy time. The playbook downloads the asset, decrypts it with the server-local SOPS age key (`docker_apps_sops_age_key_file`), links shared `.env` and `apps-data` into a timestamped release, switches `current`, and runs `./deploy.sh`.
 
-The `docker_apps_app_ref` defaults to `rubykatzen/docker-apps@latest`.
+The `docker_apps_app_ref` defaults to `rubykatzen/flightdeck@latest`.
 
 For private GitHub Releases, pass a token through the `DOCKER_APPS_GITHUB_TOKEN`
 environment variable. In Semaphore, store it as a secret environment variable,
@@ -148,7 +148,7 @@ All apps will be accessible at `https://{app-name}.{APPS_DOMAIN}`
 ## 📁 Project Structure
 
 ```text
-docker-apps/
+flightdeck/
 ├── apps/                          # Application configurations
 │   ├── traefik/                  # Reverse proxy & SSL
 │   ├── common.yml               # Shared service definitions
@@ -175,7 +175,7 @@ docker-apps/
 │   │   ├── discover-manifest-matrix/  # Build a strategy matrix from files matching a glob
 │   │   └── publish-sops-env/          # Encrypt env manifest and upload to GitHub Release
 │   └── workflows/
-│       └── release.yml             # Publish Docker Apps release bundle
+│       └── release.yml             # Publish Flightdeck release bundle
 │
 ├── .env                          # All server configuration incl. APPS list (git-ignored)
 ├── .env.example                  # Configuration template
@@ -429,7 +429,7 @@ If you're evaluating alternatives, these projects solve a similar problem from d
 
 | Service | Website | Focus | Service Templates |
 |------|---------|---------|---------|
-| **docker-apps** | This repository | Git-based Docker Compose stack with reusable templates and shell scripts | [apps](./apps/) |
+| **flightdeck** | This repository | Git-based Docker Compose stack with reusable templates and shell scripts | [apps](./apps/) |
 | **Dokploy** | [dokploy.com](https://dokploy.com) | PaaS-style deployment panel for apps, databases, and containers | [Dokploy/templates/blueprints](https://github.com/Dokploy/templates/tree/canary/blueprints) |
 | **Runtipi** | [runtipi.io](https://runtipi.io) | Beginner-friendly self-hosted app store and dashboard | [runtipi/runtipi-appstore/apps](https://github.com/runtipi/runtipi-appstore/tree/master/apps) |
 | **Coolify** | [coolify.io](https://coolify.io) | Self-hosted Heroku/Vercel-style platform for apps, databases, and services | [coollabsio/coolify/templates/compose](https://github.com/coollabsio/coolify/tree/v4.x/templates/compose) |
@@ -446,7 +446,7 @@ Builds a GitHub Actions strategy matrix from files matching a glob pattern.
 
 ```yaml
 - id: discover
-  uses: rubykatzen/docker-apps/.github/actions/discover-manifest-matrix@main
+  uses: rubykatzen/flightdeck/.github/actions/discover-manifest-matrix@main
   with:
     pattern: projects/*/*.yml   # required
 ```
@@ -463,7 +463,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - id: discover
-        uses: rubykatzen/docker-apps/.github/actions/discover-manifest-matrix@main
+        uses: rubykatzen/flightdeck/.github/actions/discover-manifest-matrix@main
         with:
           pattern: projects/*/*.yml
 
@@ -484,7 +484,7 @@ Renders an env manifest from GitHub Secrets/Variables, encrypts it with SOPS age
 The release must already exist before this action runs. Create it in a separate job and pass the tag explicitly.
 
 ```yaml
-- uses: rubykatzen/docker-apps/.github/actions/publish-sops-env@main
+- uses: rubykatzen/flightdeck/.github/actions/publish-sops-env@main
   with:
     manifest: projects/docker-apps/mainframe.yml   # required
     keys-directory: keys                           # default: keys

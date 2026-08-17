@@ -6,7 +6,7 @@ Composite GitHub Action that builds a GitHub Actions strategy matrix from files 
 
 ```yaml
 - id: discover
-  uses: rubykatzen/docker-apps/.github/actions/discover-manifest-matrix@main
+  uses: rubykatzen/flightdeck/.github/actions/discover-manifest-matrix@main
   with:
     pattern: projects/*/*.yml   # required
 ```
@@ -26,7 +26,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - id: discover
-        uses: rubykatzen/docker-apps/.github/actions/discover-manifest-matrix@main
+        uses: rubykatzen/flightdeck/.github/actions/discover-manifest-matrix@main
         with:
           pattern: projects/*/*.yml
 
