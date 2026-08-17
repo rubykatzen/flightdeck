@@ -98,8 +98,9 @@ The `flightdeck_env_ref` format is `owner/repo@tag:asset`. Use an immutable semv
 The `flightdeck_app_ref` defaults to `rubykatzen/flightdeck@latest`.
 
 For private GitHub Releases, pass a token through the `FLIGHTDECK_GITHUB_TOKEN`
-environment variable. In Semaphore, store it as a secret environment variable,
-not in the plain Variables JSON.
+environment variable. Store it as a secret in whatever system runs this
+playbook (e.g. a GitHub Actions secret when using `deploy-shared.yml` below),
+not in plain configuration.
 
 ```bash
 FLIGHTDECK_GITHUB_TOKEN=...
@@ -518,7 +519,7 @@ Secrets take precedence over Variables when both contain the same source key. Ev
 
 ### `deploy-shared.yml`
 
-Runs [`ansible/deploy.yml`](ansible/deploy.yml) from this repository against the caller-supplied inventory. Intended to be called from a private consumer repository that owns the actual deploy secrets (SSH key, `flightdeck_env_ref`, etc.) — this repository does not hold any deploy secrets itself.
+Runs [`ansible/deploy.yml`](ansible/deploy.yml) from this repository against the caller-supplied inventory. Intended to be called from a private consumer repository that owns both the config and secrets side (SSH key, encrypted `.sops.env` releases, etc.) — this repository does not hold any deploy secrets itself. `flightdeck_env_ref` typically references that same calling repository via `${{ github.repository }}`, since it's both the config and secrets source.
 
 Tailscale is optional, not a dependency of this workflow: set `tailscale-oauth-client-id` (and the matching `tailscale-oauth-secret`) to have the runner join a tailnet as an ephemeral node before deploying. Leave both unset to skip that step entirely — e.g. when the job already runs on a self-hosted runner with network access to the inventory hosts, or reaches them some other way.
 
@@ -530,7 +531,7 @@ jobs:
       inventory: 100.64.0.1,100.64.0.2                               # required
       user: root                                                     # default: root
       extra-vars: |
-        {"flightdeck_env_ref":"<owner>/<secrets-repo>@latest:<server>.sops.env",
+        {"flightdeck_env_ref":"${{ github.repository }}@latest:<server>.sops.env",
          "flightdeck_extra_refs":[],
          "flightdeck_path":"~/flightdeck",
          "flightdeck_keep_releases":5,
