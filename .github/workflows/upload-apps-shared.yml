@@ -1,4 +1,4 @@
-name: Upload bundle (shared)
+name: Upload apps (shared)
 on:
   workflow_call:
     inputs:
@@ -22,20 +22,9 @@ jobs:
       - id: bundle
         uses: $/.github/actions/build-bundle
         with:
-          bundle-name: flightdeck.zip
+          bundle-name: apps.zip
           paths: |
             apps
-            ansible.cfg
-            .env.example
-            backup.sh
-            deploy.sh
-            down.sh
-            generate-env.sh
-            lib.sh
-            logs.sh
-            restart.sh
-            up.sh
-            README.md
       - run: gh release upload "${{ inputs.release-tag }}" "${{ steps.bundle.outputs.bundle-path }}" --clobber
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

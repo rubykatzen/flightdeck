@@ -18,6 +18,10 @@ jobs:
         with:
           token: ${{ secrets.RELEASE_TOKEN }}
 
+  # This packages flightdeck's own release bundle (core scripts + apps/ +
+  # README). A consumer repo publishing its own apps/ as an extra bundle for
+  # flightdeck_extra_refs should call upload-apps-shared.yml instead, not
+  # copy this job -- it's pre-configured for that exact use case.
   upload:
     needs: release
     if: needs.release.outputs.release_created == 'true'
@@ -25,17 +29,3 @@ jobs:
     with:
       ref: ${{ needs.release.outputs.tag_name }}
       release-tag: ${{ needs.release.outputs.tag_name }}
-      bundle-name: flightdeck.zip
-      paths: |
-        apps
-        ansible.cfg
-        .env.example
-        backup.sh
-        deploy.sh
-        down.sh
-        generate-env.sh
-        lib.sh
-        logs.sh
-        restart.sh
-        up.sh
-        README.md

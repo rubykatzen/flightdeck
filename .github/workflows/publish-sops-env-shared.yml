@@ -44,7 +44,7 @@ jobs:
               --title "$TAG" \
               --notes "Encrypted env release." \
               --target main
-      - uses: ./.github/actions/publish-sops-env
+      - uses: $/.github/actions/publish-sops-env
         with:
           manifest: ${{ inputs.manifest }}
           release-tag: ${{ steps.tag.outputs.tag }}

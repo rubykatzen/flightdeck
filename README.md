@@ -437,7 +437,7 @@ If you're evaluating alternatives, these projects solve a similar problem from d
 
 ## ⚙️ GitHub Actions
 
-This repository provides two reusable composite actions under `.github/actions/` and three reusable workflows: `deploy-shared.yml`, `publish-sops-env-shared.yml`, and `upload-bundle-shared.yml`.
+This repository provides two reusable composite actions under `.github/actions/` and four reusable workflows: `deploy-shared.yml`, `publish-sops-env-shared.yml`, `upload-bundle-shared.yml`, and `upload-apps-shared.yml`.
 
 ---
 
@@ -569,18 +569,30 @@ jobs:
 
 ### `upload-bundle-shared.yml`
 
-Checks out a ref, builds a zip via the `build-bundle` composite action, and uploads it to an existing GitHub Release. Generic enough for this repository's own `flightdeck.zip` release bundle, or for a consumer repository packaging just its `apps/` directory as an [extra bundle](#ansible-deploy) for `flightdeck_extra_refs`.
+Checks out a ref, builds this repository's own `flightdeck.zip` release bundle (core scripts, `apps/`, README) via the `build-bundle` composite action, and uploads it to an existing GitHub Release. Used by this repository's own [`release.yml`](.github/workflows/release.yml) — the bundle contents are fixed, not configurable, since they describe what "the Flightdeck bundle" is.
 
 ```yaml
 jobs:
   upload:
     uses: rubykatzen/flightdeck/.github/workflows/upload-bundle-shared.yml@v1.2.3
     with:
-      ref: v1.2.3            # required, e.g. the release tag to check out
-      release-tag: v1.2.3    # required, the release to attach the asset to (must already exist)
-      bundle-name: apps.zip  # default: bundle.zip
-      paths: |                # required, newline-separated
-        apps
+      ref: v1.2.3         # required, e.g. the release tag to check out
+      release-tag: v1.2.3 # required, the release to attach the asset to (must already exist)
+```
+
+---
+
+### `upload-apps-shared.yml`
+
+Same shape as `upload-bundle-shared.yml`, but for a consumer repository packaging just its own `apps/` directory as an [extra bundle](#ansible-deploy) for `flightdeck_extra_refs` — bundle contents are fixed to `apps/` only, named `apps.zip`.
+
+```yaml
+jobs:
+  upload:
+    uses: rubykatzen/flightdeck/.github/workflows/upload-apps-shared.yml@v1.2.3
+    with:
+      ref: v1.2.3         # required, e.g. the release tag to check out
+      release-tag: v1.2.3 # required, the release to attach the asset to (must already exist)
 ```
 
 ## 📝 License
