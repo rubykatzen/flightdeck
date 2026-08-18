@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - projects/rubykatzen/rubykatzen-com.yml
+      - targets/hawkeye.yml
       - keys/rubykatzen-com.pub
 jobs:
   publish:
@@ -24,7 +24,7 @@ jobs:
               --target main
       - uses: ./.github/actions/publish-sops-env
         with:
-          manifest: projects/rubykatzen/rubykatzen-com.yml
+          manifest: targets/hawkeye.yml
           token: ${{ secrets.GITHUB_TOKEN }}
         env:
           GITHUB_SECRETS_JSON: ${{ toJson(secrets) }}
