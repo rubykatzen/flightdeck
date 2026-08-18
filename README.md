@@ -173,7 +173,6 @@ flightdeck/
 │   └── deploy.yml      # Deploy published bundle and encrypted env
 ├── .github/
 │   ├── actions/
-│   │   ├── discover-manifest-matrix/  # Build a strategy matrix from files matching a glob
 │   │   └── publish-sops-env/          # Encrypt env manifest and upload to GitHub Release
 │   └── workflows/
 │       └── release.yml             # Release Please + publish Flightdeck release bundle
@@ -437,44 +436,7 @@ If you're evaluating alternatives, these projects solve a similar problem from d
 
 ## ⚙️ GitHub Actions
 
-This repository provides two reusable composite actions under `.github/actions/` and four reusable workflows: `deploy-shared.yml`, `publish-sops-env-shared.yml`, `upload-bundle-shared.yml`, and `upload-apps-shared.yml`.
-
----
-
-### `discover-manifest-matrix`
-
-Builds a GitHub Actions strategy matrix from files matching a glob pattern.
-
-```yaml
-- id: discover
-  uses: rubykatzen/flightdeck/.github/actions/discover-manifest-matrix@main
-  with:
-    pattern: projects/*/*.yml   # required
-```
-
-**Outputs:** `matrix` — JSON object `{"manifest": ["path/a.yml", "path/b.yml", ...]}`.
-
-**Typical use** — feed the output into a matrix job:
-
-```yaml
-jobs:
-  discover:
-    outputs:
-      matrix: ${{ steps.discover.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@v6
-      - id: discover
-        uses: rubykatzen/flightdeck/.github/actions/discover-manifest-matrix@main
-        with:
-          pattern: projects/*/*.yml
-
-  publish:
-    needs: discover
-    strategy:
-      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
-    steps:
-      - run: echo ${{ matrix.manifest }}
-```
+This repository provides one reusable composite action under `.github/actions/` and four reusable workflows: `deploy-shared.yml`, `publish-sops-env-shared.yml`, `upload-bundle-shared.yml`, and `upload-apps-shared.yml`.
 
 ---
 
