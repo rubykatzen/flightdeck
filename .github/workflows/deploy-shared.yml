@@ -53,19 +53,10 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve checkout ref
-        id: ref
-        shell: bash
-        run: |
-          ref="${{ github.workflow_ref }}"
-          ref="${ref#*@}"
-          ref="${ref#refs/tags/}"
-          ref="${ref#refs/heads/}"
-          echo "ref=$ref" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
         with:
-          repository: rubykatzen/flightdeck
-          ref: ${{ steps.ref.outputs.ref }}
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
       - name: Install ansible-core
         shell: bash
         run: pip install --user --break-system-packages ansible-core
@@ -94,19 +85,25 @@ jobs:
           SOPS_KEY_FILE: ${{ inputs.sops-age-key-file }}
           SSH_USER: ${{ inputs.user }}
         run: |
+          if [ "$SSH_USER" = root ]; then
+            home_dir=/root
+          else
+            home_dir="/home/$SSH_USER"
+          fi
+          deploy_path="${DEPLOY_PATH/#\~/$home_dir}"
           sops_key_file="$SOPS_KEY_FILE"
           if [ -z "$sops_key_file" ]; then
-            sops_key_file="/home/$SSH_USER/.config/sops/age/keys.txt"
+            sops_key_file="$home_dir/.config/sops/age/keys.txt"
           fi
           extra_refs_json="[]"
           if [ -n "$EXTRA_REFS" ]; then
-            extra_refs_json="$(printf '%s' "$EXTRA_REFS" | jq -R 'split(",")')"
+            extra_refs_json="$(printf '%s' "$EXTRA_REFS" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))')"
           fi
           json="$(jq -n \
             --arg app_ref "$APP_REF" \
             --arg env_ref "$ENV_REF" \
             --argjson extra_refs "$extra_refs_json" \
-            --arg path "$DEPLOY_PATH" \
+            --arg path "$deploy_path" \
             --argjson keep_releases "$KEEP_RELEASES" \
             --arg sops_key_file "$sops_key_file" \
             '{flightdeck_app_ref: $app_ref, flightdeck_env_ref: $env_ref, flightdeck_extra_refs: $extra_refs, flightdeck_path: $path, flightdeck_keep_releases: $keep_releases, flightdeck_sops_age_key_file: $sops_key_file}')"

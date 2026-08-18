@@ -12,11 +12,10 @@
           - flightdeck_app_ref is defined and flightdeck_app_ref | length > 0
           - flightdeck_env_ref is defined and flightdeck_env_ref | length > 0
           - flightdeck_extra_refs is defined
-          - flightdeck_github_token | length > 0
           - flightdeck_path is defined and flightdeck_path | length > 0
           - flightdeck_keep_releases is defined
           - flightdeck_sops_age_key_file is defined and flightdeck_sops_age_key_file | length > 0
-        fail_msg: "Set flightdeck_app_ref, flightdeck_env_ref, flightdeck_extra_refs, flightdeck_path, flightdeck_keep_releases, flightdeck_sops_age_key_file, and the FLIGHTDECK_GITHUB_TOKEN environment variable"
+        fail_msg: "Set flightdeck_app_ref, flightdeck_env_ref, flightdeck_extra_refs, flightdeck_path, flightdeck_keep_releases, and flightdeck_sops_age_key_file"
     - name: Apply Flightdeck paths
       set_fact:
         flightdeck_release_name: "{{ ansible_facts['date_time'].iso8601_basic_short }}"

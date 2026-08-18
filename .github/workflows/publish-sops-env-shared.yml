@@ -43,6 +43,7 @@ jobs:
             gh release create "$TAG" --repo "${{ github.repository }}" \
               --title "$TAG" \
               --notes "Encrypted env release." \
+              --latest=false \
               --target main
       - uses: $/.github/actions/publish-sops-env
         with:
