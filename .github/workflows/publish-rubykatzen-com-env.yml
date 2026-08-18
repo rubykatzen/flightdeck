@@ -8,24 +8,7 @@ on:
       - keys/hawkeye.pub
 jobs:
   publish:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v7
-      - name: Ensure release exists
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          gh release view hawkeye-config --repo "${{ github.repository }}" >/dev/null 2>&1 || \
-            gh release create hawkeye-config --repo "${{ github.repository }}" \
-              --title "hawkeye config" \
-              --notes "Encrypted env for the hawkeye deploy target." \
-              --target main
-      - uses: ./.github/actions/publish-sops-env
-        with:
-          manifest: targets/hawkeye.yml
-          token: ${{ secrets.GITHUB_TOKEN }}
-        env:
-          GITHUB_SECRETS_JSON: ${{ toJson(secrets) }}
-          GITHUB_VARS_JSON: ${{ toJson(vars) }}
+    uses: rubykatzen/flightdeck/.github/workflows/publish-sops-env-shared.yml@main
+    with:
+      manifest: targets/hawkeye.yml
+    secrets: inherit
