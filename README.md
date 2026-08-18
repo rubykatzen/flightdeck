@@ -173,9 +173,11 @@ flightdeck/
 │   └── deploy.yml      # Deploy published bundle and encrypted env
 ├── .github/
 │   ├── actions/
+│   │   ├── build-bundle/              # Build and upload a release bundle
 │   │   └── publish-sops-env/          # Encrypt env manifest and upload to GitHub Release
 │   └── workflows/
-│       └── release.yml             # Release Please + publish Flightdeck release bundle
+│       ├── deploy-shared.yml           # Reusable deployment workflow
+│       └── release.yml                 # Release Please + publish Flightdeck assets
 │
 ├── .env                          # All server configuration incl. APPS list (git-ignored)
 ├── .env.example                  # Configuration template
@@ -436,22 +438,20 @@ If you're evaluating alternatives, these projects solve a similar problem from d
 
 ## ⚙️ GitHub Actions
 
-This repository provides two composite actions under `.github/actions/` (`publish-sops-env`, documented below, and `build-bundle`, an internal implementation detail of `upload-bundle-shared.yml`/`upload-apps-shared.yml`) and four reusable workflows: `deploy-shared.yml`, `publish-sops-env-shared.yml`, `upload-bundle-shared.yml`, and `upload-apps-shared.yml`.
+This repository provides two composite actions under `.github/actions/` (`build-bundle` and `publish-sops-env`) and one reusable workflow, `deploy-shared.yml`.
 
 ---
 
 ### `publish-sops-env`
 
-Renders an env manifest from GitHub Secrets/Variables, encrypts it with SOPS age recipients, and uploads `.sops.env` as a GitHub Release asset.
-
-The release must already exist before this action runs. Create it in a separate job and pass the tag explicitly.
+Renders an env manifest from GitHub Secrets/Variables, encrypts it with SOPS age recipients, ensures the target release exists, and uploads `.sops.env` as a GitHub Release asset.
 
 ```yaml
 - uses: rubykatzen/flightdeck/.github/actions/publish-sops-env@main
   with:
     manifest: projects/flightdeck/mainframe.yml   # required
     keys-directory: keys                           # default: keys
-    release-tag: latest                            # default: manifest release_tag or repo name
+    release-tag: latest                            # default: manifest release_tag or latest
     release-repo: ""                               # default: current repository
     asset-name: ""                                 # default: manifest release_asset or <stem>.sops.env
     token: ${{ secrets.GITHUB_TOKEN }}             # required
@@ -476,6 +476,27 @@ env:
 ```
 
 Secrets take precedence over Variables when both contain the same source key. Every source key must exist or the action fails.
+
+---
+
+### `build-bundle`
+
+Builds a zip archive from caller-selected paths, rejects runtime state and env files, and uploads it to an existing GitHub Release. Callers choose the archive name and contents, so the same action publishes the core `flightdeck.zip` bundle or a consumer repository's `flightdeck-extra.zip` bundle.
+
+```yaml
+steps:
+  - uses: actions/checkout@v7
+    with:
+      ref: v1.2.3
+  - uses: rubykatzen/flightdeck/.github/actions/build-bundle@v1.2.3
+    with:
+      paths: apps
+      bundle-name: flightdeck-extra.zip
+      release-tag: v1.2.3
+      token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+Requires `contents: write` permission on the calling job. `flightdeck-extra.zip` is the default asset name expected by `flightdeck_extra_refs`; use an explicit `:asset-name` suffix in the ref when publishing a different filename.
 
 ---
 
@@ -508,54 +529,6 @@ jobs:
 ```
 
 The `@v1.2.3` pin on the `uses:` line only controls which ref runs the playbook mechanism itself. `app-ref` is separate and required — it's the release bundle the playbook downloads and deploys, and doesn't have to match the pin (e.g. pin to a stable mechanism version but pass `app-ref: latest` to always deploy the newest release).
-
----
-
-### `publish-sops-env-shared.yml`
-
-Wraps the `publish-sops-env` composite action with the release-existence check it requires: resolves a release tag (explicit `release-tag` input, or read from the manifest's own `release_tag` if omitted), creates that release if it doesn't exist yet, then renders/encrypts/uploads.
-
-```yaml
-jobs:
-  publish:
-    uses: rubykatzen/flightdeck/.github/workflows/publish-sops-env-shared.yml@v1.2.3
-    with:
-      manifest: targets/hawkeye.yml   # required
-      # release-tag: hawkeye-config   # optional, default: the manifest's own release_tag
-    secrets: inherit
-```
-
-`secrets: inherit` is required here, unlike `deploy-shared.yml`'s explicitly-named secrets: the manifest's `env:` section can reference any secret/variable name the caller has, so there's no fixed schema to declare individually — the workflow needs the caller's full secrets/vars context to resolve whatever the manifest asks for.
-
----
-
-### `upload-bundle-shared.yml`
-
-Checks out a ref, builds this repository's own `flightdeck.zip` release bundle (core scripts, `apps/`, README) via the `build-bundle` composite action, and uploads it to an existing GitHub Release. Used by this repository's own [`release.yml`](.github/workflows/release.yml) — the bundle contents are fixed, not configurable, since they describe what "the Flightdeck bundle" is.
-
-```yaml
-jobs:
-  upload:
-    uses: rubykatzen/flightdeck/.github/workflows/upload-bundle-shared.yml@v1.2.3
-    with:
-      ref: v1.2.3         # required, e.g. the release tag to check out
-      release-tag: v1.2.3 # required, the release to attach the asset to (must already exist)
-```
-
----
-
-### `upload-apps-shared.yml`
-
-Same shape as `upload-bundle-shared.yml`, but for a consumer repository packaging just its own `apps/` directory as an [extra bundle](#ansible-deploy) for `flightdeck_extra_refs` — bundle contents are fixed to `apps/` only, named `apps.zip`.
-
-```yaml
-jobs:
-  upload:
-    uses: rubykatzen/flightdeck/.github/workflows/upload-apps-shared.yml@v1.2.3
-    with:
-      ref: v1.2.3         # required, e.g. the release tag to check out
-      release-tag: v1.2.3 # required, the release to attach the asset to (must already exist)
-```
 
 ## 📝 License
 

@@ -1,4 +1,4 @@
-name: Build app bundle
+name: Build and upload bundle
 description: Build a zip bundle from specified paths and upload it as a GitHub Release asset.
 inputs:
   paths:

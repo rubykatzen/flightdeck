@@ -9,7 +9,7 @@ inputs:
     required: false
     default: ""
   release-tag:
-    description: Release tag to publish. Defaults to manifest release_tag or current repository name.
+    description: Release tag to publish. Defaults to manifest release_tag or latest.
     required: false
     default: ""
   asset-name:
@@ -31,7 +31,7 @@ outputs:
     description: Release tag used for publication.
     value: ${{ steps.publish.outputs.tag }}
   ref:
-    description: Short release ref in owner/repo@tag format.
+    description: Release asset ref in owner/repo@tag:asset format.
     value: ${{ steps.publish.outputs.ref }}
 runs:
   using: composite
@@ -58,6 +58,36 @@ runs:
         python3 "$GITHUB_ACTION_PATH/scripts/render-env.py" \
           --manifest "$MANIFEST" \
           --output "$RUNNER_TEMP/publish-sops-env/plain.env"
+    - name: Resolve release target
+      id: target
+      shell: bash
+      env:
+        INPUT_RELEASE_REPO: ${{ inputs.release-repo }}
+        MANIFEST_RELEASE_REPO: ${{ steps.render.outputs.release_repo }}
+        DEFAULT_RELEASE_REPO: ${{ github.repository }}
+        INPUT_RELEASE_TAG: ${{ inputs.release-tag }}
+        MANIFEST_RELEASE_TAG: ${{ steps.render.outputs.release_tag }}
+        INPUT_ASSET_NAME: ${{ inputs.asset-name }}
+        MANIFEST_ASSET_NAME: ${{ steps.render.outputs.release_asset }}
+      run: |
+        release_repo="${INPUT_RELEASE_REPO:-${MANIFEST_RELEASE_REPO:-$DEFAULT_RELEASE_REPO}}"
+        tag="${INPUT_RELEASE_TAG:-${MANIFEST_RELEASE_TAG:-latest}}"
+        asset_name="${INPUT_ASSET_NAME:-$MANIFEST_ASSET_NAME}"
+        echo "release_repo=$release_repo" >> "$GITHUB_OUTPUT"
+        echo "tag=$tag" >> "$GITHUB_OUTPUT"
+        echo "asset_name=$asset_name" >> "$GITHUB_OUTPUT"
+    - name: Ensure release exists
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        RELEASE_REPO: ${{ steps.target.outputs.release_repo }}
+        TAG: ${{ steps.target.outputs.tag }}
+      run: |
+        gh release view "$TAG" --repo "$RELEASE_REPO" >/dev/null 2>&1 || \
+          gh release create "$TAG" --repo "$RELEASE_REPO" \
+            --title "$TAG" \
+            --notes "Encrypted env release." \
+            --latest=false
     - name: Encrypt env
       shell: bash
       env:
@@ -84,41 +114,18 @@ runs:
       id: publish
       shell: bash
       env:
-        INPUT_RELEASE_REPO: ${{ inputs.release-repo }}
-        MANIFEST_RELEASE_REPO: ${{ steps.render.outputs.release_repo }}
-        DEFAULT_RELEASE_REPO: ${{ github.repository }}
-        DEFAULT_RELEASE_TAG: latest
-        INPUT_RELEASE_TAG: ${{ inputs.release-tag }}
-        MANIFEST_RELEASE_TAG: ${{ steps.render.outputs.release_tag }}
-        INPUT_ASSET_NAME: ${{ inputs.asset-name }}
-        MANIFEST_ASSET_NAME: ${{ steps.render.outputs.release_asset }}
+        RELEASE_REPO: ${{ steps.target.outputs.release_repo }}
+        TAG: ${{ steps.target.outputs.tag }}
+        ASSET_NAME: ${{ steps.target.outputs.asset_name }}
         GH_TOKEN: ${{ inputs.token }}
       run: |
         set -euo pipefail
-        release_repo="$INPUT_RELEASE_REPO"
-        if [ -z "$release_repo" ]; then
-          release_repo="$MANIFEST_RELEASE_REPO"
-        fi
-        if [ -z "$release_repo" ]; then
-          release_repo="$DEFAULT_RELEASE_REPO"
-        fi
-        tag="$INPUT_RELEASE_TAG"
-        if [ -z "$tag" ]; then
-          tag="$MANIFEST_RELEASE_TAG"
-        fi
-        if [ -z "$tag" ]; then
-          tag="$DEFAULT_RELEASE_TAG"
-        fi
-        asset_name="$INPUT_ASSET_NAME"
-        if [ -z "$asset_name" ]; then
-          asset_name="$MANIFEST_ASSET_NAME"
-        fi
-        asset_path="$RUNNER_TEMP/publish-sops-env/$asset_name"
+        asset_path="$RUNNER_TEMP/publish-sops-env/$ASSET_NAME"
         cp "$RUNNER_TEMP/publish-sops-env/.sops.env" "$asset_path"
-        gh release upload "$tag" "$asset_path" --repo "$release_repo" --clobber
-        echo "release_repo=$release_repo" >> "$GITHUB_OUTPUT"
-        echo "tag=$tag" >> "$GITHUB_OUTPUT"
-        echo "ref=$release_repo@$tag:$asset_name" >> "$GITHUB_OUTPUT"
+        gh release upload "$TAG" "$asset_path" --repo "$RELEASE_REPO" --clobber
+        echo "release_repo=$RELEASE_REPO" >> "$GITHUB_OUTPUT"
+        echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+        echo "ref=$RELEASE_REPO@$TAG:$ASSET_NAME" >> "$GITHUB_OUTPUT"
     - name: Cleanup
       if: always()
       shell: bash

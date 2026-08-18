@@ -18,22 +18,42 @@ jobs:
         with:
           token: ${{ secrets.RELEASE_TOKEN }}
 
-  # This packages flightdeck's own release bundle (core scripts + apps/ +
-  # README). A consumer repo publishing its own apps/ as an extra bundle for
-  # flightdeck_extra_refs should call upload-apps-shared.yml instead, not
-  # copy this job -- it's pre-configured for that exact use case.
   upload:
     needs: release
     if: needs.release.outputs.release_created == 'true'
-    uses: ./.github/workflows/upload-bundle-shared.yml
-    with:
-      ref: ${{ needs.release.outputs.tag_name }}
-      release-tag: ${{ needs.release.outputs.tag_name }}
-
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release.outputs.tag_name }}
+      - uses: $/.github/actions/build-bundle
+        with:
+          bundle-name: flightdeck.zip
+          release-tag: ${{ needs.release.outputs.tag_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          paths: |
+            apps
+            ansible.cfg
+            .env.example
+            backup.sh
+            deploy.sh
+            down.sh
+            generate-env.sh
+            lib.sh
+            logs.sh
+            restart.sh
+            up.sh
+            README.md
   hawkeye-env:
     needs: release
     if: needs.release.outputs.release_created == 'true'
-    uses: ./.github/workflows/publish-sops-env-shared.yml
-    with:
-      manifest: targets/hawkeye.yml
-    secrets: inherit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: $/.github/actions/publish-sops-env
+        with:
+          manifest: targets/hawkeye.yml
+          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_SECRETS_JSON: ${{ toJson(secrets) }}
+          GITHUB_VARS_JSON: ${{ toJson(vars) }}
