@@ -51,7 +51,7 @@ jobs:
           python-version: "3.x"
       - run: pip install ansible-core
         shell: bash
-      - uses: tailscale/github-action@v3
+      - uses: tailscale/github-action@v4
         if: inputs.tailscale-oauth-client-id != ''
         with:
           oauth-client-id: ${{ inputs.tailscale-oauth-client-id }}
