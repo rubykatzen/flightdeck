@@ -1,8 +1,17 @@
-name: Deploy hawkeye
+name: Deploy
 on:
   workflow_dispatch:
+    inputs:
+      target:
+        description: Deploy target to redeploy. Use "all" to redeploy every target.
+        type: choice
+        options:
+          - all
+          - hawkeye
+        default: all
 jobs:
-  deploy:
+  hawkeye:
+    if: inputs.target == 'all' || inputs.target == 'hawkeye'
     uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@main
     with:
       inventory: "100.75.50.2"
