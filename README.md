@@ -174,11 +174,13 @@ flightdeck/
 ├── .github/
 │   ├── actions/
 │   │   ├── build-bundle/              # Build and upload a release bundle
-│   │   └── publish-sops-env/          # Encrypt env manifest and upload to GitHub Release
+│   │   ├── encrypt-env/                # Encrypt a target env and upload it to a release
+│   │   └── load-targets/               # Validate targets and build workflow matrices
 │   └── workflows/
 │       ├── deploy-shared.yml           # Reusable deployment workflow
 │       └── release.yml                 # Release Please + publish Flightdeck assets
 │
+├── targets/                       # Independent encryption and deployment targets
 ├── .env                          # All server configuration incl. APPS list (git-ignored)
 ├── .env.example                  # Configuration template
 │
@@ -438,22 +440,57 @@ If you're evaluating alternatives, these projects solve a similar problem from d
 
 ## ⚙️ GitHub Actions
 
-This repository provides two composite actions under `.github/actions/` (`build-bundle` and `publish-sops-env`) and one reusable workflow, `deploy-shared.yml`.
+This repository provides three composite actions under `.github/actions/` (`build-bundle`, `encrypt-env`, and `load-targets`) and one reusable workflow, `deploy-shared.yml`.
 
 ---
 
-### `publish-sops-env`
+### Targets
 
-Renders an env manifest from GitHub Secrets/Variables, encrypts it with SOPS age recipients, and uploads `.sops.env` to an existing GitHub Release. Release creation remains the calling workflow's responsibility.
+Each file in `targets/` describes one logical target. Its optional root sections are independent: an encryption-only repository can omit `deploy`, while an inventory-only repository can omit `encrypt`. A target containing both ties the encrypted env asset and deployment inventory together by name.
 
 ```yaml
-- uses: rubykatzen/flightdeck/.github/actions/publish-sops-env@main
+encrypt:
+  asset: mainframe.sops.env
+  keys:
+    - mainframe
+  env:
+    APPS: MAINFRAME_APPS
+    APPS_DOMAIN: MAINFRAME_DOMAIN
+deploy:
+  flightdeck_ref: rubykatzen/flightdeck@latest
+  env_ref: owner/config@latest:mainframe.sops.env
+  extra_refs:
+    - owner/extra-apps@latest
+  host:
+    inventory:
+      - 100.64.0.1
+      - 100.64.0.2
+    user: deploy
+    path: ~/flightdeck
+    sops_age_key_file: ~/.config/sops/age/keys.txt
+  credentials:
+    variables:
+      tailscale_oauth_client_id: TAILSCALE_OAUTH_CLIENT_ID
+    secrets:
+      ssh_private_key: DEPLOY_SSH_PRIVATE_KEY
+      tailscale_oauth_secret: TAILSCALE_OAUTH_SECRET
+```
+
+Credential fields contain GitHub Variable/Secret names, never credential values. `extra_refs` and `host.inventory` are YAML arrays. `load-targets` validates every target and emits an `encrypt` or `deploy` strategy matrix for the repository workflows.
+
+---
+
+### `encrypt-env`
+
+Renders the `encrypt` section of a target from GitHub Secrets/Variables, encrypts it with SOPS age recipients, and uploads `.sops.env` to an existing GitHub Release. Release creation remains the calling workflow's responsibility.
+
+```yaml
+- uses: rubykatzen/flightdeck/.github/actions/encrypt-env@main
   with:
-    manifest: projects/flightdeck/mainframe.yml   # required
+    manifest: targets/mainframe.yml                # required
     keys-directory: keys                           # default: keys
     release-tag: latest                            # required, must already exist
     release-repo: ""                               # default: current repository
-    asset-name: ""                                 # default: manifest release_asset or <stem>.sops.env
     token: ${{ secrets.GITHUB_TOKEN }}             # required
   env:
     GITHUB_SECRETS_JSON: ${{ toJson(secrets) }}
@@ -465,14 +502,13 @@ Requires `contents: write` permission on the calling job.
 **Manifest format:**
 
 ```yaml
-release_asset: flightdeck--mainframe.sops.env
-
-keys:
-  - mainframe
-
-env:
-  APPS_DOMAIN: APPS_DOMAIN         # output name: GitHub Secret/Variable name
-  APPS: APPS_AGATHA
+encrypt:
+  asset: mainframe.sops.env
+  keys:
+    - mainframe
+  env:
+    APPS_DOMAIN: APPS_DOMAIN         # output name: GitHub Secret/Variable name
+    APPS: APPS_MAINFRAME
 ```
 
 Secrets take precedence over Variables when both contain the same source key. Every source key must exist or the action fails.
@@ -513,11 +549,11 @@ jobs:
   deploy:
     uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@v1.2.3
     with:
-      inventory: 100.64.0.1,100.64.0.2                               # required
+      inventory: '["100.64.0.1", "100.64.0.2"]'                    # required JSON array
       user: root                                                     # default: root
-      app-ref: latest                                                # required (e.g. a version tag, or "latest")
+      app-ref: rubykatzen/flightdeck@latest                          # required full release ref
       env-ref: "${{ github.repository }}@latest:<server>.sops.env"   # required
-      # extra-refs: owner/repo@latest      # optional, comma-separated, default: none
+      # extra-refs: '["owner/repo@latest"]' # optional JSON array, default: []
       # path: ~/flightdeck                 # optional, default shown
       # keep-releases: 5                   # optional, default shown
       # sops-age-key-file: /home/deploy/.config/sops/age/keys.txt   # optional, default: ~/.config/sops/age/keys.txt for `user`
@@ -528,7 +564,7 @@ jobs:
       tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}  # optional, required only if tailscale-oauth-client-id is set
 ```
 
-The `@v1.2.3` pin on the `uses:` line only controls which ref runs the playbook mechanism itself. `app-ref` is separate and required — it's the release bundle the playbook downloads and deploys, and doesn't have to match the pin (e.g. pin to a stable mechanism version but pass `app-ref: latest` to always deploy the newest release).
+The `@v1.2.3` pin on the `uses:` line only controls which ref runs the playbook mechanism itself. `app-ref` is separate and required - it is the full release ref for the bundle the playbook downloads and deploys, and does not have to match the workflow pin.
 
 ## 📝 License
 

@@ -3,7 +3,7 @@ on:
   workflow_call:
     inputs:
       inventory:
-        description: Ansible inventory, e.g. a comma-separated Tailscale host list.
+        description: JSON array of inventory hosts.
         type: string
         required: true
       user:
@@ -11,7 +11,7 @@ on:
         type: string
         default: root
       app-ref:
-        description: "Release ref of the Flightdeck bundle to deploy (e.g. a version tag, or 'latest'). Independent of the @tag on the uses: line, which only controls which ref runs the playbook mechanism."
+        description: Full release ref of the Flightdeck bundle to deploy, in owner/repo@tag format.
         type: string
         required: true
       env-ref:
@@ -19,9 +19,9 @@ on:
         type: string
         required: true
       extra-refs:
-        description: Comma-separated release refs for optional extra app bundles.
+        description: JSON array of release refs for optional extra app bundles.
         type: string
-        default: ""
+        default: "[]"
       path:
         description: Base path on the target host for releases, shared files, and the current symlink.
         type: string
@@ -77,9 +77,10 @@ jobs:
         id: vars
         shell: bash
         env:
-          APP_REF: rubykatzen/flightdeck@${{ inputs.app-ref }}
+          APP_REF: ${{ inputs.app-ref }}
           ENV_REF: ${{ inputs.env-ref }}
           EXTRA_REFS: ${{ inputs.extra-refs }}
+          INVENTORY: ${{ inputs.inventory }}
           DEPLOY_PATH: ${{ inputs.path }}
           KEEP_RELEASES: ${{ inputs.keep-releases }}
           SOPS_KEY_FILE: ${{ inputs.sops-age-key-file }}
@@ -94,11 +95,12 @@ jobs:
           sops_key_file="$SOPS_KEY_FILE"
           if [ -z "$sops_key_file" ]; then
             sops_key_file="$home_dir/.config/sops/age/keys.txt"
+          else
+            sops_key_file="${sops_key_file/#\~/$home_dir}"
           fi
-          extra_refs_json="[]"
-          if [ -n "$EXTRA_REFS" ]; then
-            extra_refs_json="$(printf '%s' "$EXTRA_REFS" | jq -R 'split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0))')"
-          fi
+          inventory_json="$(jq -ce 'if type == "array" and length > 0 and all(.[]; type == "string" and length > 0) then . else error("inventory must be a non-empty string array") end' <<< "$INVENTORY")"
+          extra_refs_json="$(jq -ce 'if type == "array" and all(.[]; type == "string" and length > 0) then . else error("extra-refs must be a string array") end' <<< "$EXTRA_REFS")"
+          inventory="$(jq -r 'join(",") + ","' <<< "$inventory_json")"
           json="$(jq -n \
             --arg app_ref "$APP_REF" \
             --arg env_ref "$ENV_REF" \
@@ -108,12 +110,13 @@ jobs:
             --arg sops_key_file "$sops_key_file" \
             '{flightdeck_app_ref: $app_ref, flightdeck_env_ref: $env_ref, flightdeck_extra_refs: $extra_refs, flightdeck_path: $path, flightdeck_keep_releases: $keep_releases, flightdeck_sops_age_key_file: $sops_key_file}')"
           echo "json=$json" >> "$GITHUB_OUTPUT"
+          echo "inventory=$inventory" >> "$GITHUB_OUTPUT"
       - name: Run playbook
         shell: bash
         env:
           ANSIBLE_HOST_KEY_CHECKING: "false"
         run: |
           ansible-playbook ansible/deploy.yml \
-            -i "${{ inputs.inventory }}" \
+            -i "${{ steps.vars.outputs.inventory }}" \
             -u "${{ inputs.user }}" \
             -e "${{ steps.vars.outputs.json }}"

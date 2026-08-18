@@ -28,7 +28,9 @@ class RenderEnvTest(unittest.TestCase):
 
     def test_rejects_raw_env(self):
         with self.assertRaises(render_env.ManifestError):
-            render_env.load_manifest(self.write_manifest("raw_env: [APPS]\nenv:\n  APPS: APPS\n"))
+            render_env.load_manifest(
+                self.write_manifest("encrypt:\n  asset: test.sops.env\n  raw_env: [APPS]\n")
+            )
 
     def test_missing_source_fails(self):
         with self.assertRaises(render_env.ManifestError):
@@ -38,11 +40,12 @@ class RenderEnvTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "manifest.yml"
             path.write_text(
-                "release_repo: example/secrets\n"
-                "keys: [master, server]\n"
-                "env:\n"
-                "  TOKEN: FIRST\n"
-                "  TOKEN: SECOND\n"
+                "encrypt:\n"
+                "  asset: mainframe.sops.env\n"
+                "  keys: [master, server]\n"
+                "  env:\n"
+                "    TOKEN: FIRST\n"
+                "    TOKEN: SECOND\n"
             )
             with self.assertRaises(render_env.ManifestError):
                 render_env.load_manifest(path)
@@ -61,11 +64,11 @@ class RenderEnvTest(unittest.TestCase):
             env_path = root / ".env"
             outputs_path = root / "outputs"
             manifest_path.write_text(
-                "release_repo: example/secrets\n"
-                "release_asset: mainframe.sops.env\n"
-                "keys: [master, server]\n"
-                "env:\n"
-                "  TOKEN: TOKEN\n"
+                "encrypt:\n"
+                "  asset: mainframe.sops.env\n"
+                "  keys: [master, server]\n"
+                "  env:\n"
+                "    TOKEN: TOKEN\n"
             )
             old_env = os.environ.copy()
             os.environ.update(
@@ -82,9 +85,7 @@ class RenderEnvTest(unittest.TestCase):
                 os.environ.update(old_env)
             self.assertEqual(result, 0)
             self.assertIn("TOKEN=secret\n", env_path.read_text())
-            self.assertIn("release_repo=example/secrets\n", outputs_path.read_text())
-            self.assertIn("release_tag=\n", outputs_path.read_text())
-            self.assertIn("release_asset=mainframe.sops.env\n", outputs_path.read_text())
+            self.assertIn("asset=mainframe.sops.env\n", outputs_path.read_text())
             self.assertIn("keys=master,server\n", outputs_path.read_text())
 
 

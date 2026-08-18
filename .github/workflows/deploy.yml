@@ -4,26 +4,45 @@ on:
     inputs:
       target:
         description: Deploy target to redeploy. Use "all" to redeploy every target.
-        type: choice
-        options:
-          - all
-          - hawkeye
+        type: string
         default: all
   workflow_run:
     workflows: [Release]
     types: [completed]
 jobs:
-  hawkeye:
+  targets:
     if: >-
-      (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'hawkeye')) ||
+      github.event_name == 'workflow_dispatch' ||
       (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
-    uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@main
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.targets.outputs.matrix }}
+      count: ${{ steps.targets.outputs.count }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: $/.github/actions/load-targets
+        id: targets
+        with:
+          mode: deploy
+          target: ${{ inputs.target || 'all' }}
+  deploy:
+    needs: targets
+    if: needs.targets.outputs.count != '0'
+    strategy:
+      matrix: ${{ fromJson(needs.targets.outputs.matrix) }}
+    uses: $/.github/workflows/deploy-shared.yml
     with:
-      inventory: "100.75.50.2,"
-      user: rubykatzen-com
-      app-ref: latest
-      env-ref: "${{ github.repository }}@latest:hawkeye.sops.env"
-      tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
+      inventory: ${{ toJson(matrix.inventory) }}
+      user: ${{ matrix.user }}
+      app-ref: ${{ matrix.flightdeck_ref }}
+      env-ref: ${{ matrix.env_ref }}
+      extra-refs: ${{ toJson(matrix.extra_refs) }}
+      path: ${{ matrix.path }}
+      keep-releases: ${{ matrix.keep_releases }}
+      sops-age-key-file: ${{ matrix.sops_age_key_file }}
+      tailscale-oauth-client-id: ${{ vars[matrix.tailscale_oauth_client_id_variable] }}
     secrets:
-      ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-      tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+      ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
+      tailscale-oauth-secret: ${{ secrets[matrix.tailscale_oauth_secret] }}
