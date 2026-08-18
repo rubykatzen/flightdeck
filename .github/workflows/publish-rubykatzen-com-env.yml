@@ -1,0 +1,31 @@
+name: Publish rubykatzen.com env
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - projects/rubykatzen/rubykatzen-com.yml
+      - keys/rubykatzen-com.pub
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Ensure release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view rubykatzen-com-config --repo "${{ github.repository }}" >/dev/null 2>&1 || \
+            gh release create rubykatzen-com-config --repo "${{ github.repository }}" \
+              --title "rubykatzen.com config" \
+              --notes "Encrypted env for the rubykatzen.com self-hosted deployment." \
+              --target main
+      - uses: ./.github/actions/publish-sops-env
+        with:
+          manifest: projects/rubykatzen/rubykatzen-com.yml
+          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_SECRETS_JSON: ${{ toJson(secrets) }}
+          GITHUB_VARS_JSON: ${{ toJson(vars) }}

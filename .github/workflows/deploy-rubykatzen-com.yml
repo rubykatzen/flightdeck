@@ -1,0 +1,19 @@
+name: Deploy rubykatzen.com
+on:
+  workflow_dispatch:
+jobs:
+  deploy:
+    uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@v0.3.0
+    with:
+      inventory: "100.75.50.2"
+      user: rubykatzen-com
+      extra-vars: |
+        {"flightdeck_env_ref":"${{ github.repository }}@rubykatzen-com-config:rubykatzen-com.sops.env",
+         "flightdeck_extra_refs":[],
+         "flightdeck_path":"~/flightdeck",
+         "flightdeck_keep_releases":5,
+         "flightdeck_sops_age_key_file":"/home/rubykatzen-com/.config/sops/age/keys.txt"}
+      tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
+    secrets:
+      ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+      tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
