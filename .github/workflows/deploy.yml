@@ -9,13 +9,19 @@ on:
           - all
           - hawkeye
         default: all
+  workflow_run:
+    workflows: [Release]
+    types: [completed]
 jobs:
   hawkeye:
-    if: inputs.target == 'all' || inputs.target == 'hawkeye'
+    if: >-
+      (github.event_name == 'workflow_dispatch' && (inputs.target == 'all' || inputs.target == 'hawkeye')) ||
+      (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@main
     with:
       inventory: "100.75.50.2"
       user: rubykatzen-com
+      app-ref: latest
       env-ref: "${{ github.repository }}@hawkeye-config:hawkeye.sops.env"
       tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
     secrets:

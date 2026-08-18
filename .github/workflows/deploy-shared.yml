@@ -11,7 +11,7 @@ on:
         type: string
         default: root
       app-ref:
-        description: "Flightdeck ref to deploy. Defaults to the ref this workflow was called at (the @tag on the uses: line)."
+        description: "Release ref of the Flightdeck bundle to deploy (e.g. a version tag, or 'latest'). Defaults to the ref this workflow was called at (the @tag on the uses: line) -- pass 'latest' explicitly to always deploy the newest release regardless of which ref runs the playbook itself."
         type: string
         default: ""
       env-ref:
@@ -53,19 +53,14 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve app ref
+      - name: Resolve checkout ref
         id: ref
         shell: bash
-        env:
-          APP_REF_INPUT: ${{ inputs.app-ref }}
         run: |
-          ref="$APP_REF_INPUT"
-          if [ -z "$ref" ]; then
-            ref="${{ github.workflow_ref }}"
-            ref="${ref#*@}"
-            ref="${ref#refs/tags/}"
-            ref="${ref#refs/heads/}"
-          fi
+          ref="${{ github.workflow_ref }}"
+          ref="${ref#*@}"
+          ref="${ref#refs/tags/}"
+          ref="${ref#refs/heads/}"
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
         with:
@@ -91,7 +86,8 @@ jobs:
         id: vars
         shell: bash
         env:
-          APP_REF: rubykatzen/flightdeck@${{ steps.ref.outputs.ref }}
+          APP_REF_INPUT: ${{ inputs.app-ref }}
+          CHECKOUT_REF: ${{ steps.ref.outputs.ref }}
           ENV_REF: ${{ inputs.env-ref }}
           EXTRA_REFS: ${{ inputs.extra-refs }}
           DEPLOY_PATH: ${{ inputs.path }}
@@ -99,6 +95,11 @@ jobs:
           SOPS_KEY_FILE: ${{ inputs.sops-age-key-file }}
           SSH_USER: ${{ inputs.user }}
         run: |
+          app_ref="$APP_REF_INPUT"
+          if [ -z "$app_ref" ]; then
+            app_ref="$CHECKOUT_REF"
+          fi
+          APP_REF="rubykatzen/flightdeck@$app_ref"
           sops_key_file="$SOPS_KEY_FILE"
           if [ -z "$sops_key_file" ]; then
             sops_key_file="/home/$SSH_USER/.config/sops/age/keys.txt"
