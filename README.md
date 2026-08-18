@@ -532,8 +532,8 @@ jobs:
     with:
       inventory: 100.64.0.1,100.64.0.2                               # required
       user: root                                                     # default: root
+      app-ref: latest                                                # required (e.g. a version tag, or "latest")
       env-ref: "${{ github.repository }}@latest:<server>.sops.env"   # required
-      # app-ref: v1.2.3                    # optional, default: the @tag on the uses: line above
       # extra-refs: owner/repo@latest      # optional, comma-separated, default: none
       # path: ~/flightdeck                 # optional, default shown
       # keep-releases: 5                   # optional, default shown
@@ -545,7 +545,7 @@ jobs:
       tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}  # optional, required only if tailscale-oauth-client-id is set
 ```
 
-The `@v1.2.3` pin on the `uses:` line is the only place the Flightdeck version needs to be written: it's what gets checked out to run `ansible/deploy.yml`, and it's also the default for `app-ref` (the release bundle the playbook downloads and deploys) unless explicitly overridden.
+The `@v1.2.3` pin on the `uses:` line only controls which ref runs the playbook mechanism itself. `app-ref` is separate and required — it's the release bundle the playbook downloads and deploys, and doesn't have to match the pin (e.g. pin to a stable mechanism version but pass `app-ref: latest` to always deploy the newest release).
 
 `extra-vars` is a JSON object passed through as `ansible-playbook -e` — see [Ansible Deploy](#ansible-deploy) above for what each `flightdeck_*` key means.
 
