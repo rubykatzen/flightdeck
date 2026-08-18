@@ -3,16 +3,11 @@ on:
   workflow_dispatch:
 jobs:
   deploy:
-    uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@v0.3.0
+    uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@main
     with:
       inventory: "100.75.50.2"
       user: rubykatzen-com
-      extra-vars: |
-        {"flightdeck_env_ref":"${{ github.repository }}@hawkeye-config:hawkeye.sops.env",
-         "flightdeck_extra_refs":[],
-         "flightdeck_path":"~/flightdeck",
-         "flightdeck_keep_releases":5,
-         "flightdeck_sops_age_key_file":"/home/rubykatzen-com/.config/sops/age/keys.txt"}
+      env-ref: "${{ github.repository }}@hawkeye-config:hawkeye.sops.env"
       tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
     secrets:
       ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}

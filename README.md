@@ -519,7 +519,9 @@ Secrets take precedence over Variables when both contain the same source key. Ev
 
 ### `deploy-shared.yml`
 
-Runs [`ansible/deploy.yml`](ansible/deploy.yml) from this repository against the caller-supplied inventory. Intended to be called from a private consumer repository that owns both the config and secrets side (SSH key, encrypted `.sops.env` releases, etc.) — this repository does not hold any deploy secrets itself. `flightdeck_env_ref` typically references that same calling repository via `${{ github.repository }}`, since it's both the config and secrets source.
+Runs [`ansible/deploy.yml`](ansible/deploy.yml) from this repository against the caller-supplied inventory. Intended to be called from a private consumer repository that owns both the config and secrets side (SSH key, encrypted `.sops.env` releases, etc.) — this repository does not hold any deploy secrets itself. `env-ref` typically references that same calling repository via `${{ github.repository }}`, since it's both the config and secrets source.
+
+The interface is plain deploy vocabulary, not Ansible's — callers never see `flightdeck_*` variable names or hand-write `-e` JSON; the workflow builds that internally.
 
 Tailscale is optional, not a dependency of this workflow: set `tailscale-oauth-client-id` (and the matching `tailscale-oauth-secret`) to have the runner join a tailnet as an ephemeral node before deploying. Leave both unset to skip that step entirely — e.g. when the job already runs on a self-hosted runner with network access to the inventory hosts, or reaches them some other way.
 
@@ -530,12 +532,12 @@ jobs:
     with:
       inventory: 100.64.0.1,100.64.0.2                               # required
       user: root                                                     # default: root
-      extra-vars: |
-        {"flightdeck_env_ref":"${{ github.repository }}@latest:<server>.sops.env",
-         "flightdeck_extra_refs":[],
-         "flightdeck_path":"~/flightdeck",
-         "flightdeck_keep_releases":5,
-         "flightdeck_sops_age_key_file":"/home/deploy/.config/sops/age/keys.txt"}
+      env-ref: "${{ github.repository }}@latest:<server>.sops.env"   # required
+      # app-ref: v1.2.3                    # optional, default: the @tag on the uses: line above
+      # extra-refs: owner/repo@latest      # optional, comma-separated, default: none
+      # path: ~/flightdeck                 # optional, default shown
+      # keep-releases: 5                   # optional, default shown
+      # sops-age-key-file: /home/deploy/.config/sops/age/keys.txt   # optional, default: ~/.config/sops/age/keys.txt for `user`
       tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}  # optional, default: unset (skip joining a tailnet)
       tailscale-tags: tag:ci                                         # default: tag:ci
     secrets:
@@ -543,7 +545,7 @@ jobs:
       tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}  # optional, required only if tailscale-oauth-client-id is set
 ```
 
-The `@v1.2.3` pin on the `uses:` line is the only place the Flightdeck version needs to be written: it's what gets checked out to run `ansible/deploy.yml`, and it's also the default for `flightdeck_app_ref` (the release bundle the playbook downloads and deploys) unless `extra-vars` explicitly overrides it.
+The `@v1.2.3` pin on the `uses:` line is the only place the Flightdeck version needs to be written: it's what gets checked out to run `ansible/deploy.yml`, and it's also the default for `app-ref` (the release bundle the playbook downloads and deploys) unless explicitly overridden.
 
 `extra-vars` is a JSON object passed through as `ansible-playbook -e` — see [Ansible Deploy](#ansible-deploy) above for what each `flightdeck_*` key means.
 

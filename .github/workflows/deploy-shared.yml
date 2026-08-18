@@ -10,10 +10,30 @@ on:
         description: SSH user for the Ansible connection.
         type: string
         default: root
-      extra-vars:
-        description: "JSON object passed to ansible-playbook as -e (flightdeck_env_ref, flightdeck_path, etc). flightdeck_app_ref defaults to the ref this workflow was called at (the @tag on the uses: line) and only needs to be set here to override that."
+      app-ref:
+        description: "Flightdeck ref to deploy. Defaults to the ref this workflow was called at (the @tag on the uses: line)."
+        type: string
+        default: ""
+      env-ref:
+        description: Release ref for the encrypted env package, in owner/repo@tag:asset format.
         type: string
         required: true
+      extra-refs:
+        description: Comma-separated release refs for optional extra app bundles.
+        type: string
+        default: ""
+      path:
+        description: Base path on the target host for releases, shared files, and the current symlink.
+        type: string
+        default: "~/flightdeck"
+      keep-releases:
+        description: Number of past releases to keep on the target host.
+        type: number
+        default: 5
+      sops-age-key-file:
+        description: Path to the server-local SOPS age key file. Defaults to ~/.config/sops/age/keys.txt for the connecting user.
+        type: string
+        default: ""
       tailscale-oauth-client-id:
         description: Tailscale OAuth client ID used to join the tailnet. Leave unset to skip joining a tailnet (e.g. when the runner already has network access to the inventory hosts).
         type: string
@@ -33,14 +53,19 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve flightdeck ref
+      - name: Resolve app ref
         id: ref
         shell: bash
+        env:
+          APP_REF_INPUT: ${{ inputs.app-ref }}
         run: |
-          ref="${{ github.workflow_ref }}"
-          ref="${ref#*@}"
-          ref="${ref#refs/tags/}"
-          ref="${ref#refs/heads/}"
+          ref="$APP_REF_INPUT"
+          if [ -z "$ref" ]; then
+            ref="${{ github.workflow_ref }}"
+            ref="${ref#*@}"
+            ref="${ref#refs/tags/}"
+            ref="${ref#refs/heads/}"
+          fi
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
         with:
@@ -62,6 +87,35 @@ jobs:
           echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
           ssh-add - <<< "${{ secrets.ssh-private-key }}"
+      - name: Build extra-vars
+        id: vars
+        shell: bash
+        env:
+          APP_REF: rubykatzen/flightdeck@${{ steps.ref.outputs.ref }}
+          ENV_REF: ${{ inputs.env-ref }}
+          EXTRA_REFS: ${{ inputs.extra-refs }}
+          DEPLOY_PATH: ${{ inputs.path }}
+          KEEP_RELEASES: ${{ inputs.keep-releases }}
+          SOPS_KEY_FILE: ${{ inputs.sops-age-key-file }}
+          SSH_USER: ${{ inputs.user }}
+        run: |
+          sops_key_file="$SOPS_KEY_FILE"
+          if [ -z "$sops_key_file" ]; then
+            sops_key_file="/home/$SSH_USER/.config/sops/age/keys.txt"
+          fi
+          extra_refs_json="[]"
+          if [ -n "$EXTRA_REFS" ]; then
+            extra_refs_json="$(printf '%s' "$EXTRA_REFS" | jq -R 'split(",")')"
+          fi
+          json="$(jq -n \
+            --arg app_ref "$APP_REF" \
+            --arg env_ref "$ENV_REF" \
+            --argjson extra_refs "$extra_refs_json" \
+            --arg path "$DEPLOY_PATH" \
+            --argjson keep_releases "$KEEP_RELEASES" \
+            --arg sops_key_file "$sops_key_file" \
+            '{flightdeck_app_ref: $app_ref, flightdeck_env_ref: $env_ref, flightdeck_extra_refs: $extra_refs, flightdeck_path: $path, flightdeck_keep_releases: $keep_releases, flightdeck_sops_age_key_file: $sops_key_file}')"
+          echo "json=$json" >> "$GITHUB_OUTPUT"
       - name: Run playbook
         shell: bash
         env:
@@ -70,5 +124,4 @@ jobs:
           ansible-playbook ansible/deploy.yml \
             -i "${{ inputs.inventory }}" \
             -u "${{ inputs.user }}" \
-            -e "{\"flightdeck_app_ref\":\"rubykatzen/flightdeck@${{ steps.ref.outputs.ref }}\"}" \
-            -e "${{ inputs.extra-vars }}"
+            -e "${{ steps.vars.outputs.json }}"
