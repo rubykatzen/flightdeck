@@ -29,3 +29,11 @@ jobs:
     with:
       ref: ${{ needs.release.outputs.tag_name }}
       release-tag: ${{ needs.release.outputs.tag_name }}
+
+  hawkeye-env:
+    needs: release
+    if: needs.release.outputs.release_created == 'true'
+    uses: ./.github/workflows/publish-sops-env-shared.yml
+    with:
+      manifest: targets/hawkeye.yml
+    secrets: inherit
