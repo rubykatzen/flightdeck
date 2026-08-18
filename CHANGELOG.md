@@ -12,8 +12,6 @@
 
 * normalize CHANGELOG.md bullets to asterisks for pymarkdown MD004 ([#93](https://github.com/rubykatzen/flightdeck/issues/93)) ([46f9807](https://github.com/rubykatzen/flightdeck/commit/46f9807c0037b4180fb607df0775a12494f3f076))
 
-## [Unreleased]
-
 ## [v0.2.3] - 2026-07-31
 
 * fix: mount postgres-18 volume at /var/lib/postgresql (#78)
