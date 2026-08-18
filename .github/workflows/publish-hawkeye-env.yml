@@ -1,4 +1,4 @@
-name: Publish rubykatzen.com env
+name: Publish hawkeye env
 on:
   workflow_dispatch:
   push:
