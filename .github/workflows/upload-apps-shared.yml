@@ -19,12 +19,10 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ inputs.ref }}
-      - id: bundle
-        uses: $/.github/actions/build-bundle
+      - uses: $/.github/actions/build-bundle
         with:
           bundle-name: apps.zip
+          release-tag: ${{ inputs.release-tag }}
+          token: ${{ secrets.GITHUB_TOKEN }}
           paths: |
             apps
-      - run: gh release upload "${{ inputs.release-tag }}" "${{ steps.bundle.outputs.bundle-path }}" --clobber
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

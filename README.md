@@ -436,7 +436,7 @@ If you're evaluating alternatives, these projects solve a similar problem from d
 
 ## ⚙️ GitHub Actions
 
-This repository provides one reusable composite action under `.github/actions/` and four reusable workflows: `deploy-shared.yml`, `publish-sops-env-shared.yml`, `upload-bundle-shared.yml`, and `upload-apps-shared.yml`.
+This repository provides two composite actions under `.github/actions/` (`publish-sops-env`, documented below, and `build-bundle`, an internal implementation detail of `upload-bundle-shared.yml`/`upload-apps-shared.yml`) and four reusable workflows: `deploy-shared.yml`, `publish-sops-env-shared.yml`, `upload-bundle-shared.yml`, and `upload-apps-shared.yml`.
 
 ---
 
