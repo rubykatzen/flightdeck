@@ -444,14 +444,14 @@ This repository provides two composite actions under `.github/actions/` (`build-
 
 ### `publish-sops-env`
 
-Renders an env manifest from GitHub Secrets/Variables, encrypts it with SOPS age recipients, ensures the target release exists, and uploads `.sops.env` as a GitHub Release asset.
+Renders an env manifest from GitHub Secrets/Variables, encrypts it with SOPS age recipients, and uploads `.sops.env` to an existing GitHub Release. Release creation remains the calling workflow's responsibility.
 
 ```yaml
 - uses: rubykatzen/flightdeck/.github/actions/publish-sops-env@main
   with:
     manifest: projects/flightdeck/mainframe.yml   # required
     keys-directory: keys                           # default: keys
-    release-tag: latest                            # default: manifest release_tag or latest
+    release-tag: latest                            # required, must already exist
     release-repo: ""                               # default: current repository
     asset-name: ""                                 # default: manifest release_asset or <stem>.sops.env
     token: ${{ secrets.GITHUB_TOKEN }}             # required

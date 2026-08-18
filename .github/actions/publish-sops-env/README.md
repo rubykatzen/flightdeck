@@ -1,6 +1,8 @@
 # publish-sops-env
 
-Composite GitHub Action that renders an env manifest from GitHub Secrets/Variables, encrypts it for named age recipients, ensures the target release exists, and uploads `.sops.env` as a GitHub Release asset.
+Composite GitHub Action that renders an env manifest from GitHub Secrets/Variables, encrypts it for named age recipients, and uploads `.sops.env` to an existing GitHub Release.
+
+The release must exist before this action runs.
 
 ## Usage
 
@@ -9,7 +11,7 @@ Composite GitHub Action that renders an env manifest from GitHub Secrets/Variabl
   with:
     manifest: projects/flightdeck/mainframe.yml   # required
     keys-directory: keys                           # default: keys
-    release-tag: ${{ needs.release.outputs.tag }}  # default: manifest release_tag or latest
+    release-tag: ${{ needs.release.outputs.tag }}  # required, must already exist
     release-repo: ""                               # default: current repository
     asset-name: ""                                 # default: manifest release_asset or <stem>.sops.env
     token: ${{ secrets.GITHUB_TOKEN }}             # required

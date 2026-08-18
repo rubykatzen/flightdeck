@@ -9,9 +9,8 @@ inputs:
     required: false
     default: ""
   release-tag:
-    description: Release tag to publish. Defaults to manifest release_tag or latest.
-    required: false
-    default: ""
+    description: Existing release tag to publish the asset to.
+    required: true
   asset-name:
     description: Release asset name. Defaults to manifest release_asset or <manifest-stem>.sops.env.
     required: false
@@ -65,29 +64,13 @@ runs:
         INPUT_RELEASE_REPO: ${{ inputs.release-repo }}
         MANIFEST_RELEASE_REPO: ${{ steps.render.outputs.release_repo }}
         DEFAULT_RELEASE_REPO: ${{ github.repository }}
-        INPUT_RELEASE_TAG: ${{ inputs.release-tag }}
-        MANIFEST_RELEASE_TAG: ${{ steps.render.outputs.release_tag }}
         INPUT_ASSET_NAME: ${{ inputs.asset-name }}
         MANIFEST_ASSET_NAME: ${{ steps.render.outputs.release_asset }}
       run: |
         release_repo="${INPUT_RELEASE_REPO:-${MANIFEST_RELEASE_REPO:-$DEFAULT_RELEASE_REPO}}"
-        tag="${INPUT_RELEASE_TAG:-${MANIFEST_RELEASE_TAG:-latest}}"
         asset_name="${INPUT_ASSET_NAME:-$MANIFEST_ASSET_NAME}"
         echo "release_repo=$release_repo" >> "$GITHUB_OUTPUT"
-        echo "tag=$tag" >> "$GITHUB_OUTPUT"
         echo "asset_name=$asset_name" >> "$GITHUB_OUTPUT"
-    - name: Ensure release exists
-      shell: bash
-      env:
-        GH_TOKEN: ${{ inputs.token }}
-        RELEASE_REPO: ${{ steps.target.outputs.release_repo }}
-        TAG: ${{ steps.target.outputs.tag }}
-      run: |
-        gh release view "$TAG" --repo "$RELEASE_REPO" >/dev/null 2>&1 || \
-          gh release create "$TAG" --repo "$RELEASE_REPO" \
-            --title "$TAG" \
-            --notes "Encrypted env release." \
-            --latest=false
     - name: Encrypt env
       shell: bash
       env:
@@ -115,7 +98,7 @@ runs:
       shell: bash
       env:
         RELEASE_REPO: ${{ steps.target.outputs.release_repo }}
-        TAG: ${{ steps.target.outputs.tag }}
+        TAG: ${{ inputs.release-tag }}
         ASSET_NAME: ${{ steps.target.outputs.asset_name }}
         GH_TOKEN: ${{ inputs.token }}
       run: |

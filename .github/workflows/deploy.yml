@@ -22,7 +22,7 @@ jobs:
       inventory: "100.75.50.2,"
       user: rubykatzen-com
       app-ref: latest
-      env-ref: "${{ github.repository }}@hawkeye-config:hawkeye.sops.env"
+      env-ref: "${{ github.repository }}@latest:hawkeye.sops.env"
       tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
     secrets:
       ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}

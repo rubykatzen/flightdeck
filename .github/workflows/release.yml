@@ -53,6 +53,7 @@ jobs:
       - uses: $/.github/actions/publish-sops-env
         with:
           manifest: targets/hawkeye.yml
+          release-tag: ${{ needs.release.outputs.tag_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
         env:
           GITHUB_SECRETS_JSON: ${{ toJson(secrets) }}

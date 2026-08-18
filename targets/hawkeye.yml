@@ -1,4 +1,3 @@
-release_tag: hawkeye-config
 release_asset: hawkeye.sops.env
 
 keys:

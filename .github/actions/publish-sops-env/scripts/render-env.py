@@ -13,7 +13,6 @@ ENV_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 SOURCE_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*(?:__[A-Z0-9_]+)*$")
 KEY_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 RELEASE_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-RELEASE_TAG_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 RELEASE_ASSET_RE = re.compile(r"^[A-Za-z0-9_.-]+\.sops\.env$")
 
 
@@ -61,8 +60,9 @@ def load_manifest(path):
         raise ManifestError(f"{path} must contain a YAML mapping")
     if "package" in manifest:
         raise ManifestError("package has been replaced by release-repo/release-tag GitHub Releases configuration")
+    if "release_tag" in manifest:
+        raise ManifestError("release_tag must be passed to the action, not stored in the manifest")
     release_repo = manifest.get("release_repo")
-    release_tag = manifest.get("release_tag")
     release_asset = manifest.get("release_asset", f"{path.stem}.sops.env")
     keys = manifest.get("keys")
     env = manifest.get("env")
@@ -72,10 +72,6 @@ def load_manifest(path):
         not isinstance(release_repo, str) or not RELEASE_REPO_RE.fullmatch(release_repo)
     ):
         raise ManifestError("release_repo must be in owner/repo format")
-    if release_tag is not None and (
-        not isinstance(release_tag, str) or not RELEASE_TAG_RE.fullmatch(release_tag)
-    ):
-        raise ManifestError("release_tag must contain only letters, numbers, dots, underscores, or hyphens")
     if not isinstance(release_asset, str) or not RELEASE_ASSET_RE.fullmatch(release_asset):
         raise ManifestError("release_asset must be named like server.sops.env")
     if not isinstance(keys, list) or not keys:
@@ -149,7 +145,6 @@ def main(argv=None):
         write_github_outputs(
             {
                 "release_repo": manifest.get("release_repo", ""),
-                "release_tag": manifest.get("release_tag", ""),
                 "release_asset": manifest.get("release_asset", f"{args.manifest.stem}.sops.env"),
                 "keys": ",".join(manifest["keys"]),
             }
