@@ -176,7 +176,7 @@ flightdeck/
 │   │   ├── discover-manifest-matrix/  # Build a strategy matrix from files matching a glob
 │   │   └── publish-sops-env/          # Encrypt env manifest and upload to GitHub Release
 │   └── workflows/
-│       └── release-please.yml      # Release Please + publish Flightdeck release bundle
+│       └── release.yml             # Release Please + publish Flightdeck release bundle
 │
 ├── .env                          # All server configuration incl. APPS list (git-ignored)
 ├── .env.example                  # Configuration template
@@ -437,7 +437,7 @@ If you're evaluating alternatives, these projects solve a similar problem from d
 
 ## ⚙️ GitHub Actions
 
-This repository provides two reusable composite actions under `.github/actions/` and one reusable workflow, `deploy-shared.yml`.
+This repository provides two reusable composite actions under `.github/actions/` and three reusable workflows: `deploy-shared.yml`, `publish-sops-env-shared.yml`, and `upload-bundle-shared.yml`.
 
 ---
 
@@ -547,7 +547,41 @@ jobs:
 
 The `@v1.2.3` pin on the `uses:` line only controls which ref runs the playbook mechanism itself. `app-ref` is separate and required — it's the release bundle the playbook downloads and deploys, and doesn't have to match the pin (e.g. pin to a stable mechanism version but pass `app-ref: latest` to always deploy the newest release).
 
-`extra-vars` is a JSON object passed through as `ansible-playbook -e` — see [Ansible Deploy](#ansible-deploy) above for what each `flightdeck_*` key means.
+---
+
+### `publish-sops-env-shared.yml`
+
+Wraps the `publish-sops-env` composite action with the release-existence check it requires: resolves a release tag (explicit `release-tag` input, or read from the manifest's own `release_tag` if omitted), creates that release if it doesn't exist yet, then renders/encrypts/uploads.
+
+```yaml
+jobs:
+  publish:
+    uses: rubykatzen/flightdeck/.github/workflows/publish-sops-env-shared.yml@v1.2.3
+    with:
+      manifest: targets/hawkeye.yml   # required
+      # release-tag: hawkeye-config   # optional, default: the manifest's own release_tag
+    secrets: inherit
+```
+
+`secrets: inherit` is required here, unlike `deploy-shared.yml`'s explicitly-named secrets: the manifest's `env:` section can reference any secret/variable name the caller has, so there's no fixed schema to declare individually — the workflow needs the caller's full secrets/vars context to resolve whatever the manifest asks for.
+
+---
+
+### `upload-bundle-shared.yml`
+
+Checks out a ref, builds a zip via the `build-bundle` composite action, and uploads it to an existing GitHub Release. Generic enough for this repository's own `flightdeck.zip` release bundle, or for a consumer repository packaging just its `apps/` directory as an [extra bundle](#ansible-deploy) for `flightdeck_extra_refs`.
+
+```yaml
+jobs:
+  upload:
+    uses: rubykatzen/flightdeck/.github/workflows/upload-bundle-shared.yml@v1.2.3
+    with:
+      ref: v1.2.3            # required, e.g. the release tag to check out
+      release-tag: v1.2.3    # required, the release to attach the asset to (must already exist)
+      bundle-name: apps.zip  # default: bundle.zip
+      paths: |                # required, newline-separated
+        apps
+```
 
 ## 📝 License
 

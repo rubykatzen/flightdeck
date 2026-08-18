@@ -21,30 +21,21 @@ jobs:
   upload:
     needs: release
     if: needs.release.outputs.release_created == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.release.outputs.tag_name }}
-      - id: bundle
-        uses: ./.github/actions/build-bundle
-        with:
-          bundle-name: flightdeck.zip
-          paths: |
-            apps
-            ansible.cfg
-            .env.example
-            backup.sh
-            deploy.sh
-            down.sh
-            generate-env.sh
-            lib.sh
-            logs.sh
-            restart.sh
-            up.sh
-            README.md
-      - run: gh release upload "${{ needs.release.outputs.tag_name }}" "${{ steps.bundle.outputs.bundle-path }}"
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    uses: ./.github/workflows/upload-bundle-shared.yml
+    with:
+      ref: ${{ needs.release.outputs.tag_name }}
+      release-tag: ${{ needs.release.outputs.tag_name }}
+      bundle-name: flightdeck.zip
+      paths: |
+        apps
+        ansible.cfg
+        .env.example
+        backup.sh
+        deploy.sh
+        down.sh
+        generate-env.sh
+        lib.sh
+        logs.sh
+        restart.sh
+        up.sh
+        README.md

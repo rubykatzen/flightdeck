@@ -1,0 +1,37 @@
+name: Upload bundle (shared)
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: Git ref to check out before building the bundle (e.g. a release tag).
+        type: string
+        required: true
+      release-tag:
+        description: Release tag to upload the bundle asset to.
+        type: string
+        required: true
+      bundle-name:
+        description: Bundle archive filename.
+        type: string
+        default: bundle.zip
+      paths:
+        description: Newline-separated paths to include in the bundle.
+        type: string
+        required: true
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref }}
+      - id: bundle
+        uses: ./.github/actions/build-bundle
+        with:
+          bundle-name: ${{ inputs.bundle-name }}
+          paths: ${{ inputs.paths }}
+      - run: gh release upload "${{ inputs.release-tag }}" "${{ steps.bundle.outputs.bundle-path }}" --clobber
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
