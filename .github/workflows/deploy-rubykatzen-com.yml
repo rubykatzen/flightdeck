@@ -8,7 +8,7 @@ jobs:
       inventory: "100.75.50.2"
       user: rubykatzen-com
       extra-vars: |
-        {"flightdeck_env_ref":"${{ github.repository }}@rubykatzen-com-config:rubykatzen-com.sops.env",
+        {"flightdeck_env_ref":"${{ github.repository }}@hawkeye-config:hawkeye.sops.env",
          "flightdeck_extra_refs":[],
          "flightdeck_path":"~/flightdeck",
          "flightdeck_keep_releases":5,

@@ -1,8 +1,8 @@
-release_tag: rubykatzen-com-config
-release_asset: rubykatzen-com.sops.env
+release_tag: hawkeye-config
+release_asset: hawkeye.sops.env
 
 keys:
-  - rubykatzen-com
+  - hawkeye
 
 env:
   APPS: RUBYKATZEN_COM_APPS
