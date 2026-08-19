@@ -12,6 +12,7 @@ TARGET_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 ENV_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 SOURCE_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*(?:__[A-Z0-9_]+)*$")
 KEY_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+APP_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 RELEASE_REF_RE = re.compile(
     r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+(?::[A-Za-z0-9_.-]+)?$"
 )
@@ -66,7 +67,7 @@ def require_string(mapping, key, location, default=None):
 
 def validate_encrypt(value, location):
     encrypt = require_mapping(value, location)
-    reject_unknown(encrypt, {"asset", "keys", "env"}, location)
+    reject_unknown(encrypt, {"asset", "keys", "apps", "env"}, location)
     asset = require_string(encrypt, "asset", location)
     if not ASSET_RE.fullmatch(asset):
         raise TargetError(f"{location}.asset must be named like server.sops.env")
@@ -75,6 +76,13 @@ def validate_encrypt(value, location):
         raise TargetError(f"{location}.keys must be a non-empty array")
     if any(not isinstance(key, str) or not KEY_NAME_RE.fullmatch(key) for key in keys):
         raise TargetError(f"{location}.keys contains an invalid age key name")
+    apps = encrypt.get("apps")
+    if not isinstance(apps, list) or not apps:
+        raise TargetError(f"{location}.apps must be a non-empty array")
+    if any(not isinstance(app, str) or not APP_NAME_RE.fullmatch(app) for app in apps):
+        raise TargetError(f"{location}.apps contains an invalid app name")
+    if len(apps) != len(set(apps)):
+        raise TargetError(f"{location}.apps contains duplicate app names")
     env = require_mapping(encrypt.get("env"), f"{location}.env")
     if not env:
         raise TargetError(f"{location}.env must not be empty")
@@ -83,6 +91,8 @@ def validate_encrypt(value, location):
             raise TargetError(f"{location}.env contains an invalid output name: {output_name!r}")
         if not isinstance(source_name, str) or not SOURCE_NAME_RE.fullmatch(source_name):
             raise TargetError(f"{location}.env.{output_name} has an invalid source name")
+    if "APPS" in env:
+        raise TargetError(f"{location}.env.APPS must be configured through {location}.apps")
     return {"asset": asset}
 
 

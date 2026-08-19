@@ -33,10 +33,12 @@ encrypt:
   asset: mainframe.sops.env
   keys:
     - mainframe
+  apps:
+    - traefik
+    - rybbit
   env:
     APPS_DOMAIN: APPS_DOMAIN         # output name: GitHub Secret/Variable name
     APPS_TIMEZONE: APPS_TIMEZONE
-    APPS: APPS_MAINFRAME
 ```
 
-For each name in `encrypt.keys`, the action loads `<keys-directory>/<name>.pub`. Secrets take precedence over Variables when both contain the same source key. Every source key must resolve or the action fails.
+The action renders `encrypt.apps` as the comma-separated `APPS` dotenv value. For each name in `encrypt.keys`, it loads `<keys-directory>/<name>.pub`. Secrets take precedence over Variables when both contain the same source key. Every source key must resolve or the action fails.

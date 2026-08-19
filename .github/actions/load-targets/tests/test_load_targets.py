@@ -13,8 +13,9 @@ TARGET = """\
 encrypt:
   asset: hawkeye.sops.env
   keys: [hawkeye]
+  apps: [traefik, rybbit]
   env:
-    APPS: RUBYKATZEN_COM_APPS
+    APPS_DOMAIN: RUBYKATZEN_COM_DOMAIN
 deploy:
   flightdeck_ref: rubykatzen/flightdeck@v1.2.3
   env_ref: rubykatzen/config@v2.0.0:hawkeye.sops.env
@@ -62,7 +63,7 @@ class LoadTargetsTest(unittest.TestCase):
         self.assertEqual(item["flightdeck_ref"], "rubykatzen/flightdeck@v1.2.3")
         self.assertEqual(item["extra_refs"], ["rubykatzen/apps@v3.0.0:flightdeck-extra.zip"])
         self.assertEqual(item["ssh_private_key_secret"], "DEPLOY_SSH_PRIVATE_KEY")
-        self.assertNotIn("RUBYKATZEN_COM_APPS", item)
+        self.assertNotIn("apps", item)
 
     def test_filters_selected_target(self):
         (self.directory / "other.yml").write_text(TARGET.replace("hawkeye.sops.env", "other.sops.env"))
@@ -83,6 +84,18 @@ class LoadTargetsTest(unittest.TestCase):
         path.write_text(TARGET.replace("inventory: [100.75.50.2]", 'inventory: "100.75.50.2,"'))
         with self.assertRaisesRegex(load_targets.TargetError, "inventory must be a non-empty array"):
             load_targets.build_matrix(self.directory, "deploy")
+
+    def test_rejects_apps_in_env(self):
+        path = self.directory / "hawkeye.yml"
+        path.write_text(TARGET.replace("    APPS_DOMAIN:", "    APPS: RUBYKATZEN_COM_APPS\n    APPS_DOMAIN:"))
+        with self.assertRaisesRegex(load_targets.TargetError, "must be configured through"):
+            load_targets.build_matrix(self.directory, "encrypt")
+
+    def test_rejects_duplicate_apps(self):
+        path = self.directory / "hawkeye.yml"
+        path.write_text(TARGET.replace("apps: [traefik, rybbit]", "apps: [traefik, rybbit, traefik]"))
+        with self.assertRaisesRegex(load_targets.TargetError, "duplicate app names"):
+            load_targets.build_matrix(self.directory, "encrypt")
 
     def test_rejects_duplicate_keys(self):
         path = self.directory / "hawkeye.yml"

@@ -453,8 +453,10 @@ encrypt:
   asset: mainframe.sops.env
   keys:
     - mainframe
+  apps:
+    - traefik
+    - rybbit
   env:
-    APPS: MAINFRAME_APPS
     APPS_DOMAIN: MAINFRAME_DOMAIN
 deploy:
   flightdeck_ref: rubykatzen/flightdeck@latest
@@ -476,7 +478,7 @@ deploy:
       tailscale_oauth_secret: TAILSCALE_OAUTH_SECRET
 ```
 
-Credential fields contain GitHub Variable/Secret names, never credential values. `extra_refs` and `host.inventory` are YAML arrays. `load-targets` validates every target and emits an `encrypt` or `deploy` strategy matrix for the repository workflows.
+Credential fields contain GitHub Variable/Secret names, never credential values. `encrypt.apps`, `extra_refs`, and `host.inventory` are YAML arrays. The app list is rendered into the encrypted asset as a comma-separated `APPS` value. `load-targets` validates every target and emits an `encrypt` or `deploy` strategy matrix for the repository workflows.
 
 ---
 
@@ -506,9 +508,11 @@ encrypt:
   asset: mainframe.sops.env
   keys:
     - mainframe
+  apps:
+    - traefik
+    - rybbit
   env:
     APPS_DOMAIN: APPS_DOMAIN         # output name: GitHub Secret/Variable name
-    APPS: APPS_MAINFRAME
 ```
 
 Secrets take precedence over Variables when both contain the same source key. Every source key must exist or the action fails.
