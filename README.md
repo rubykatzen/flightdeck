@@ -174,7 +174,8 @@ flightdeck/
 │   └── deploy.yml      # Deploy published bundle and encrypted env
 ├── .github/
 │   ├── actions/
-│   │   ├── build-bundle/              # Build and upload a release bundle
+│   │   ├── build-bundle/              # Build and upload the machinery bundle
+│   │   ├── build-apps-bundle/          # Build and upload an apps/ catalog bundle
 │   │   ├── encrypt-env/                # Encrypt a target env and upload it to a release
 │   │   └── load-yaml-matrix/            # Read a directory of YAML manifests into a workflow matrix
 │   └── workflows/
@@ -442,7 +443,7 @@ If you're evaluating alternatives, these projects solve a similar problem from d
 
 ## ⚙️ GitHub Actions
 
-This repository provides three composite actions under `.github/actions/` (`build-bundle`, `encrypt-env`, and `load-yaml-matrix`) and one reusable workflow, `deploy-shared.yml`.
+This repository provides four composite actions under `.github/actions/` (`build-bundle`, `build-apps-bundle`, `encrypt-env`, and `load-yaml-matrix`) and one reusable workflow, `deploy-shared.yml`.
 
 ---
 
@@ -528,7 +529,7 @@ Secrets take precedence over Variables when both contain the same source key. Ev
 
 ### `build-bundle`
 
-Builds a zip archive from caller-selected paths, rejects runtime state and env files, and uploads it to an existing GitHub Release. Callers choose the archive name and contents, so the same action publishes flightdeck's own machinery bundle (`flightdeck.zip`), its own `apps/` catalog (`flightdeck-apps.zip`), or a consumer repository's own app bundle.
+Builds a zip archive from caller-selected paths, rejects runtime state and env files, and uploads it to an existing GitHub Release. `paths` and `bundle-name` default to Flightdeck's own machinery bundle (everything except `apps/`, uploaded as `flightdeck.zip`) but are fully overridable.
 
 ```yaml
 steps:
@@ -537,13 +538,32 @@ steps:
       ref: v1.2.3
   - uses: rubykatzen/flightdeck/.github/actions/build-bundle@v1.2.3
     with:
-      paths: apps
-      bundle-name: flightdeck-apps.zip
+      release-tag: v1.2.3
+      token: ${{ secrets.GITHUB_TOKEN }}
+      # paths: ...        # optional, defaults to the machinery file list
+      # bundle-name: ...  # optional, defaults to flightdeck.zip
+```
+
+Requires `contents: write` permission on the calling job.
+
+---
+
+### `build-apps-bundle`
+
+A thin defaults wrapper around `build-bundle`: `paths` defaults to `apps`, `bundle-name` defaults to `flightdeck-apps.zip`. The same action publishes flightdeck's own `apps/` catalog and any consumer repository's own app bundle.
+
+```yaml
+steps:
+  - uses: actions/checkout@v7
+    with:
+      ref: v1.2.3
+  - uses: rubykatzen/flightdeck/.github/actions/build-apps-bundle@v1.2.3
+    with:
       release-tag: v1.2.3
       token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-Requires `contents: write` permission on the calling job. `flightdeck-apps.zip` is the default asset name a `flightdeck_app_refs` entry resolves to when it doesn't specify an explicit `:asset-name` suffix; use that suffix when publishing under a different filename.
+Requires `contents: write` permission on the calling job. `flightdeck-apps.zip` is the default asset name a `flightdeck_app_refs` entry resolves to when it doesn't specify an explicit `:asset-name` suffix; override `bundle-name` and use that suffix when publishing under a different filename.
 
 ---
 
