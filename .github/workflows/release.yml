@@ -31,7 +31,6 @@ jobs:
           release-tag: ${{ needs.release.outputs.tag_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
           paths: |
-            apps
             ansible.cfg
             .env.example
             backup.sh
@@ -43,6 +42,20 @@ jobs:
             restart.sh
             up.sh
             README.md
+  upload-apps:
+    needs: release
+    if: needs.release.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release.outputs.tag_name }}
+      - uses: $/.github/actions/build-bundle
+        with:
+          bundle-name: flightdeck-apps.zip
+          release-tag: ${{ needs.release.outputs.tag_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          paths: apps
   encrypt-vaults:
     needs: release
     if: needs.release.outputs.release_created == 'true'
@@ -92,7 +105,7 @@ jobs:
         with:
           directory: targets
   deploy:
-    needs: [upload, encrypt, deploy-targets]
+    needs: [upload, upload-apps, encrypt, deploy-targets]
     if: needs.deploy-targets.outputs.count != '0'
     strategy:
       matrix: ${{ fromJson(needs.deploy-targets.outputs.matrix) }}
@@ -101,7 +114,7 @@ jobs:
       hosts: ${{ toJson(matrix.hosts) }}
       app-ref: ${{ matrix.flightdeck_ref }}
       env-ref: ${{ matrix.env_ref }}
-      extra-refs: ${{ matrix.extra_refs && toJson(matrix.extra_refs) || '[]' }}
+      app-refs: ${{ toJson(matrix.app_refs) }}
       path: ${{ matrix.path || '~/flightdeck' }}
       keep-releases: ${{ matrix.keep_releases || 5 }}
       sops-age-key-file: ${{ matrix.sops_age_key_file || '~/.config/sops/age/keys.txt' }}

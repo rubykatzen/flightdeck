@@ -404,15 +404,15 @@ GitHub Actions workflow (`.github/workflows/release-please.yml`) manages release
 
 1. On every push to `main`, Release Please opens/updates a `chore(main): release X.Y.Z` PR with the computed version and generated `CHANGELOG.md` entry
 2. Merging that PR tags the release and publishes a GitHub Release
-3. A second job then builds `flightdeck.zip` from compose files, helper scripts, examples, and README (verifying runtime state such as `.env`, `apps-data`, `backups`, and generated `apps/*/.env` is excluded) and uploads it as a release asset. Deploy refs may use `@latest` as a playbook-side alias for GitHub's latest release API; no mutable `latest` release/tag is created.
+3. A second and third job then build and upload two release assets: `flightdeck.zip` from helper scripts, examples, and README (verifying runtime state such as `.env`, `apps-data`, `backups`, and generated `apps/*/.env` is excluded), and `flightdeck-apps.zip` from the `apps/` catalog alone. Deploy refs may use `@latest` as a playbook-side alias for GitHub's latest release API; no mutable `latest` release/tag is created.
 
 Deployment helpers live in this repository:
 
-- `ansible/deploy.yml` pulls `flightdeck_app_ref`, merges optional `flightdeck_extra_refs`, pulls the server-specific encrypted env package from `flightdeck_env_ref`, decrypts `.sops.env` on the server, switches a timestamped release, and runs `./deploy.sh`
+- `ansible/deploy.yml` pulls `flightdeck_app_ref` (the machinery bundle), merges every ref in `flightdeck_app_refs` (the app bundles, at least one required — flightdeck's own `apps/` catalog is just another entry, not implicit), pulls the server-specific encrypted env package from `flightdeck_env_ref`, decrypts `.sops.env` on the server, switches a timestamped release, and runs `./deploy.sh`
 - `.github/actions/encrypt-env/` is a local composite action for rendering `vaults/` manifests from GitHub Secrets/Variables, encrypting them for age recipients, and publishing `.sops.env` as a GitHub Release asset
 - `.github/workflows/deploy-shared.yml` is a reusable workflow consumer repos call to run `ansible/deploy.yml` from GitHub Actions over an optional Tailscale connection, without holding any deploy secrets in this repository
 
-Extra Flightdeck bundles are release assets referenced as short refs like `<owner>/<extra-repo>@latest` or `<owner>/<extra-repo>@v1.2.3`. `@latest` is resolved by the deploy playbook through GitHub's latest release API. Extra bundles must contain an `apps/` directory only adding app directories; app names may not conflict with the core bundle or earlier extras.
+App bundles listed in `flightdeck_app_refs` are release assets referenced as short refs like `<owner>/<repo>@latest` or `<owner>/<repo>@v1.2.3`, resolving to a default asset name of `flightdeck-apps.zip` unless the ref specifies an explicit `:asset-name` suffix. `@latest` is resolved by the deploy playbook through GitHub's latest release API. Every bundle must contain an `apps/` directory; app names may not conflict across bundles.
 
 Private release assets are supported by passing `FLIGHTDECK_GITHUB_TOKEN` as a secret environment variable to `ansible/deploy.yml`. Store it as a secret in whatever system runs the playbook (e.g. a GitHub Actions secret when using `deploy-shared.yml`), not in plain configuration. When the token is present, the playbook exports it as `GH_TOKEN` for `gh release download`.
 
