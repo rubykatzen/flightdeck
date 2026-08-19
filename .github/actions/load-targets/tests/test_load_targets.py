@@ -62,8 +62,32 @@ class LoadTargetsTest(unittest.TestCase):
         self.assertEqual(item["inventory"], ["100.75.50.2"])
         self.assertEqual(item["flightdeck_ref"], "rubykatzen/flightdeck@v1.2.3")
         self.assertEqual(item["extra_refs"], ["rubykatzen/apps@v3.0.0:flightdeck-extra.zip"])
+        self.assertEqual(item["path"], "~/flightdeck")
+        self.assertEqual(item["sops_age_key_file"], "~/.config/sops/age/keys.txt")
         self.assertEqual(item["ssh_private_key_secret"], "DEPLOY_SSH_PRIVATE_KEY")
         self.assertNotIn("apps", item)
+
+    def test_allows_host_default_overrides(self):
+        path = self.directory / "hawkeye.yml"
+        path.write_text(
+            TARGET.replace("    path: ~/flightdeck\n", "").replace(
+                "    sops_age_key_file: ~/.config/sops/age/keys.txt\n", ""
+            )
+        )
+        item = load_targets.build_matrix(self.directory, "deploy")["include"][0]
+        self.assertEqual(item["path"], "~/flightdeck")
+        self.assertEqual(item["sops_age_key_file"], "~/.config/sops/age/keys.txt")
+
+        path.write_text(
+            TARGET.replace("    path: ~/flightdeck", "    path: ~/custom")
+            .replace(
+                "    sops_age_key_file: ~/.config/sops/age/keys.txt",
+                "    sops_age_key_file: ~/.config/sops/age/custom.txt",
+            )
+        )
+        item = load_targets.build_matrix(self.directory, "deploy")["include"][0]
+        self.assertEqual(item["path"], "~/custom")
+        self.assertEqual(item["sops_age_key_file"], "~/.config/sops/age/custom.txt")
 
     def test_filters_selected_target(self):
         (self.directory / "other.yml").write_text(TARGET.replace("hawkeye.sops.env", "other.sops.env"))
