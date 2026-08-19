@@ -57,7 +57,7 @@ jobs:
       - uses: $/.github/actions/load-yaml-matrix
         id: matrix
         with:
-          directory: encrypt
+          directory: envs
   encrypt:
     needs: [release, encrypt-configs]
     if: needs.encrypt-configs.outputs.count != '0'

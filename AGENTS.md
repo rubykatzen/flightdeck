@@ -409,7 +409,7 @@ GitHub Actions workflow (`.github/workflows/release-please.yml`) manages release
 Deployment helpers live in this repository:
 
 - `ansible/deploy.yml` pulls `flightdeck_app_ref`, merges optional `flightdeck_extra_refs`, pulls the server-specific encrypted env package from `flightdeck_env_ref`, decrypts `.sops.env` on the server, switches a timestamped release, and runs `./deploy.sh`
-- `.github/actions/encrypt-env/` is a local composite action for rendering `encrypt/` manifests from GitHub Secrets/Variables, encrypting them for age recipients, and publishing `.sops.env` as a GitHub Release asset
+- `.github/actions/encrypt-env/` is a local composite action for rendering `envs/` manifests from GitHub Secrets/Variables, encrypting them for age recipients, and publishing `.sops.env` as a GitHub Release asset
 - `.github/workflows/deploy-shared.yml` is a reusable workflow consumer repos call to run `ansible/deploy.yml` from GitHub Actions over an optional Tailscale connection, without holding any deploy secrets in this repository
 
 Extra Flightdeck bundles are release assets referenced as short refs like `<owner>/<extra-repo>@latest` or `<owner>/<extra-repo>@v1.2.3`. `@latest` is resolved by the deploy playbook through GitHub's latest release API. Extra bundles must contain an `apps/` directory only adding app directories; app names may not conflict with the core bundle or earlier extras.

@@ -9,7 +9,7 @@ The release must exist before this action runs.
 ```yaml
 - uses: rubykatzen/flightdeck/.github/actions/encrypt-env@main
   with:
-    manifest: encrypt/mainframe.yml                 # required
+    manifest: envs/mainframe.yml                     # required
     keys-directory: keys                            # default: keys
     release-tag: ${{ needs.release.outputs.tag }}   # required, must already exist
     release-repo: ""                                # default: current repository
