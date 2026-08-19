@@ -3,10 +3,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "load-targets.py"
-SPEC = importlib.util.spec_from_file_location("load_targets", MODULE_PATH)
-load_targets = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(load_targets)
+MODULE_PATH = Path(__file__).resolve().parents[1] / "scripts" / "load-matrix.py"
+SPEC = importlib.util.spec_from_file_location("load_matrix", MODULE_PATH)
+load_matrix = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(load_matrix)
 
 
 ENCRYPT = """\
@@ -34,7 +34,7 @@ credentials:
 """
 
 
-class LoadTargetsTest(unittest.TestCase):
+class LoadMatrixTest(unittest.TestCase):
     def setUp(self):
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary_directory.cleanup)
@@ -47,13 +47,13 @@ class LoadTargetsTest(unittest.TestCase):
         (self.targets_directory / "hawkeye.yml").write_text(TARGET)
 
     def test_builds_encrypt_matrix(self):
-        matrix = load_targets.build_matrix(self.encrypt_directory, "encrypt")
+        matrix = load_matrix.build_matrix(self.encrypt_directory, "encrypt")
         self.assertEqual(
             matrix,
             {
                 "include": [
                     {
-                        "target": "hawkeye",
+                        "name": "hawkeye",
                         "manifest": str(self.encrypt_directory / "hawkeye.yml"),
                         "asset": "hawkeye.sops.env",
                     }
@@ -62,7 +62,7 @@ class LoadTargetsTest(unittest.TestCase):
         )
 
     def test_builds_deploy_matrix(self):
-        item = load_targets.build_matrix(self.targets_directory, "deploy")["include"][0]
+        item = load_matrix.build_matrix(self.targets_directory, "deploy")["include"][0]
         self.assertEqual(item["hosts"], ["rubykatzen-com@100.75.50.2"])
         self.assertEqual(item["flightdeck_ref"], "rubykatzen/flightdeck@v1.2.3")
         self.assertEqual(item["extra_refs"], ["rubykatzen/apps@v3.0.0:flightdeck-extra.zip"])
@@ -77,7 +77,7 @@ class LoadTargetsTest(unittest.TestCase):
                 "sops_age_key_file: ~/.config/sops/age/keys.txt\n", ""
             )
         )
-        item = load_targets.build_matrix(self.targets_directory, "deploy")["include"][0]
+        item = load_matrix.build_matrix(self.targets_directory, "deploy")["include"][0]
         self.assertEqual(item["path"], "~/flightdeck")
         self.assertEqual(item["sops_age_key_file"], "~/.config/sops/age/keys.txt")
 
@@ -87,7 +87,7 @@ class LoadTargetsTest(unittest.TestCase):
                 "sops_age_key_file: ~/.config/sops/age/custom.txt",
             )
         )
-        item = load_targets.build_matrix(self.targets_directory, "deploy")["include"][0]
+        item = load_matrix.build_matrix(self.targets_directory, "deploy")["include"][0]
         self.assertEqual(item["path"], "~/custom")
         self.assertEqual(item["sops_age_key_file"], "~/.config/sops/age/custom.txt")
 
@@ -95,22 +95,22 @@ class LoadTargetsTest(unittest.TestCase):
         (self.encrypt_directory / "other.yml").write_text(
             ENCRYPT.replace("hawkeye.sops.env", "other.sops.env")
         )
-        matrix = load_targets.build_matrix(self.encrypt_directory, "encrypt", "hawkeye")
-        self.assertEqual([item["target"] for item in matrix["include"]], ["hawkeye"])
+        matrix = load_matrix.build_matrix(self.encrypt_directory, "encrypt", "hawkeye")
+        self.assertEqual([item["name"] for item in matrix["include"]], ["hawkeye"])
 
     def test_rejects_unknown_config(self):
-        with self.assertRaisesRegex(load_targets.TargetError, "unknown target"):
-            load_targets.build_matrix(self.targets_directory, "deploy", "missing")
+        with self.assertRaisesRegex(load_matrix.ManifestError, "unknown name"):
+            load_matrix.build_matrix(self.targets_directory, "deploy", "missing")
 
     def test_rejects_wrong_config_type(self):
-        with self.assertRaisesRegex(load_targets.TargetError, "unknown keys"):
-            load_targets.build_matrix(self.encrypt_directory, "deploy")
+        with self.assertRaisesRegex(load_matrix.ManifestError, "unknown keys"):
+            load_matrix.build_matrix(self.encrypt_directory, "deploy")
 
     def test_rejects_invalid_ssh_destination(self):
         path = self.targets_directory / "hawkeye.yml"
         path.write_text(TARGET.replace("rubykatzen-com@100.75.50.2", "100.75.50.2"))
-        with self.assertRaisesRegex(load_targets.TargetError, "invalid user@host destination"):
-            load_targets.build_matrix(self.targets_directory, "deploy")
+        with self.assertRaisesRegex(load_matrix.ManifestError, "invalid user@host destination"):
+            load_matrix.build_matrix(self.targets_directory, "deploy")
 
     def test_rejects_duplicate_host_addresses(self):
         path = self.targets_directory / "hawkeye.yml"
@@ -120,26 +120,26 @@ class LoadTargetsTest(unittest.TestCase):
                 "hosts: [first@100.75.50.2, second@100.75.50.2]",
             )
         )
-        with self.assertRaisesRegex(load_targets.TargetError, "duplicate host addresses"):
-            load_targets.build_matrix(self.targets_directory, "deploy")
+        with self.assertRaisesRegex(load_matrix.ManifestError, "duplicate host addresses"):
+            load_matrix.build_matrix(self.targets_directory, "deploy")
 
     def test_rejects_apps_in_env(self):
         path = self.encrypt_directory / "hawkeye.yml"
         path.write_text(ENCRYPT.replace("  APPS_DOMAIN:", "  APPS: RUBYKATZEN_COM_APPS\n  APPS_DOMAIN:"))
-        with self.assertRaisesRegex(load_targets.TargetError, "must be configured through"):
-            load_targets.build_matrix(self.encrypt_directory, "encrypt")
+        with self.assertRaisesRegex(load_matrix.ManifestError, "must be configured through"):
+            load_matrix.build_matrix(self.encrypt_directory, "encrypt")
 
     def test_rejects_duplicate_apps(self):
         path = self.encrypt_directory / "hawkeye.yml"
         path.write_text(ENCRYPT.replace("apps: [traefik, rybbit]", "apps: [traefik, rybbit, traefik]"))
-        with self.assertRaisesRegex(load_targets.TargetError, "duplicate app names"):
-            load_targets.build_matrix(self.encrypt_directory, "encrypt")
+        with self.assertRaisesRegex(load_matrix.ManifestError, "duplicate app names"):
+            load_matrix.build_matrix(self.encrypt_directory, "encrypt")
 
     def test_rejects_duplicate_keys(self):
         path = self.encrypt_directory / "hawkeye.yml"
         path.write_text(ENCRYPT.replace("asset: hawkeye.sops.env", "asset: one.sops.env\nasset: two.sops.env"))
-        with self.assertRaisesRegex(load_targets.TargetError, "duplicate YAML key"):
-            load_targets.build_matrix(self.encrypt_directory, "encrypt")
+        with self.assertRaisesRegex(load_matrix.ManifestError, "duplicate YAML key"):
+            load_matrix.build_matrix(self.encrypt_directory, "encrypt")
 
 
 if __name__ == "__main__":

@@ -43,26 +43,26 @@ jobs:
             restart.sh
             up.sh
             README.md
-  targets:
+  encrypt-configs:
     needs: release
     if: needs.release.outputs.release_created == 'true'
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.targets.outputs.matrix }}
-      count: ${{ steps.targets.outputs.count }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      count: ${{ steps.matrix.outputs.count }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release.outputs.tag_name }}
-      - uses: $/.github/actions/load-targets
-        id: targets
+      - uses: $/.github/actions/load-matrix
+        id: matrix
         with:
           mode: encrypt
   encrypt:
-    needs: [release, targets]
-    if: needs.targets.outputs.count != '0'
+    needs: [release, encrypt-configs]
+    if: needs.encrypt-configs.outputs.count != '0'
     strategy:
-      matrix: ${{ fromJson(needs.targets.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.encrypt-configs.outputs.matrix) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -81,14 +81,14 @@ jobs:
     if: needs.release.outputs.release_created == 'true'
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.targets.outputs.matrix }}
-      count: ${{ steps.targets.outputs.count }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      count: ${{ steps.matrix.outputs.count }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release.outputs.tag_name }}
-      - uses: $/.github/actions/load-targets
-        id: targets
+      - uses: $/.github/actions/load-matrix
+        id: matrix
         with:
           mode: deploy
   deploy:

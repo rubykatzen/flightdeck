@@ -14,11 +14,11 @@ jobs:
       count: ${{ steps.targets.outputs.count }}
     steps:
       - uses: actions/checkout@v7
-      - uses: $/.github/actions/load-targets
+      - uses: $/.github/actions/load-matrix
         id: targets
         with:
           mode: deploy
-          target: ${{ inputs.target || 'all' }}
+          name: ${{ inputs.target || 'all' }}
   deploy:
     needs: targets
     if: needs.targets.outputs.count != '0'
