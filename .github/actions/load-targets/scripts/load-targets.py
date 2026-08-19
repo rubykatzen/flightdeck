@@ -147,12 +147,12 @@ def validate_deploy(value, location):
     if not isinstance(keep_releases, int) or isinstance(keep_releases, bool) or keep_releases < 1:
         raise TargetError(f"{location}.keep_releases must be a positive integer")
     host = require_mapping(deploy.get("host"), f"{location}.host")
-    reject_unknown(host, {"inventory", "user", "path", "sops_age_key_file"}, f"{location}.host")
-    inventory = host.get("inventory")
-    if not isinstance(inventory, list) or not inventory:
-        raise TargetError(f"{location}.host.inventory must be a non-empty array")
-    if any(not isinstance(item, str) or not item for item in inventory):
-        raise TargetError(f"{location}.host.inventory must contain non-empty strings")
+    reject_unknown(host, {"addresses", "user", "path", "sops_age_key_file"}, f"{location}.host")
+    addresses = host.get("addresses")
+    if not isinstance(addresses, list) or not addresses:
+        raise TargetError(f"{location}.host.addresses must be a non-empty array")
+    if any(not isinstance(item, str) or not item for item in addresses):
+        raise TargetError(f"{location}.host.addresses must contain non-empty strings")
     user = require_string(host, "user", f"{location}.host", "root")
     path = require_string(host, "path", f"{location}.host", "~/flightdeck")
     sops_key_file = require_string(
@@ -165,7 +165,7 @@ def validate_deploy(value, location):
         "flightdeck_ref": flightdeck_ref,
         "env_ref": env_ref,
         "extra_refs": extra_refs,
-        "inventory": inventory,
+        "hosts": addresses,
         "user": user,
         "path": path,
         "keep_releases": keep_releases,

@@ -2,8 +2,8 @@ name: Deploy (shared)
 on:
   workflow_call:
     inputs:
-      inventory:
-        description: JSON array of inventory hosts.
+      hosts:
+        description: JSON array of host addresses to deploy to.
         type: string
         required: true
       user:
@@ -35,7 +35,7 @@ on:
         type: string
         default: ""
       tailscale-oauth-client-id:
-        description: Tailscale OAuth client ID used to join the tailnet. Leave unset to skip joining a tailnet (e.g. when the runner already has network access to the inventory hosts).
+        description: Tailscale OAuth client ID used to join the tailnet. Leave unset to skip joining a tailnet (e.g. when the runner already has network access to the hosts).
         type: string
         default: ""
       tailscale-tags:
@@ -44,7 +44,7 @@ on:
         default: tag:ci
     secrets:
       ssh-private-key:
-        description: SSH private key used to connect to the inventory hosts.
+        description: SSH private key used to connect to the hosts.
         required: true
       tailscale-oauth-secret:
         description: Tailscale OAuth client secret used to join the tailnet. Required only when tailscale-oauth-client-id is set.
@@ -80,7 +80,7 @@ jobs:
           APP_REF: ${{ inputs.app-ref }}
           ENV_REF: ${{ inputs.env-ref }}
           EXTRA_REFS: ${{ inputs.extra-refs }}
-          INVENTORY: ${{ inputs.inventory }}
+          HOSTS: ${{ inputs.hosts }}
           DEPLOY_PATH: ${{ inputs.path }}
           KEEP_RELEASES: ${{ inputs.keep-releases }}
           SOPS_KEY_FILE: ${{ inputs.sops-age-key-file }}
@@ -98,9 +98,9 @@ jobs:
           else
             sops_key_file="${sops_key_file/#\~/$home_dir}"
           fi
-          inventory_json="$(jq -ce 'if type == "array" and length > 0 and all(.[]; type == "string" and length > 0) then . else error("inventory must be a non-empty string array") end' <<< "$INVENTORY")"
+          hosts_json="$(jq -ce 'if type == "array" and length > 0 and all(.[]; type == "string" and length > 0) then . else error("hosts must be a non-empty string array") end' <<< "$HOSTS")"
           extra_refs_json="$(jq -ce 'if type == "array" and all(.[]; type == "string" and length > 0) then . else error("extra-refs must be a string array") end' <<< "$EXTRA_REFS")"
-          inventory="$(jq -r 'join(",") + ","' <<< "$inventory_json")"
+          inventory="$(jq -r 'join(",") + ","' <<< "$hosts_json")"
           json="$(jq -n \
             --arg app_ref "$APP_REF" \
             --arg env_ref "$ENV_REF" \

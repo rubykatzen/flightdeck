@@ -34,7 +34,7 @@ jobs:
       matrix: ${{ fromJson(needs.targets.outputs.matrix) }}
     uses: $/.github/workflows/deploy-shared.yml
     with:
-      inventory: ${{ toJson(matrix.inventory) }}
+      hosts: ${{ toJson(matrix.hosts) }}
       user: ${{ matrix.user }}
       app-ref: ${{ matrix.flightdeck_ref }}
       env-ref: ${{ matrix.env_ref }}

@@ -446,7 +446,7 @@ This repository provides three composite actions under `.github/actions/` (`buil
 
 ### Targets
 
-Each file in `targets/` describes one logical target. Its optional root sections are independent: an encryption-only repository can omit `deploy`, while an inventory-only repository can omit `encrypt`. A target containing both ties the encrypted env asset and deployment inventory together by name.
+Each file in `targets/` describes one logical target. Its optional root sections are independent: an encryption-only repository can omit `deploy`, while a deployment-only repository can omit `encrypt`. A target containing both ties the encrypted env asset and deployment hosts together by name.
 
 ```yaml
 encrypt:
@@ -464,7 +464,7 @@ deploy:
   extra_refs:
     - owner/extra-apps@latest
   host:
-    inventory:
+    addresses:
       - 100.64.0.1
       - 100.64.0.2
     user: deploy
@@ -478,7 +478,7 @@ deploy:
       tailscale_oauth_secret: TAILSCALE_OAUTH_SECRET
 ```
 
-Credential fields contain GitHub Variable/Secret names, never credential values. `encrypt.apps`, `extra_refs`, and `host.inventory` are YAML arrays. The app list is rendered into the encrypted asset as a comma-separated `APPS` value. `load-targets` validates every target and emits an `encrypt` or `deploy` strategy matrix for the repository workflows.
+Credential fields contain GitHub Variable/Secret names, never credential values. `encrypt.apps`, `extra_refs`, and `host.addresses` are YAML arrays. The app list is rendered into the encrypted asset as a comma-separated `APPS` value. `load-targets` validates every target and emits an `encrypt` or `deploy` strategy matrix for the repository workflows.
 
 ---
 
@@ -542,18 +542,18 @@ Requires `contents: write` permission on the calling job. `flightdeck-extra.zip`
 
 ### `deploy-shared.yml`
 
-Runs [`ansible/deploy.yml`](ansible/deploy.yml) from this repository against the caller-supplied inventory. Intended to be called from a private consumer repository that owns both the config and secrets side (SSH key, encrypted `.sops.env` releases, etc.) — this repository does not hold any deploy secrets itself. `env-ref` typically references that same calling repository via `${{ github.repository }}`, since it's both the config and secrets source.
+Runs [`ansible/deploy.yml`](ansible/deploy.yml) from this repository against the caller-supplied hosts. Intended to be called from a private consumer repository that owns both the config and secrets side (SSH key, encrypted `.sops.env` releases, etc.) — this repository does not hold any deploy secrets itself. `env-ref` typically references that same calling repository via `${{ github.repository }}`, since it's both the config and secrets source.
 
 The interface is plain deploy vocabulary, not Ansible's — callers never see `flightdeck_*` variable names or hand-write `-e` JSON; the workflow builds that internally.
 
-Tailscale is optional, not a dependency of this workflow: set `tailscale-oauth-client-id` (and the matching `tailscale-oauth-secret`) to have the runner join a tailnet as an ephemeral node before deploying. Leave both unset to skip that step entirely — e.g. when the job already runs on a self-hosted runner with network access to the inventory hosts, or reaches them some other way.
+Tailscale is optional, not a dependency of this workflow: set `tailscale-oauth-client-id` (and the matching `tailscale-oauth-secret`) to have the runner join a tailnet as an ephemeral node before deploying. Leave both unset to skip that step entirely — e.g. when the job already runs on a self-hosted runner with network access to the hosts, or reaches them some other way.
 
 ```yaml
 jobs:
   deploy:
     uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@v1.2.3
     with:
-      inventory: '["100.64.0.1", "100.64.0.2"]'                    # required JSON array
+      hosts: '["100.64.0.1", "100.64.0.2"]'                        # required JSON array
       user: root                                                     # default: root
       app-ref: rubykatzen/flightdeck@latest                          # required full release ref
       env-ref: "${{ github.repository }}@latest:<server>.sops.env"   # required

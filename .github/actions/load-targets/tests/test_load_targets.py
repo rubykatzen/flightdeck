@@ -22,7 +22,7 @@ deploy:
   extra_refs:
     - rubykatzen/apps@v3.0.0:flightdeck-extra.zip
   host:
-    inventory: [100.75.50.2]
+    addresses: [100.75.50.2]
     user: rubykatzen-com
     path: ~/flightdeck
     sops_age_key_file: ~/.config/sops/age/keys.txt
@@ -59,7 +59,7 @@ class LoadTargetsTest(unittest.TestCase):
 
     def test_builds_deploy_matrix(self):
         item = load_targets.build_matrix(self.directory, "deploy")["include"][0]
-        self.assertEqual(item["inventory"], ["100.75.50.2"])
+        self.assertEqual(item["hosts"], ["100.75.50.2"])
         self.assertEqual(item["flightdeck_ref"], "rubykatzen/flightdeck@v1.2.3")
         self.assertEqual(item["extra_refs"], ["rubykatzen/apps@v3.0.0:flightdeck-extra.zip"])
         self.assertEqual(item["path"], "~/flightdeck")
@@ -103,10 +103,10 @@ class LoadTargetsTest(unittest.TestCase):
         with self.assertRaisesRegex(load_targets.TargetError, "has no deploy section"):
             load_targets.build_matrix(self.directory, "deploy", "encrypt-only")
 
-    def test_rejects_string_inventory(self):
+    def test_rejects_string_addresses(self):
         path = self.directory / "hawkeye.yml"
-        path.write_text(TARGET.replace("inventory: [100.75.50.2]", 'inventory: "100.75.50.2,"'))
-        with self.assertRaisesRegex(load_targets.TargetError, "inventory must be a non-empty array"):
+        path.write_text(TARGET.replace("addresses: [100.75.50.2]", 'addresses: "100.75.50.2"'))
+        with self.assertRaisesRegex(load_targets.TargetError, "addresses must be a non-empty array"):
             load_targets.build_matrix(self.directory, "deploy")
 
     def test_rejects_apps_in_env(self):
