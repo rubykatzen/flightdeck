@@ -3,13 +3,9 @@ on:
   workflow_call:
     inputs:
       hosts:
-        description: JSON array of host addresses to deploy to.
+        description: JSON array of user@host SSH destinations to deploy to.
         type: string
         required: true
-      user:
-        description: SSH user for the Ansible connection.
-        type: string
-        default: root
       app-ref:
         description: Full release ref of the Flightdeck bundle to deploy, in owner/repo@tag format.
         type: string
@@ -31,9 +27,9 @@ on:
         type: number
         default: 5
       sops-age-key-file:
-        description: Path to the server-local SOPS age key file. Defaults to ~/.config/sops/age/keys.txt for the connecting user.
+        description: Path to the server-local SOPS age key file, relative to each SSH user's home when it starts with ~.
         type: string
-        default: ""
+        default: "~/.config/sops/age/keys.txt"
       tailscale-oauth-client-id:
         description: Tailscale OAuth client ID used to join the tailnet. Leave unset to skip joining a tailnet (e.g. when the runner already has network access to the hosts).
         type: string
@@ -84,33 +80,25 @@ jobs:
           DEPLOY_PATH: ${{ inputs.path }}
           KEEP_RELEASES: ${{ inputs.keep-releases }}
           SOPS_KEY_FILE: ${{ inputs.sops-age-key-file }}
-          SSH_USER: ${{ inputs.user }}
         run: |
-          if [ "$SSH_USER" = root ]; then
-            home_dir=/root
-          else
-            home_dir="/home/$SSH_USER"
-          fi
-          deploy_path="${DEPLOY_PATH/#\~/$home_dir}"
-          sops_key_file="$SOPS_KEY_FILE"
-          if [ -z "$sops_key_file" ]; then
-            sops_key_file="$home_dir/.config/sops/age/keys.txt"
-          else
-            sops_key_file="${sops_key_file/#\~/$home_dir}"
-          fi
-          hosts_json="$(jq -ce 'if type == "array" and length > 0 and all(.[]; type == "string" and length > 0) then . else error("hosts must be a non-empty string array") end' <<< "$HOSTS")"
+          hosts_json="$(jq -ce 'if type == "array" and length > 0 and all(.[]; type == "string" and test("^[a-z_][a-z0-9_-]*@[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$")) then . else error("hosts must be a non-empty user@host string array") end' <<< "$HOSTS")"
           extra_refs_json="$(jq -ce 'if type == "array" and all(.[]; type == "string" and length > 0) then . else error("extra-refs must be a string array") end' <<< "$EXTRA_REFS")"
-          inventory="$(jq -r 'join(",") + ","' <<< "$hosts_json")"
+          jq -ce '
+            reduce .[] as $destination ({all: {hosts: {}}};
+              ($destination | capture("^(?<user>[^@]+)@(?<host>.+)$")) as $ssh |
+              .all.hosts[$ssh.host] = {ansible_user: $ssh.user}
+            )
+          ' <<< "$hosts_json" > "$RUNNER_TEMP/flightdeck-inventory.json"
           json="$(jq -n \
             --arg app_ref "$APP_REF" \
             --arg env_ref "$ENV_REF" \
             --argjson extra_refs "$extra_refs_json" \
-            --arg path "$deploy_path" \
+            --arg path "$DEPLOY_PATH" \
             --argjson keep_releases "$KEEP_RELEASES" \
-            --arg sops_key_file "$sops_key_file" \
+            --arg sops_key_file "$SOPS_KEY_FILE" \
             '{flightdeck_app_ref: $app_ref, flightdeck_env_ref: $env_ref, flightdeck_extra_refs: $extra_refs, flightdeck_path: $path, flightdeck_keep_releases: $keep_releases, flightdeck_sops_age_key_file: $sops_key_file}')"
           echo "json=$json" >> "$GITHUB_OUTPUT"
-          echo "inventory=$inventory" >> "$GITHUB_OUTPUT"
+          echo "inventory=$RUNNER_TEMP/flightdeck-inventory.json" >> "$GITHUB_OUTPUT"
       - name: Run playbook
         shell: bash
         env:
@@ -118,5 +106,4 @@ jobs:
         run: |
           ansible-playbook ansible/deploy.yml \
             -i "${{ steps.vars.outputs.inventory }}" \
-            -u "${{ inputs.user }}" \
             -e "${{ steps.vars.outputs.json }}"

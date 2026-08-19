@@ -19,10 +19,8 @@ deploy:
   flightdeck_ref: rubykatzen/flightdeck@latest
   env_ref: rubykatzen/flightdeck@latest:hawkeye.sops.env
   extra_refs: []
-  host:
-    addresses:
-      - 100.75.50.2
-    user: rubykatzen-com
+  hosts:
+    - rubykatzen-com@100.75.50.2
   credentials:
     variables:
       tailscale_oauth_client_id: TAILSCALE_OAUTH_CLIENT_ID

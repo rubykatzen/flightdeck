@@ -21,11 +21,9 @@ deploy:
   env_ref: rubykatzen/config@v2.0.0:hawkeye.sops.env
   extra_refs:
     - rubykatzen/apps@v3.0.0:flightdeck-extra.zip
-  host:
-    addresses: [100.75.50.2]
-    user: rubykatzen-com
-    path: ~/flightdeck
-    sops_age_key_file: ~/.config/sops/age/keys.txt
+  hosts: [rubykatzen-com@100.75.50.2]
+  path: ~/flightdeck
+  sops_age_key_file: ~/.config/sops/age/keys.txt
   credentials:
     variables:
       tailscale_oauth_client_id: TAILSCALE_OAUTH_CLIENT_ID
@@ -59,7 +57,7 @@ class LoadTargetsTest(unittest.TestCase):
 
     def test_builds_deploy_matrix(self):
         item = load_targets.build_matrix(self.directory, "deploy")["include"][0]
-        self.assertEqual(item["hosts"], ["100.75.50.2"])
+        self.assertEqual(item["hosts"], ["rubykatzen-com@100.75.50.2"])
         self.assertEqual(item["flightdeck_ref"], "rubykatzen/flightdeck@v1.2.3")
         self.assertEqual(item["extra_refs"], ["rubykatzen/apps@v3.0.0:flightdeck-extra.zip"])
         self.assertEqual(item["path"], "~/flightdeck")
@@ -70,8 +68,8 @@ class LoadTargetsTest(unittest.TestCase):
     def test_allows_host_default_overrides(self):
         path = self.directory / "hawkeye.yml"
         path.write_text(
-            TARGET.replace("    path: ~/flightdeck\n", "").replace(
-                "    sops_age_key_file: ~/.config/sops/age/keys.txt\n", ""
+            TARGET.replace("  path: ~/flightdeck\n", "").replace(
+                "  sops_age_key_file: ~/.config/sops/age/keys.txt\n", ""
             )
         )
         item = load_targets.build_matrix(self.directory, "deploy")["include"][0]
@@ -79,10 +77,10 @@ class LoadTargetsTest(unittest.TestCase):
         self.assertEqual(item["sops_age_key_file"], "~/.config/sops/age/keys.txt")
 
         path.write_text(
-            TARGET.replace("    path: ~/flightdeck", "    path: ~/custom")
+            TARGET.replace("  path: ~/flightdeck", "  path: ~/custom")
             .replace(
-                "    sops_age_key_file: ~/.config/sops/age/keys.txt",
-                "    sops_age_key_file: ~/.config/sops/age/custom.txt",
+                "  sops_age_key_file: ~/.config/sops/age/keys.txt",
+                "  sops_age_key_file: ~/.config/sops/age/custom.txt",
             )
         )
         item = load_targets.build_matrix(self.directory, "deploy")["include"][0]
@@ -103,10 +101,21 @@ class LoadTargetsTest(unittest.TestCase):
         with self.assertRaisesRegex(load_targets.TargetError, "has no deploy section"):
             load_targets.build_matrix(self.directory, "deploy", "encrypt-only")
 
-    def test_rejects_string_addresses(self):
+    def test_rejects_invalid_ssh_destination(self):
         path = self.directory / "hawkeye.yml"
-        path.write_text(TARGET.replace("addresses: [100.75.50.2]", 'addresses: "100.75.50.2"'))
-        with self.assertRaisesRegex(load_targets.TargetError, "addresses must be a non-empty array"):
+        path.write_text(TARGET.replace("rubykatzen-com@100.75.50.2", "100.75.50.2"))
+        with self.assertRaisesRegex(load_targets.TargetError, "invalid user@host destination"):
+            load_targets.build_matrix(self.directory, "deploy")
+
+    def test_rejects_duplicate_host_addresses(self):
+        path = self.directory / "hawkeye.yml"
+        path.write_text(
+            TARGET.replace(
+                "hosts: [rubykatzen-com@100.75.50.2]",
+                "hosts: [first@100.75.50.2, second@100.75.50.2]",
+            )
+        )
+        with self.assertRaisesRegex(load_targets.TargetError, "duplicate host addresses"):
             load_targets.build_matrix(self.directory, "deploy")
 
     def test_rejects_apps_in_env(self):

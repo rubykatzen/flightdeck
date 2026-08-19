@@ -463,13 +463,11 @@ deploy:
   env_ref: owner/config@latest:mainframe.sops.env
   extra_refs:
     - owner/extra-apps@latest
-  host:
-    addresses:
-      - 100.64.0.1
-      - 100.64.0.2
-    user: deploy
-    path: ~/flightdeck
-    sops_age_key_file: ~/.config/sops/age/keys.txt
+  hosts:
+    - deploy@100.64.0.1
+    - deploy@100.64.0.2
+  path: ~/flightdeck
+  sops_age_key_file: ~/.config/sops/age/keys.txt
   credentials:
     variables:
       tailscale_oauth_client_id: TAILSCALE_OAUTH_CLIENT_ID
@@ -478,7 +476,7 @@ deploy:
       tailscale_oauth_secret: TAILSCALE_OAUTH_SECRET
 ```
 
-Credential fields contain GitHub Variable/Secret names, never credential values. `encrypt.apps`, `extra_refs`, and `host.addresses` are YAML arrays. The app list is rendered into the encrypted asset as a comma-separated `APPS` value. `load-targets` validates every target and emits an `encrypt` or `deploy` strategy matrix for the repository workflows.
+Credential fields contain GitHub Variable/Secret names, never credential values. `encrypt.apps`, `extra_refs`, and `hosts` are YAML arrays. Each host uses the SSH `user@host` format. The app list is rendered into the encrypted asset as a comma-separated `APPS` value. `load-targets` validates every target and emits an `encrypt` or `deploy` strategy matrix for the repository workflows.
 
 ---
 
@@ -553,8 +551,7 @@ jobs:
   deploy:
     uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@v1.2.3
     with:
-      hosts: '["100.64.0.1", "100.64.0.2"]'                        # required JSON array
-      user: root                                                     # default: root
+      hosts: '["deploy@100.64.0.1", "deploy@100.64.0.2"]'          # required JSON array
       app-ref: rubykatzen/flightdeck@latest                          # required full release ref
       env-ref: "${{ github.repository }}@latest:<server>.sops.env"   # required
       # extra-refs: '["owner/repo@latest"]' # optional JSON array, default: []

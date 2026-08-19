@@ -16,6 +16,13 @@
           - flightdeck_keep_releases is defined
           - flightdeck_sops_age_key_file is defined and flightdeck_sops_age_key_file | length > 0
         fail_msg: "Set flightdeck_app_ref, flightdeck_env_ref, flightdeck_extra_refs, flightdeck_path, flightdeck_keep_releases, and flightdeck_sops_age_key_file"
+    - name: Resolve Flightdeck user paths
+      set_fact:
+        flightdeck_user_home: "{{ '/root' if ansible_user == 'root' else '/home/' + ansible_user }}"
+    - name: Expand Flightdeck user paths
+      set_fact:
+        flightdeck_path: "{{ flightdeck_path | regex_replace('^~', flightdeck_user_home) }}"
+        flightdeck_sops_age_key_file: "{{ flightdeck_sops_age_key_file | regex_replace('^~', flightdeck_user_home) }}"
     - name: Apply Flightdeck paths
       set_fact:
         flightdeck_release_name: "{{ ansible_facts['date_time'].iso8601_basic_short }}"

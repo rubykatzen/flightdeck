@@ -13,6 +13,9 @@ ENV_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 SOURCE_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*(?:__[A-Z0-9_]+)*$")
 KEY_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 APP_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+SSH_DESTINATION_RE = re.compile(
+    r"^(?P<user>[a-z_][a-z0-9_-]*)@(?P<host>[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?)$"
+)
 RELEASE_REF_RE = re.compile(
     r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[A-Za-z0-9_.-]+(?::[A-Za-z0-9_.-]+)?$"
 )
@@ -129,7 +132,16 @@ def validate_deploy(value, location):
     deploy = require_mapping(value, location)
     reject_unknown(
         deploy,
-        {"flightdeck_ref", "env_ref", "extra_refs", "host", "credentials", "keep_releases"},
+        {
+            "flightdeck_ref",
+            "env_ref",
+            "extra_refs",
+            "hosts",
+            "path",
+            "sops_age_key_file",
+            "credentials",
+            "keep_releases",
+        },
         location,
     )
     flightdeck_ref = require_string(deploy, "flightdeck_ref", location)
@@ -146,27 +158,28 @@ def validate_deploy(value, location):
     keep_releases = deploy.get("keep_releases", 5)
     if not isinstance(keep_releases, int) or isinstance(keep_releases, bool) or keep_releases < 1:
         raise TargetError(f"{location}.keep_releases must be a positive integer")
-    host = require_mapping(deploy.get("host"), f"{location}.host")
-    reject_unknown(host, {"addresses", "user", "path", "sops_age_key_file"}, f"{location}.host")
-    addresses = host.get("addresses")
-    if not isinstance(addresses, list) or not addresses:
-        raise TargetError(f"{location}.host.addresses must be a non-empty array")
-    if any(not isinstance(item, str) or not item for item in addresses):
-        raise TargetError(f"{location}.host.addresses must contain non-empty strings")
-    user = require_string(host, "user", f"{location}.host", "root")
-    path = require_string(host, "path", f"{location}.host", "~/flightdeck")
+    hosts = deploy.get("hosts")
+    if not isinstance(hosts, list) or not hosts:
+        raise TargetError(f"{location}.hosts must be a non-empty array")
+    destinations = []
+    for destination in hosts:
+        if not isinstance(destination, str) or not SSH_DESTINATION_RE.fullmatch(destination):
+            raise TargetError(f"{location}.hosts contains an invalid user@host destination")
+        destinations.append(SSH_DESTINATION_RE.fullmatch(destination).group("host"))
+    if len(destinations) != len(set(destinations)):
+        raise TargetError(f"{location}.hosts contains duplicate host addresses")
+    path = require_string(deploy, "path", location, "~/flightdeck")
     sops_key_file = require_string(
-        host,
+        deploy,
         "sops_age_key_file",
-        f"{location}.host",
+        location,
         "~/.config/sops/age/keys.txt",
     )
     result = {
         "flightdeck_ref": flightdeck_ref,
         "env_ref": env_ref,
         "extra_refs": extra_refs,
-        "hosts": addresses,
-        "user": user,
+        "hosts": hosts,
         "path": path,
         "keep_releases": keep_releases,
         "sops_age_key_file": sops_key_file,
