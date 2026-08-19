@@ -14,10 +14,10 @@ jobs:
       count: ${{ steps.targets.outputs.count }}
     steps:
       - uses: actions/checkout@v7
-      - uses: $/.github/actions/load-matrix
+      - uses: $/.github/actions/load-yaml-matrix
         id: targets
         with:
-          mode: deploy
+          directory: targets
           name: ${{ inputs.target || 'all' }}
   deploy:
     needs: targets
@@ -29,11 +29,11 @@ jobs:
       hosts: ${{ toJson(matrix.hosts) }}
       app-ref: ${{ matrix.flightdeck_ref }}
       env-ref: ${{ matrix.env_ref }}
-      extra-refs: ${{ toJson(matrix.extra_refs) }}
-      path: ${{ matrix.path }}
-      keep-releases: ${{ matrix.keep_releases }}
-      sops-age-key-file: ${{ matrix.sops_age_key_file }}
-      tailscale-oauth-client-id: ${{ vars[matrix.tailscale_oauth_client_id_variable] }}
+      extra-refs: ${{ matrix.extra_refs && toJson(matrix.extra_refs) || '[]' }}
+      path: ${{ matrix.path || '~/flightdeck' }}
+      keep-releases: ${{ matrix.keep_releases || 5 }}
+      sops-age-key-file: ${{ matrix.sops_age_key_file || '~/.config/sops/age/keys.txt' }}
+      tailscale-oauth-client-id: ${{ vars[matrix.credentials.variables.tailscale_oauth_client_id] }}
     secrets:
-      ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
-      tailscale-oauth-secret: ${{ secrets[matrix.tailscale_oauth_secret] }}
+      ssh-private-key: ${{ secrets[matrix.credentials.secrets.ssh_private_key] }}
+      tailscale-oauth-secret: ${{ secrets[matrix.credentials.secrets.tailscale_oauth_secret] }}

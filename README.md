@@ -175,7 +175,7 @@ flightdeck/
 │   ├── actions/
 │   │   ├── build-bundle/              # Build and upload a release bundle
 │   │   ├── encrypt-env/                # Encrypt a target env and upload it to a release
-│   │   └── load-matrix/                # Validate configs and build workflow matrices
+│   │   └── load-yaml-matrix/            # Read a directory of YAML manifests into a workflow matrix
 │   └── workflows/
 │       ├── deploy-shared.yml           # Reusable deployment workflow
 │       └── release.yml                 # Release Please + publish Flightdeck assets
@@ -441,7 +441,7 @@ If you're evaluating alternatives, these projects solve a similar problem from d
 
 ## ⚙️ GitHub Actions
 
-This repository provides three composite actions under `.github/actions/` (`build-bundle`, `encrypt-env`, and `load-matrix`) and one reusable workflow, `deploy-shared.yml`.
+This repository provides three composite actions under `.github/actions/` (`build-bundle`, `encrypt-env`, and `load-yaml-matrix`) and one reusable workflow, `deploy-shared.yml`.
 
 ---
 
@@ -482,7 +482,9 @@ credentials:
     tailscale_oauth_secret: TAILSCALE_OAUTH_SECRET
 ```
 
-Credential fields contain GitHub Variable/Secret names, never credential values. `apps`, `extra_refs`, and `hosts` are YAML arrays. Each host uses the SSH `user@host` format. The app list is rendered into the encrypted asset as a comma-separated `APPS` value. `load-matrix` validates each collection and emits an `encrypt` or `deploy` strategy matrix for the repository workflows.
+Credential fields contain GitHub Variable/Secret names, never credential values. `apps`, `extra_refs`, and `hosts` are YAML arrays. Each host uses the SSH `user@host` format. The app list is rendered into the encrypted asset as a comma-separated `APPS` value.
+
+`load-yaml-matrix` reads every file in `encrypt/` or `targets/` into a matrix — it does not validate the manifest shape. Each manifest's fields are the responsibility of whatever consumes them: `encrypt-env` re-parses and validates its own manifest from `manifest`, and the workflows calling `deploy-shared.yml` apply `path`/`keep-releases`/`sops-age-key-file` defaults and pull `credentials.secrets`/`credentials.variables` values directly from the matrix item.
 
 ---
 
