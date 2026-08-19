@@ -7,23 +7,23 @@ on:
         type: string
         default: all
 jobs:
-  targets:
+  deploy-targets:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.targets.outputs.matrix }}
-      count: ${{ steps.targets.outputs.count }}
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      count: ${{ steps.matrix.outputs.count }}
     steps:
       - uses: actions/checkout@v7
       - uses: $/.github/actions/load-yaml-matrix
-        id: targets
+        id: matrix
         with:
           directory: targets
           name: ${{ inputs.target || 'all' }}
   deploy:
-    needs: targets
-    if: needs.targets.outputs.count != '0'
+    needs: deploy-targets
+    if: needs.deploy-targets.outputs.count != '0'
     strategy:
-      matrix: ${{ fromJson(needs.targets.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.deploy-targets.outputs.matrix) }}
     uses: $/.github/workflows/deploy-shared.yml
     with:
       hosts: ${{ toJson(matrix.hosts) }}

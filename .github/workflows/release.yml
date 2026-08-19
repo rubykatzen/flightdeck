@@ -43,7 +43,7 @@ jobs:
             restart.sh
             up.sh
             README.md
-  encrypt-configs:
+  encrypt-vaults:
     needs: release
     if: needs.release.outputs.release_created == 'true'
     runs-on: ubuntu-latest
@@ -59,10 +59,10 @@ jobs:
         with:
           directory: vaults
   encrypt:
-    needs: [release, encrypt-configs]
-    if: needs.encrypt-configs.outputs.count != '0'
+    needs: [release, encrypt-vaults]
+    if: needs.encrypt-vaults.outputs.count != '0'
     strategy:
-      matrix: ${{ fromJson(needs.encrypt-configs.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.encrypt-vaults.outputs.matrix) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
