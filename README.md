@@ -180,7 +180,7 @@ flightdeck/
 │       ├── deploy-shared.yml           # Reusable deployment workflow
 │       └── release.yml                 # Release Please + publish Flightdeck assets
 │
-├── sops/                          # Encrypted env asset configurations
+├── vaults/                        # Encrypted env asset configurations
 ├── targets/                       # Deployment targets
 ├── .env                          # All server configuration incl. APPS list (git-ignored)
 ├── .env.example                  # Configuration template
@@ -445,11 +445,11 @@ This repository provides three composite actions under `.github/actions/` (`buil
 
 ---
 
-### Sops And Targets
+### Vaults And Targets
 
-Files in `sops/` describe encrypted env assets. Files in `targets/` describe deployments. The two collections are independent; a deployment links to an encrypted asset explicitly through `env_ref`. Matching filenames are a convenience, not an implicit relationship.
+Files in `vaults/` describe encrypted env assets. Files in `targets/` describe deployments. The two collections are independent; a deployment links to an encrypted asset explicitly through `env_ref`. Matching filenames are a convenience, not an implicit relationship.
 
-`sops/mainframe.yml`:
+`vaults/mainframe.yml`:
 
 ```yaml
 asset: mainframe.sops.env
@@ -484,7 +484,7 @@ credentials:
 
 Credential fields contain GitHub Variable/Secret names, never credential values. `apps`, `extra_refs`, and `hosts` are YAML arrays. Each host uses the SSH `user@host` format. The app list is rendered into the encrypted asset as a comma-separated `APPS` value.
 
-`load-yaml-matrix` reads every file in `sops/` or `targets/` into a matrix — it does not validate the manifest shape. Each manifest's fields are the responsibility of whatever consumes them: `encrypt-env` re-parses and validates its own manifest from `manifest`, and the workflows calling `deploy-shared.yml` apply `path`/`keep-releases`/`sops-age-key-file` defaults and pull `credentials.secrets`/`credentials.variables` values directly from the matrix item.
+`load-yaml-matrix` reads every file in `vaults/` or `targets/` into a matrix — it does not validate the manifest shape. Each manifest's fields are the responsibility of whatever consumes them: `encrypt-env` re-parses and validates its own manifest from `manifest`, and the workflows calling `deploy-shared.yml` apply `path`/`keep-releases`/`sops-age-key-file` defaults and pull `credentials.secrets`/`credentials.variables` values directly from the matrix item.
 
 ---
 
@@ -495,7 +495,7 @@ Renders an encryption config from GitHub Secrets/Variables, encrypts it with SOP
 ```yaml
 - uses: rubykatzen/flightdeck/.github/actions/encrypt-env@main
   with:
-    manifest: sops/mainframe.yml                    # required
+    manifest: vaults/mainframe.yml                  # required
     keys-directory: keys                           # default: keys
     release-tag: latest                            # required, must already exist
     release-repo: ""                               # default: current repository
