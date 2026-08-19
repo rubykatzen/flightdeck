@@ -58,18 +58,15 @@ def load_manifest(path):
         raise ManifestError(f"{path} is not valid YAML: {exc}") from exc
     if not isinstance(manifest, dict):
         raise ManifestError(f"{path} must contain a YAML mapping")
-    encrypt = manifest.get("encrypt")
-    if not isinstance(encrypt, dict):
-        raise ManifestError(f"{path} must contain an encrypt mapping")
-    unknown = sorted(set(encrypt) - {"asset", "keys", "apps", "env"})
+    unknown = sorted(set(manifest) - {"asset", "keys", "apps", "env"})
     if unknown:
-        raise ManifestError("encrypt contains unknown keys: " + ", ".join(unknown))
-    asset = encrypt.get("asset")
-    keys = encrypt.get("keys")
-    apps = encrypt.get("apps")
-    env = encrypt.get("env")
+        raise ManifestError("manifest contains unknown keys: " + ", ".join(unknown))
+    asset = manifest.get("asset")
+    keys = manifest.get("keys")
+    apps = manifest.get("apps")
+    env = manifest.get("env")
     if not isinstance(asset, str) or not ASSET_RE.fullmatch(asset):
-        raise ManifestError("encrypt.asset must be named like server.sops.env")
+        raise ManifestError("asset must be named like server.sops.env")
     if not isinstance(keys, list) or not keys:
         raise ManifestError("keys must be a non-empty list")
     if not isinstance(apps, list) or not apps:
@@ -85,13 +82,13 @@ def load_manifest(path):
     if len(apps) != len(set(apps)):
         raise ManifestError("apps contains duplicate app names")
     if "APPS" in env:
-        raise ManifestError("APPS must be configured through encrypt.apps")
+        raise ManifestError("APPS must be configured through apps")
     for output_name, source_name in env.items():
         if not isinstance(output_name, str) or not ENV_NAME_RE.fullmatch(output_name):
             raise ManifestError(f"invalid output env name: {output_name!r}")
         if not isinstance(source_name, str) or not SOURCE_NAME_RE.fullmatch(source_name):
             raise ManifestError(f"invalid source key for {output_name}: {source_name!r}")
-    return encrypt
+    return manifest
 
 
 def dotenv_value(value):

@@ -1,6 +1,6 @@
 # load-targets
 
-Composite GitHub Action that validates YAML files in `targets/` and builds a GitHub Actions matrix from either their `encrypt` or `deploy` sections.
+Composite GitHub Action that validates encryption configs or deployment targets and builds a GitHub Actions matrix.
 
 ## Usage
 
@@ -10,9 +10,9 @@ Composite GitHub Action that validates YAML files in `targets/` and builds a Git
   with:
     mode: deploy        # encrypt or deploy
     target: all         # default: all
-    directory: targets  # default: targets
+    # directory: custom # optional; defaults to encrypt/ or targets/ based on mode
 ```
 
-The action exposes `matrix`, containing `{ "include": [...] }`, and `count`. When `target` is `all`, files without the requested section are skipped. A specifically selected target must contain that section.
+The action exposes `matrix`, containing `{ "include": [...] }`, and `count`. Encrypt mode validates the flat encryption schema; deploy mode validates the flat target schema.
 
-Every target is fully validated before its requested section is added to the matrix. Target files may use either the `.yml` or `.yaml` extension, and their basename becomes the target name.
+Every file is fully validated before it is added to the matrix. Files may use either the `.yml` or `.yaml` extension, and their basename becomes the matrix target name.

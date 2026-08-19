@@ -2,19 +2,19 @@ name: Load targets
 description: Validate target manifests and build an encrypt or deploy strategy matrix.
 inputs:
   mode:
-    description: Target section to load (encrypt or deploy).
+    description: Configuration type to load (encrypt or deploy).
     required: true
   target:
     description: Target name to load, or all.
     required: false
     default: all
   directory:
-    description: Directory containing target YAML files.
+    description: Directory containing YAML files. Defaults to encrypt for encrypt mode and targets for deploy mode.
     required: false
-    default: targets
+    default: ""
 outputs:
   matrix:
-    description: JSON strategy matrix containing validated target data.
+    description: JSON strategy matrix containing validated configuration data.
     value: ${{ steps.load.outputs.matrix }}
   count:
     description: Number of targets in the matrix.
@@ -32,4 +32,9 @@ runs:
         DIRECTORY: ${{ inputs.directory }}
         MODE: ${{ inputs.mode }}
         TARGET: ${{ inputs.target }}
-      run: python3 "$GITHUB_ACTION_PATH/scripts/load-targets.py" --directory "$DIRECTORY" --mode "$MODE" --target "$TARGET"
+      run: |
+        directory_args=()
+        if [ -n "$DIRECTORY" ]; then
+          directory_args=(--directory "$DIRECTORY")
+        fi
+        python3 "$GITHUB_ACTION_PATH/scripts/load-targets.py" "${directory_args[@]}" --mode "$MODE" --target "$TARGET"

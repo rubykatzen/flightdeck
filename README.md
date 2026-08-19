@@ -180,7 +180,8 @@ flightdeck/
 │       ├── deploy-shared.yml           # Reusable deployment workflow
 │       └── release.yml                 # Release Please + publish Flightdeck assets
 │
-├── targets/                       # Independent encryption and deployment targets
+├── encrypt/                       # Encrypted env asset configurations
+├── targets/                       # Deployment targets
 ├── .env                          # All server configuration incl. APPS list (git-ignored)
 ├── .env.example                  # Configuration template
 │
@@ -444,50 +445,55 @@ This repository provides three composite actions under `.github/actions/` (`buil
 
 ---
 
-### Targets
+### Encrypt Configurations And Targets
 
-Each file in `targets/` describes one logical target. Its optional root sections are independent: an encryption-only repository can omit `deploy`, while a deployment-only repository can omit `encrypt`. A target containing both ties the encrypted env asset and deployment hosts together by name.
+Files in `encrypt/` describe encrypted env assets. Files in `targets/` describe deployments. The two collections are independent; a deployment links to an encrypted asset explicitly through `env_ref`. Matching filenames are a convenience, not an implicit relationship.
+
+`encrypt/mainframe.yml`:
 
 ```yaml
-encrypt:
-  asset: mainframe.sops.env
-  keys:
-    - mainframe
-  apps:
-    - traefik
-    - rybbit
-  env:
-    APPS_DOMAIN: MAINFRAME_DOMAIN
-deploy:
-  flightdeck_ref: rubykatzen/flightdeck@latest
-  env_ref: owner/config@latest:mainframe.sops.env
-  extra_refs:
-    - owner/extra-apps@latest
-  hosts:
-    - deploy@100.64.0.1
-    - deploy@100.64.0.2
-  path: ~/flightdeck
-  sops_age_key_file: ~/.config/sops/age/keys.txt
-  credentials:
-    variables:
-      tailscale_oauth_client_id: TAILSCALE_OAUTH_CLIENT_ID
-    secrets:
-      ssh_private_key: DEPLOY_SSH_PRIVATE_KEY
-      tailscale_oauth_secret: TAILSCALE_OAUTH_SECRET
+asset: mainframe.sops.env
+keys:
+  - mainframe
+apps:
+  - traefik
+  - rybbit
+env:
+  APPS_DOMAIN: MAINFRAME_DOMAIN
 ```
 
-Credential fields contain GitHub Variable/Secret names, never credential values. `encrypt.apps`, `extra_refs`, and `hosts` are YAML arrays. Each host uses the SSH `user@host` format. The app list is rendered into the encrypted asset as a comma-separated `APPS` value. `load-targets` validates every target and emits an `encrypt` or `deploy` strategy matrix for the repository workflows.
+`targets/mainframe.yml`:
+
+```yaml
+flightdeck_ref: rubykatzen/flightdeck@latest
+env_ref: owner/config@latest:mainframe.sops.env
+extra_refs:
+  - owner/extra-apps@latest
+hosts:
+  - deploy@100.64.0.1
+  - deploy@100.64.0.2
+path: ~/flightdeck
+sops_age_key_file: ~/.config/sops/age/keys.txt
+credentials:
+  variables:
+    tailscale_oauth_client_id: TAILSCALE_OAUTH_CLIENT_ID
+  secrets:
+    ssh_private_key: DEPLOY_SSH_PRIVATE_KEY
+    tailscale_oauth_secret: TAILSCALE_OAUTH_SECRET
+```
+
+Credential fields contain GitHub Variable/Secret names, never credential values. `apps`, `extra_refs`, and `hosts` are YAML arrays. Each host uses the SSH `user@host` format. The app list is rendered into the encrypted asset as a comma-separated `APPS` value. `load-targets` validates each collection and emits an `encrypt` or `deploy` strategy matrix for the repository workflows.
 
 ---
 
 ### `encrypt-env`
 
-Renders the `encrypt` section of a target from GitHub Secrets/Variables, encrypts it with SOPS age recipients, and uploads `.sops.env` to an existing GitHub Release. Release creation remains the calling workflow's responsibility.
+Renders an encryption config from GitHub Secrets/Variables, encrypts it with SOPS age recipients, and uploads `.sops.env` to an existing GitHub Release. Release creation remains the calling workflow's responsibility.
 
 ```yaml
 - uses: rubykatzen/flightdeck/.github/actions/encrypt-env@main
   with:
-    manifest: targets/mainframe.yml                # required
+    manifest: encrypt/mainframe.yml                # required
     keys-directory: keys                           # default: keys
     release-tag: latest                            # required, must already exist
     release-repo: ""                               # default: current repository
@@ -502,15 +508,14 @@ Requires `contents: write` permission on the calling job.
 **Manifest format:**
 
 ```yaml
-encrypt:
-  asset: mainframe.sops.env
-  keys:
-    - mainframe
-  apps:
-    - traefik
-    - rybbit
-  env:
-    APPS_DOMAIN: APPS_DOMAIN         # output name: GitHub Secret/Variable name
+asset: mainframe.sops.env
+keys:
+  - mainframe
+apps:
+  - traefik
+  - rybbit
+env:
+  APPS_DOMAIN: APPS_DOMAIN         # output name: GitHub Secret/Variable name
 ```
 
 Secrets take precedence over Variables when both contain the same source key. Every source key must exist or the action fails.

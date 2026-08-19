@@ -188,21 +188,15 @@ def validate_deploy(value, location):
     return result
 
 
-def load_target(path):
+def load_config(path, mode):
     try:
         value = yaml.load(path.read_text(), Loader=UniqueKeyLoader)
     except yaml.YAMLError as exc:
         raise TargetError(f"{path} is not valid YAML: {exc}") from exc
-    target = require_mapping(value, str(path))
-    reject_unknown(target, {"encrypt", "deploy"}, str(path))
-    if not target:
-        raise TargetError(f"{path} must contain encrypt or deploy")
-    result = {}
-    if "encrypt" in target:
-        result["encrypt"] = validate_encrypt(target["encrypt"], f"{path}.encrypt")
-    if "deploy" in target:
-        result["deploy"] = validate_deploy(target["deploy"], f"{path}.deploy")
-    return result
+    config = require_mapping(value, str(path))
+    if mode == "encrypt":
+        return validate_encrypt(config, str(path))
+    return validate_deploy(config, str(path))
 
 
 def build_matrix(directory, mode, selected="all"):
@@ -223,15 +217,11 @@ def build_matrix(directory, mode, selected="all"):
         if name in seen_names:
             raise TargetError(f"duplicate target name: {name}")
         seen_names.add(name)
-        target = load_target(path)
+        config = load_config(path, mode)
         if selected != "all" and name != selected:
             continue
-        if mode not in target:
-            if selected != "all":
-                raise TargetError(f"target {name} has no {mode} section")
-            continue
         item = {"target": name, "manifest": str(path)}
-        item.update(target[mode])
+        item.update(config)
         include.append(item)
     return {"include": include}
 
@@ -245,12 +235,13 @@ def write_github_output(name, value):
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument("--directory", type=Path, default=Path("targets"))
+    parser.add_argument("--directory", type=Path)
     parser.add_argument("--mode", required=True)
     parser.add_argument("--target", default="all")
     args = parser.parse_args(argv)
     try:
-        matrix = build_matrix(args.directory, args.mode, args.target)
+        directory = args.directory or Path("encrypt" if args.mode == "encrypt" else "targets")
+        matrix = build_matrix(directory, args.mode, args.target)
         encoded = json.dumps(matrix, separators=(",", ":"))
         write_github_output("matrix", encoded)
         write_github_output("count", len(matrix["include"]))

@@ -31,30 +31,26 @@ class RenderEnvTest(unittest.TestCase):
 
     def test_rejects_raw_env(self):
         with self.assertRaises(render_env.ManifestError):
-            render_env.load_manifest(
-                self.write_manifest("encrypt:\n  asset: test.sops.env\n  raw_env: [APPS]\n")
-            )
+            render_env.load_manifest(self.write_manifest("asset: test.sops.env\nraw_env: [APPS]\n"))
 
     def test_rejects_apps_in_env(self):
         manifest = (
-            "encrypt:\n"
-            "  asset: test.sops.env\n"
-            "  keys: [test]\n"
-            "  apps: [traefik]\n"
-            "  env:\n"
-            "    APPS: TEST_APPS\n"
+            "asset: test.sops.env\n"
+            "keys: [test]\n"
+            "apps: [traefik]\n"
+            "env:\n"
+            "  APPS: TEST_APPS\n"
         )
         with self.assertRaisesRegex(render_env.ManifestError, "must be configured through"):
             render_env.load_manifest(self.write_manifest(manifest))
 
     def test_rejects_duplicate_apps(self):
         manifest = (
-            "encrypt:\n"
-            "  asset: test.sops.env\n"
-            "  keys: [test]\n"
-            "  apps: [traefik, traefik]\n"
-            "  env:\n"
-            "    TOKEN: TOKEN\n"
+            "asset: test.sops.env\n"
+            "keys: [test]\n"
+            "apps: [traefik, traefik]\n"
+            "env:\n"
+            "  TOKEN: TOKEN\n"
         )
         with self.assertRaisesRegex(render_env.ManifestError, "duplicate app names"):
             render_env.load_manifest(self.write_manifest(manifest))
@@ -67,13 +63,12 @@ class RenderEnvTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "manifest.yml"
             path.write_text(
-                "encrypt:\n"
-                "  asset: mainframe.sops.env\n"
-                "  keys: [master, server]\n"
-                "  apps: [traefik, rybbit]\n"
-                "  env:\n"
-                "    TOKEN: FIRST\n"
-                "    TOKEN: SECOND\n"
+                "asset: mainframe.sops.env\n"
+                "keys: [master, server]\n"
+                "apps: [traefik, rybbit]\n"
+                "env:\n"
+                "  TOKEN: FIRST\n"
+                "  TOKEN: SECOND\n"
             )
             with self.assertRaises(render_env.ManifestError):
                 render_env.load_manifest(path)
@@ -92,12 +87,11 @@ class RenderEnvTest(unittest.TestCase):
             env_path = root / ".env"
             outputs_path = root / "outputs"
             manifest_path.write_text(
-                "encrypt:\n"
-                "  asset: mainframe.sops.env\n"
-                "  keys: [master, server]\n"
-                "  apps: [traefik, rybbit]\n"
-                "  env:\n"
-                "    TOKEN: TOKEN\n"
+                "asset: mainframe.sops.env\n"
+                "keys: [master, server]\n"
+                "apps: [traefik, rybbit]\n"
+                "env:\n"
+                "  TOKEN: TOKEN\n"
             )
             old_env = os.environ.copy()
             os.environ.update(
