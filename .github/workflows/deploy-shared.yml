@@ -10,12 +10,16 @@ on:
         description: Full release ref of the Flightdeck bundle to deploy, in owner/repo@tag format.
         type: string
         required: true
-      env-ref:
-        description: Release ref for the encrypted env package, in owner/repo@tag:asset format.
+      env-refs:
+        description: JSON array of release refs for encrypted env packages to decrypt and merge, in owner/repo@tag[:asset] format.
         type: string
         required: true
       app-refs:
         description: JSON array of release refs for app bundles to merge into the release, in owner/repo@tag[:asset] format.
+        type: string
+        required: true
+      apps:
+        description: JSON array of app names to run on this target, rendered into the deployed env as APPS.
         type: string
         required: true
       path:
@@ -74,15 +78,18 @@ jobs:
         shell: bash
         env:
           APP_REF: ${{ inputs.app-ref }}
-          ENV_REF: ${{ inputs.env-ref }}
+          ENV_REFS: ${{ inputs.env-refs }}
           APP_REFS: ${{ inputs.app-refs }}
+          APPS: ${{ inputs.apps }}
           HOSTS: ${{ inputs.hosts }}
           DEPLOY_PATH: ${{ inputs.path }}
           KEEP_RELEASES: ${{ inputs.keep-releases }}
           SOPS_KEY_FILE: ${{ inputs.sops-age-key-file }}
         run: |
           hosts_json="$(jq -ce 'if type == "array" and length > 0 and all(.[]; type == "string" and test("^[a-z_][a-z0-9_-]*@[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$")) then . else error("hosts must be a non-empty user@host string array") end' <<< "$HOSTS")"
+          env_refs_json="$(jq -ce 'if type == "array" and length > 0 and all(.[]; type == "string" and length > 0) then . else error("env-refs must be a non-empty string array") end' <<< "$ENV_REFS")"
           app_refs_json="$(jq -ce 'if type == "array" and length > 0 and all(.[]; type == "string" and length > 0) then . else error("app-refs must be a non-empty string array") end' <<< "$APP_REFS")"
+          apps_json="$(jq -ce 'if type == "array" and length > 0 and all(.[]; type == "string" and length > 0) then . else error("apps must be a non-empty string array") end' <<< "$APPS")"
           jq -ce '
             reduce .[] as $destination ({all: {hosts: {}}};
               ($destination | capture("^(?<user>[^@]+)@(?<host>.+)$")) as $ssh |
@@ -91,12 +98,13 @@ jobs:
           ' <<< "$hosts_json" > "$RUNNER_TEMP/flightdeck-inventory.json"
           json="$(jq -n \
             --arg app_ref "$APP_REF" \
-            --arg env_ref "$ENV_REF" \
+            --argjson env_refs "$env_refs_json" \
             --argjson app_refs "$app_refs_json" \
+            --argjson apps "$apps_json" \
             --arg path "$DEPLOY_PATH" \
             --argjson keep_releases "$KEEP_RELEASES" \
             --arg sops_key_file "$SOPS_KEY_FILE" \
-            '{flightdeck_app_ref: $app_ref, flightdeck_env_ref: $env_ref, flightdeck_app_refs: $app_refs, flightdeck_path: $path, flightdeck_keep_releases: $keep_releases, flightdeck_sops_age_key_file: $sops_key_file}')"
+            '{flightdeck_app_ref: $app_ref, flightdeck_env_refs: $env_refs, flightdeck_app_refs: $app_refs, flightdeck_apps: $apps, flightdeck_path: $path, flightdeck_keep_releases: $keep_releases, flightdeck_sops_age_key_file: $sops_key_file}')"
           echo "json=$json" >> "$GITHUB_OUTPUT"
           echo "inventory=$RUNNER_TEMP/flightdeck-inventory.json" >> "$GITHUB_OUTPUT"
       - name: Run playbook

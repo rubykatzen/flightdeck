@@ -1,7 +1,11 @@
 flightdeck_ref: rubykatzen/flightdeck@latest
-env_ref: rubykatzen/flightdeck@latest:hawkeye.sops.env
+env_refs:
+  - rubykatzen/flightdeck@latest:hawkeye.sops.env
 app_refs:
   - rubykatzen/flightdeck@latest
+apps:
+  - traefik
+  - rybbit
 hosts:
   - rubykatzen-com@100.75.50.2
 credentials:

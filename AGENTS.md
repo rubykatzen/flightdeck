@@ -408,11 +408,13 @@ GitHub Actions workflow (`.github/workflows/release-please.yml`) manages release
 
 Deployment helpers live in this repository:
 
-- `ansible/deploy.yml` pulls `flightdeck_app_ref` (the machinery bundle), merges every ref in `flightdeck_app_refs` (the app bundles, at least one required — flightdeck's own `apps/` catalog is just another entry, not implicit), pulls the server-specific encrypted env package from `flightdeck_env_ref`, decrypts `.sops.env` on the server, switches a timestamped release, and runs `./deploy.sh`
-- `.github/actions/encrypt-env/` is a local composite action for rendering `vaults/` manifests from GitHub Secrets/Variables, encrypting them for age recipients, and publishing `.sops.env` as a GitHub Release asset
+- `ansible/deploy.yml` pulls `flightdeck_app_ref` (the machinery bundle), merges every ref in `flightdeck_app_refs` (the app bundles, at least one required — flightdeck's own `apps/` catalog is just another entry, not implicit), decrypts and merges every ref in `flightdeck_env_refs` (at least one required) into the server's `.env`, switches a timestamped release, and runs `./deploy.sh`
+- `.github/actions/encrypt-env/` is a local composite action for rendering `vaults/` manifests from GitHub Secrets/Variables, encrypting them for age recipients, and publishing `.sops.env` as a GitHub Release asset — vault manifests hold only env/secrets, not app selection
 - `.github/workflows/deploy-shared.yml` is a reusable workflow consumer repos call to run `ansible/deploy.yml` from GitHub Actions over an optional Tailscale connection, without holding any deploy secrets in this repository
 
 App bundles listed in `flightdeck_app_refs` are release assets referenced as short refs like `<owner>/<repo>@latest` or `<owner>/<repo>@v1.2.3`, resolving to a default asset name of `flightdeck-apps.zip` unless the ref specifies an explicit `:asset-name` suffix. `@latest` is resolved by the deploy playbook through GitHub's latest release API. Every bundle must contain an `apps/` directory; app names may not conflict across bundles.
+
+Env packages listed in `flightdeck_env_refs` are release refs the same shape as app bundles, defaulting to a `$tag.sops.env`-named asset. The playbook decrypts each with the server-local SOPS age key, then merges them alongside a synthesized `APPS` line (built from `flightdeck_apps`, the target's own desired app set) — failing loud on any key collision across sources, `APPS` included. `apps` moved off the vault schema onto the target for exactly this reason: multiple vaults can be merged without having to reconcile per-vault `apps` lists.
 
 Private release assets are supported by passing `FLIGHTDECK_GITHUB_TOKEN` as a secret environment variable to `ansible/deploy.yml`. Store it as a secret in whatever system runs the playbook (e.g. a GitHub Actions secret when using `deploy-shared.yml`), not in plain configuration. When the token is present, the playbook exports it as `GH_TOKEN` for `gh release download`.
 

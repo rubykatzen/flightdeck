@@ -10,12 +10,13 @@
       assert:
         that:
           - flightdeck_app_ref is defined and flightdeck_app_ref | length > 0
-          - flightdeck_env_ref is defined and flightdeck_env_ref | length > 0
+          - flightdeck_env_refs is defined and flightdeck_env_refs | length > 0
           - flightdeck_app_refs is defined and flightdeck_app_refs | length > 0
+          - flightdeck_apps is defined and flightdeck_apps | length > 0
           - flightdeck_path is defined and flightdeck_path | length > 0
           - flightdeck_keep_releases is defined
           - flightdeck_sops_age_key_file is defined and flightdeck_sops_age_key_file | length > 0
-        fail_msg: "Set flightdeck_app_ref, flightdeck_env_ref, flightdeck_app_refs, flightdeck_path, flightdeck_keep_releases, and flightdeck_sops_age_key_file"
+        fail_msg: "Set flightdeck_app_ref, flightdeck_env_refs, flightdeck_app_refs, flightdeck_apps, flightdeck_path, flightdeck_keep_releases, and flightdeck_sops_age_key_file"
     - name: Resolve Flightdeck user paths
       set_fact:
         flightdeck_user_home: "{{ '/root' if ansible_user == 'root' else '/home/' + ansible_user }}"
@@ -172,16 +173,36 @@
             executable: /bin/bash
           environment:
             FLIGHTDECK_GITHUB_TOKEN: "{{ flightdeck_github_token }}"
-        - name: Create env package pull directory
+        - name: Create env packages pull directory
           tempfile:
             state: directory
-            suffix: flightdeck-env-package
-          register: flightdeck_env_pull
-        - name: Pull encrypted env package
+            suffix: flightdeck-env-packages
+          register: flightdeck_env_packages_pull
+        - name: Pull, decrypt, and merge env packages
           shell: |
             set -euo pipefail
-            ref={{ flightdeck_env_ref | quote }}
-            out={{ flightdeck_env_pull.path | quote }}
+            packages_root={{ flightdeck_env_packages_pull.path | quote }}
+            merged={{ (flightdeck_shared_path + '/.env.tmp') | quote }}
+            seen_keys_file="$packages_root/seen-keys"
+            : > "$seen_keys_file"
+            : > "$merged"
+            add_line() {
+              key="${1%%=*}"
+              if grep -qxF "$key" "$seen_keys_file"; then
+                echo "Env key conflicts with an existing source: $key" >&2
+                exit 1
+              fi
+              echo "$key" >> "$seen_keys_file"
+              printf '%s\n' "$1" >> "$merged"
+            }
+            add_line {{ ('APPS=' + (flightdeck_apps | join(','))) | quote }}
+            if [ -n "${FLIGHTDECK_GITHUB_TOKEN:-}" ]; then
+              export GH_TOKEN="$FLIGHTDECK_GITHUB_TOKEN"
+            fi
+            {% for ref in flightdeck_env_refs %}
+            pkg_dir="$packages_root/{{ loop.index }}"
+            mkdir -p "$pkg_dir"
+            ref={{ ref | quote }}
             asset=
             repo="${ref%@*}"
             tag="${ref#*@}"
@@ -193,41 +214,31 @@
               asset="${tag#*:}"
               tag="${tag%%:*}"
             fi
-            if [ -n "${FLIGHTDECK_GITHUB_TOKEN:-}" ]; then
-              export GH_TOKEN="$FLIGHTDECK_GITHUB_TOKEN"
-            fi
             if [ "$tag" = "latest" ]; then
               resolved_tag="$(gh release view --repo "$repo" --json tagName --jq .tagName)"
               if [ -z "$resolved_tag" ] || [ "$resolved_tag" = "null" ]; then
                 echo "Could not resolve GitHub latest release for $repo" >&2
                 exit 1
               fi
-              echo "Resolved $repo@latest to $repo@$resolved_tag"
+              echo "Resolved $repo@latest to $repo@$resolved_tag" >&2
               tag="$resolved_tag"
             fi
             if [ -z "$asset" ]; then
               asset="$tag.sops.env"
             fi
-            gh release download "$tag" --repo "$repo" --pattern "$asset" --dir "$out"
-            test -f "$out/$asset"
-            cp "$out/$asset" "$out/.sops.env"
+            gh release download "$tag" --repo "$repo" --pattern "$asset" --dir "$pkg_dir"
+            test -f "$pkg_dir/$asset"
+            plain="$pkg_dir/plain.env"
+            SOPS_AGE_KEY_FILE={{ flightdeck_sops_age_key_file | quote }} sops decrypt "$pkg_dir/$asset" > "$plain"
+            while IFS= read -r line; do
+              [ -n "$line" ] || continue
+              add_line "$line"
+            done < "$plain"
+            {% endfor %}
           args:
             executable: /bin/bash
           environment:
             FLIGHTDECK_GITHUB_TOKEN: "{{ flightdeck_github_token }}"
-        - name: Check encrypted env payload
-          stat:
-            path: "{{ flightdeck_env_pull.path }}/.sops.env"
-          register: flightdeck_sops_env
-        - name: Require encrypted env payload
-          fail:
-            msg: ".sops.env was not found in {{ flightdeck_env_ref }}"
-          when: not flightdeck_sops_env.stat.exists
-        - name: Decrypt env to shared file
-          shell: >
-            SOPS_AGE_KEY_FILE={{ flightdeck_sops_age_key_file | quote }}
-            sops decrypt {{ (flightdeck_env_pull.path + '/.sops.env') | quote }}
-            > {{ (flightdeck_shared_path + '/.env.tmp') | quote }}
           no_log: true
         - name: Set env file permissions
           file:
@@ -279,11 +290,11 @@
             path: "{{ flightdeck_app_pull.path }}"
             state: absent
           when: flightdeck_app_pull is defined and flightdeck_app_pull.path is defined
-        - name: Remove env package pull directory
+        - name: Remove env packages pull directory
           file:
-            path: "{{ flightdeck_env_pull.path }}"
+            path: "{{ flightdeck_env_packages_pull.path }}"
             state: absent
-          when: flightdeck_env_pull is defined and flightdeck_env_pull.path is defined
+          when: flightdeck_env_packages_pull is defined and flightdeck_env_packages_pull.path is defined
         - name: Remove app packages pull directory
           file:
             path: "{{ flightdeck_app_packages_pull.path }}"

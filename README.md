@@ -90,13 +90,12 @@ Target servers need Docker, Docker Compose, GitHub CLI (`gh`), SOPS, and the ser
 ansible-playbook ansible/deploy.yml \
   -i mainframe, \
   -u root \
-  -e flightdeck_env_ref=<owner>/<secrets-repo>@latest:<server>.sops.env \
-  -e '{"flightdeck_app_refs":["rubykatzen/flightdeck@latest"]}'
+  -e '{"flightdeck_env_refs":["<owner>/<secrets-repo>@latest:<server>.sops.env"],"flightdeck_app_refs":["rubykatzen/flightdeck@latest"],"flightdeck_apps":["traefik","rybbit"]}'
 ```
 
-The `flightdeck_env_ref` format is `owner/repo@tag:asset`. Use an immutable semver tag for a pinned deploy, or `@latest` to resolve GitHub's latest release at deploy time. The playbook downloads the asset, decrypts it with the server-local SOPS age key (`flightdeck_sops_age_key_file`), links shared `.env` and `apps-data` into a timestamped release, switches `current`, and runs `./deploy.sh`.
+Each `flightdeck_env_refs` entry is in `owner/repo@tag:asset` format. Use an immutable semver tag for a pinned deploy, or `@latest` to resolve GitHub's latest release at deploy time. The playbook downloads and decrypts every entry with the server-local SOPS age key (`flightdeck_sops_age_key_file`), merges them into one `.env` alongside a synthesized `APPS` line built from `flightdeck_apps`, links shared `.env` and `apps-data` into a timestamped release, switches `current`, and runs `./deploy.sh`.
 
-`flightdeck_app_ref` (the machinery bundle) and `flightdeck_app_refs` (the app bundles to merge, `owner/repo@tag[:asset]` each) are both required — there's no default and no implicit `apps/`. `flightdeck_app_refs` must list at least one ref; for the default catalog, that's `rubykatzen/flightdeck@latest`.
+`flightdeck_app_ref` (the machinery bundle), `flightdeck_app_refs` (the app bundles to merge, `owner/repo@tag[:asset]` each), `flightdeck_env_refs` (the encrypted env assets to decrypt and merge, same ref format), and `flightdeck_apps` (the desired app names) are all required — there's no default and no implicit `apps/` or `APPS`. `flightdeck_app_refs`/`flightdeck_env_refs`/`flightdeck_apps` must each list at least one entry; for the default catalog, that's `rubykatzen/flightdeck@latest` and `["traefik", "rybbit"]` respectively. Merging `flightdeck_env_refs` fails loud on any duplicate key across sources, including a collision with the synthesized `APPS` line.
 
 For private GitHub Releases, pass a token through the `FLIGHTDECK_GITHUB_TOKEN`
 environment variable. Store it as a secret in whatever system runs this
@@ -116,11 +115,21 @@ Additional app bundles merge in the exact same way, as further entries in `fligh
 ansible-playbook ansible/deploy.yml \
   -i mainframe, \
   -u root \
-  -e flightdeck_env_ref=<owner>/<secrets-repo>@latest:<server>.sops.env \
-  -e '{"flightdeck_app_refs":["rubykatzen/flightdeck@latest","<owner>/<extra-repo>@latest"]}'
+  -e '{"flightdeck_env_refs":["<owner>/<secrets-repo>@latest:<server>.sops.env"],"flightdeck_app_refs":["rubykatzen/flightdeck@latest","<owner>/<extra-repo>@latest"],"flightdeck_apps":["traefik","rybbit"]}'
 ```
 
 Every bundle in `flightdeck_app_refs` must contain an `apps/` directory. App names cannot conflict across bundles.
+
+Additional env sources merge the same way, as further entries in `flightdeck_env_refs`:
+
+```bash
+ansible-playbook ansible/deploy.yml \
+  -i mainframe, \
+  -u root \
+  -e '{"flightdeck_env_refs":["<owner>/<secrets-repo>@latest:<server>.sops.env","<owner>/<other-secrets-repo>@latest:<server>.sops.env"],"flightdeck_app_refs":["rubykatzen/flightdeck@latest"],"flightdeck_apps":["traefik","rybbit"]}'
+```
+
+Env keys cannot conflict across sources — the playbook fails loud on any duplicate key, including a collision with the synthesized `APPS` line.
 
 ### 3. Select Applications
 
@@ -449,7 +458,7 @@ This repository provides four composite actions under `.github/actions/` (`build
 
 ### Vaults And Targets
 
-Files in `vaults/` describe encrypted env assets. Files in `targets/` describe deployments. The two collections are independent; a deployment links to an encrypted asset explicitly through `env_ref`. Matching filenames are a convenience, not an implicit relationship.
+Files in `vaults/` describe encrypted env assets — pure secrets/config, no app selection. Files in `targets/` describe deployments, including the desired `apps` set. The two collections are independent; a deployment links to encrypted assets explicitly through `env_refs`. Matching filenames are a convenience, not an implicit relationship.
 
 `vaults/mainframe.yml`:
 
@@ -457,9 +466,6 @@ Files in `vaults/` describe encrypted env assets. Files in `targets/` describe d
 asset: mainframe.sops.env
 keys:
   - mainframe
-apps:
-  - traefik
-  - rybbit
 env:
   APPS_DOMAIN: MAINFRAME_DOMAIN
 ```
@@ -468,10 +474,14 @@ env:
 
 ```yaml
 flightdeck_ref: rubykatzen/flightdeck@latest
-env_ref: owner/config@latest:mainframe.sops.env
+env_refs:
+  - owner/config@latest:mainframe.sops.env
 app_refs:
   - rubykatzen/flightdeck@latest
   - owner/extra-apps@latest
+apps:
+  - traefik
+  - rybbit
 hosts:
   - deploy@100.64.0.1
   - deploy@100.64.0.2
@@ -485,7 +495,7 @@ credentials:
     tailscale_oauth_secret: TAILSCALE_OAUTH_SECRET
 ```
 
-Credential fields contain GitHub Variable/Secret names, never credential values. `apps`, `app_refs`, and `hosts` are YAML arrays. Each host uses the SSH `user@host` format. The app list is rendered into the encrypted asset as a comma-separated `APPS` value. `app_refs` must list at least one app bundle — flightdeck's own `apps/` catalog is just another entry, not implicit.
+Credential fields contain GitHub Variable/Secret names, never credential values. `env_refs`, `app_refs`, `apps`, and `hosts` are YAML arrays. Each host uses the SSH `user@host` format. `app_refs` must list at least one app bundle — flightdeck's own `apps/` catalog is just another entry, not implicit. `env_refs` must list at least one encrypted env asset; the deploy playbook decrypts and merges all of them plus a synthesized `APPS` line built from the target's own `apps`, failing loud on any key collision across sources (including against `APPS` itself, if a vault ever tried to define it).
 
 `load-yaml-matrix` reads every file in `vaults/` or `targets/` into a matrix — it does not validate the manifest shape. Each manifest's fields are the responsibility of whatever consumes them: `encrypt-env` re-parses and validates its own manifest from `manifest`, and the workflows calling `deploy-shared.yml` apply `path`/`keep-releases`/`sops-age-key-file` defaults and pull `credentials.secrets`/`credentials.variables` values directly from the matrix item.
 
@@ -516,9 +526,6 @@ Requires `contents: write` permission on the calling job.
 asset: mainframe.sops.env
 keys:
   - mainframe
-apps:
-  - traefik
-  - rybbit
 env:
   APPS_DOMAIN: APPS_DOMAIN         # output name: GitHub Secret/Variable name
 ```
@@ -569,7 +576,7 @@ Requires `contents: write` permission on the calling job. `flightdeck-apps.zip` 
 
 ### `deploy-shared.yml`
 
-Runs [`ansible/deploy.yml`](ansible/deploy.yml) from this repository against the caller-supplied hosts. Intended to be called from a private consumer repository that owns both the config and secrets side (SSH key, encrypted `.sops.env` releases, etc.) — this repository does not hold any deploy secrets itself. `env-ref` typically references that same calling repository via `${{ github.repository }}`, since it's both the config and secrets source.
+Runs [`ansible/deploy.yml`](ansible/deploy.yml) from this repository against the caller-supplied hosts. Intended to be called from a private consumer repository that owns both the config and secrets side (SSH key, encrypted `.sops.env` releases, etc.) — this repository does not hold any deploy secrets itself. `env-refs` entries typically reference that same calling repository via `${{ github.repository }}`, since it's both the config and secrets source.
 
 The interface is plain deploy vocabulary, not Ansible's — callers never see `flightdeck_*` variable names or hand-write `-e` JSON; the workflow builds that internally.
 
@@ -582,8 +589,9 @@ jobs:
     with:
       hosts: '["deploy@100.64.0.1", "deploy@100.64.0.2"]'          # required JSON array
       app-ref: rubykatzen/flightdeck@latest                          # required full release ref
-      env-ref: "${{ github.repository }}@latest:<server>.sops.env"   # required
+      env-refs: '["${{ github.repository }}@latest:<server>.sops.env"]'  # required non-empty JSON array
       app-refs: '["rubykatzen/flightdeck@latest"]'                   # required non-empty JSON array
+      apps: '["traefik", "rybbit"]'                                  # required non-empty JSON array
       # path: ~/flightdeck                 # optional, default shown
       # keep-releases: 5                   # optional, default shown
       # sops-age-key-file: /home/deploy/.config/sops/age/keys.txt   # optional, default: ~/.config/sops/age/keys.txt for `user`
