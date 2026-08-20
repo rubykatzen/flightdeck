@@ -80,56 +80,15 @@ APPS_DATABASE_PASSWORD=...
 APPS_TIMEZONE=...
 ```
 
-### Ansible Deploy
+### Automated Deploy
 
-The repository includes an Ansible playbook for deploying the published Flightdeck bundle and encrypted env package:
+Deployment to a remote server goes through [`deploy-shared.yml`](.github/workflows/deploy-shared.yml) (documented in the GitHub Actions section below), a reusable workflow wrapping `ansible/deploy.yml` behind plain deploy vocabulary — `hosts`, `app-ref`, `env-refs`, `app-refs`, `apps`. `ansible/deploy.yml` is an implementation detail: callers of `deploy-shared.yml` never invoke `ansible-playbook` or write `flightdeck_*` `-e` variables themselves.
+
+What gets deployed — which app bundles, which encrypted env sources, which apps actually run — is configured declaratively per target, not passed as ad-hoc flags; see "Vaults And Targets" below for the manifest format, including how multiple `app_refs`/`env_refs` entries merge (env merging fails loud on any key collision across sources, including against the synthesized `APPS` line).
 
 Target servers need Docker, Docker Compose, GitHub CLI (`gh`), SOPS, and the server-local age key.
 
-```bash
-ansible-playbook ansible/deploy.yml \
-  -i mainframe, \
-  -u root \
-  -e '{"flightdeck_env_refs":["<owner>/<secrets-repo>@latest:<server>.sops.env"],"flightdeck_app_refs":["rubykatzen/flightdeck@latest"],"flightdeck_apps":["traefik","rybbit"]}'
-```
-
-Each `flightdeck_env_refs` entry is in `owner/repo@tag:asset` format. Use an immutable semver tag for a pinned deploy, or `@latest` to resolve GitHub's latest release at deploy time. The playbook downloads and decrypts every entry with the server-local SOPS age key (`flightdeck_sops_age_key_file`), merges them into one `.env` alongside a synthesized `APPS` line built from `flightdeck_apps`, links shared `.env` and `apps-data` into a timestamped release, switches `current`, and runs `./deploy.sh`.
-
-`flightdeck_app_ref` (the machinery bundle), `flightdeck_app_refs` (the app bundles to merge, `owner/repo@tag[:asset]` each), `flightdeck_env_refs` (the encrypted env assets to decrypt and merge, same ref format), and `flightdeck_apps` (the desired app names) are all required — there's no default and no implicit `apps/` or `APPS`. `flightdeck_app_refs`/`flightdeck_env_refs`/`flightdeck_apps` must each list at least one entry; for the default catalog, that's `rubykatzen/flightdeck@latest` and `["traefik", "rybbit"]` respectively. Merging `flightdeck_env_refs` fails loud on any duplicate key across sources, including a collision with the synthesized `APPS` line.
-
-For private GitHub Releases, pass a token through the `FLIGHTDECK_GITHUB_TOKEN`
-environment variable. Store it as a secret in whatever system runs this
-playbook (e.g. a GitHub Actions secret when using `deploy-shared.yml` below),
-not in plain configuration.
-
-```bash
-FLIGHTDECK_GITHUB_TOKEN=...
-```
-
-When `FLIGHTDECK_GITHUB_TOKEN` is set, the playbook exports it as `GH_TOKEN`
-for `gh release download`. Public releases do not need this variable.
-
-Additional app bundles merge in the exact same way, as further entries in `flightdeck_app_refs`:
-
-```bash
-ansible-playbook ansible/deploy.yml \
-  -i mainframe, \
-  -u root \
-  -e '{"flightdeck_env_refs":["<owner>/<secrets-repo>@latest:<server>.sops.env"],"flightdeck_app_refs":["rubykatzen/flightdeck@latest","<owner>/<extra-repo>@latest"],"flightdeck_apps":["traefik","rybbit"]}'
-```
-
-Every bundle in `flightdeck_app_refs` must contain an `apps/` directory. App names cannot conflict across bundles.
-
-Additional env sources merge the same way, as further entries in `flightdeck_env_refs`:
-
-```bash
-ansible-playbook ansible/deploy.yml \
-  -i mainframe, \
-  -u root \
-  -e '{"flightdeck_env_refs":["<owner>/<secrets-repo>@latest:<server>.sops.env","<owner>/<other-secrets-repo>@latest:<server>.sops.env"],"flightdeck_app_refs":["rubykatzen/flightdeck@latest"],"flightdeck_apps":["traefik","rybbit"]}'
-```
-
-Env keys cannot conflict across sources — the playbook fails loud on any duplicate key, including a collision with the synthesized `APPS` line.
+For private GitHub Releases, `deploy-shared.yml` passes a token through as `FLIGHTDECK_GITHUB_TOKEN`; the playbook exports it as `GH_TOKEN` for `gh release download`. Public releases don't need this.
 
 ### 3. Select Applications
 
