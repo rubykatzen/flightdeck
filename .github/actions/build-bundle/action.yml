@@ -1,13 +1,31 @@
-name: Build app bundle
-description: Build and validate a zip bundle from specified paths.
+name: Build and upload bundle
+description: Build a zip bundle from specified paths and upload it as a GitHub Release asset. Defaults to Flightdeck's own machinery bundle.
 inputs:
   paths:
     description: Newline-separated paths to include in the bundle.
-    required: true
+    required: false
+    default: |
+      ansible.cfg
+      .env.example
+      backup.sh
+      deploy.sh
+      down.sh
+      generate-env.sh
+      lib.sh
+      logs.sh
+      restart.sh
+      up.sh
+      README.md
   bundle-name:
     description: Bundle archive filename.
     required: false
-    default: bundle.zip
+    default: flightdeck.zip
+  release-tag:
+    description: Release tag to upload the bundle asset to.
+    required: true
+  token:
+    description: Token with permission to upload release assets.
+    required: true
 outputs:
   bundle-path:
     description: Path to the built bundle archive.
@@ -40,3 +58,10 @@ runs:
           exit 1
         fi
         echo "bundle-path=.bundle/$BUNDLE_NAME" >> "$GITHUB_OUTPUT"
+    - name: Upload bundle
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        RELEASE_TAG: ${{ inputs.release-tag }}
+        BUNDLE_PATH: ${{ steps.build.outputs.bundle-path }}
+      run: gh release upload "$RELEASE_TAG" "$BUNDLE_PATH" --clobber

@@ -13,7 +13,7 @@ SPEC.loader.exec_module(render_env)
 
 class RenderEnvTest(unittest.TestCase):
     def test_render_prefers_secrets_over_variables(self):
-        manifest = {"env": {"DOMAIN": "DOMAIN", "TIMEZONE": "TIMEZONE"}}
+        manifest = {"apps": ["traefik", "rybbit"], "env": {"DOMAIN": "DOMAIN", "TIMEZONE": "TIMEZONE"}}
         output = render_env.render_env(
             manifest,
             {"DOMAIN": "secret.example"},
@@ -21,25 +21,51 @@ class RenderEnvTest(unittest.TestCase):
         )
         self.assertIn("DOMAIN=secret.example\n", output)
         self.assertIn("TIMEZONE=Europe/Berlin\n", output)
+        self.assertIn("APPS=traefik,rybbit\n", output)
 
     def test_quotes_shell_sensitive_values(self):
-        output = render_env.render_env({"env": {"TOKEN": "TOKEN"}}, {"TOKEN": "hello world"}, {})
+        output = render_env.render_env(
+            {"apps": ["traefik"], "env": {"TOKEN": "TOKEN"}}, {"TOKEN": "hello world"}, {}
+        )
         self.assertIn("TOKEN='hello world'\n", output)
 
     def test_rejects_raw_env(self):
         with self.assertRaises(render_env.ManifestError):
-            render_env.load_manifest(self.write_manifest("raw_env: [APPS]\nenv:\n  APPS: APPS\n"))
+            render_env.load_manifest(self.write_manifest("asset: test.sops.env\nraw_env: [APPS]\n"))
+
+    def test_rejects_apps_in_env(self):
+        manifest = (
+            "asset: test.sops.env\n"
+            "keys: [test]\n"
+            "apps: [traefik]\n"
+            "env:\n"
+            "  APPS: TEST_APPS\n"
+        )
+        with self.assertRaisesRegex(render_env.ManifestError, "must be configured through"):
+            render_env.load_manifest(self.write_manifest(manifest))
+
+    def test_rejects_duplicate_apps(self):
+        manifest = (
+            "asset: test.sops.env\n"
+            "keys: [test]\n"
+            "apps: [traefik, traefik]\n"
+            "env:\n"
+            "  TOKEN: TOKEN\n"
+        )
+        with self.assertRaisesRegex(render_env.ManifestError, "duplicate app names"):
+            render_env.load_manifest(self.write_manifest(manifest))
 
     def test_missing_source_fails(self):
         with self.assertRaises(render_env.ManifestError):
-            render_env.render_env({"env": {"TOKEN": "TOKEN"}}, {}, {})
+            render_env.render_env({"apps": ["traefik"], "env": {"TOKEN": "TOKEN"}}, {}, {})
 
     def test_duplicate_yaml_keys_fail(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "manifest.yml"
             path.write_text(
-                "release_repo: example/secrets\n"
+                "asset: mainframe.sops.env\n"
                 "keys: [master, server]\n"
+                "apps: [traefik, rybbit]\n"
                 "env:\n"
                 "  TOKEN: FIRST\n"
                 "  TOKEN: SECOND\n"
@@ -61,9 +87,9 @@ class RenderEnvTest(unittest.TestCase):
             env_path = root / ".env"
             outputs_path = root / "outputs"
             manifest_path.write_text(
-                "release_repo: example/secrets\n"
-                "release_asset: mainframe.sops.env\n"
+                "asset: mainframe.sops.env\n"
                 "keys: [master, server]\n"
+                "apps: [traefik, rybbit]\n"
                 "env:\n"
                 "  TOKEN: TOKEN\n"
             )
@@ -82,9 +108,8 @@ class RenderEnvTest(unittest.TestCase):
                 os.environ.update(old_env)
             self.assertEqual(result, 0)
             self.assertIn("TOKEN=secret\n", env_path.read_text())
-            self.assertIn("release_repo=example/secrets\n", outputs_path.read_text())
-            self.assertIn("release_tag=\n", outputs_path.read_text())
-            self.assertIn("release_asset=mainframe.sops.env\n", outputs_path.read_text())
+            self.assertIn("APPS=traefik,rybbit\n", env_path.read_text())
+            self.assertIn("asset=mainframe.sops.env\n", outputs_path.read_text())
             self.assertIn("keys=master,server\n", outputs_path.read_text())
 
 

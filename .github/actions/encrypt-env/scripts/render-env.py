@@ -12,9 +12,8 @@ import yaml
 ENV_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 SOURCE_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*(?:__[A-Z0-9_]+)*$")
 KEY_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
-RELEASE_REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
-RELEASE_TAG_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
-RELEASE_ASSET_RE = re.compile(r"^[A-Za-z0-9_.-]+\.sops\.env$")
+APP_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+ASSET_RE = re.compile(r"^[A-Za-z0-9_.-]+\.sops\.env$")
 
 
 class ManifestError(Exception):
@@ -59,32 +58,31 @@ def load_manifest(path):
         raise ManifestError(f"{path} is not valid YAML: {exc}") from exc
     if not isinstance(manifest, dict):
         raise ManifestError(f"{path} must contain a YAML mapping")
-    if "package" in manifest:
-        raise ManifestError("package has been replaced by release-repo/release-tag GitHub Releases configuration")
-    release_repo = manifest.get("release_repo")
-    release_tag = manifest.get("release_tag")
-    release_asset = manifest.get("release_asset", f"{path.stem}.sops.env")
+    unknown = sorted(set(manifest) - {"asset", "keys", "apps", "env"})
+    if unknown:
+        raise ManifestError("manifest contains unknown keys: " + ", ".join(unknown))
+    asset = manifest.get("asset")
     keys = manifest.get("keys")
+    apps = manifest.get("apps")
     env = manifest.get("env")
-    if "raw_env" in manifest:
-        raise ManifestError("raw_env is no longer supported; store values as data, not shell syntax")
-    if release_repo is not None and (
-        not isinstance(release_repo, str) or not RELEASE_REPO_RE.fullmatch(release_repo)
-    ):
-        raise ManifestError("release_repo must be in owner/repo format")
-    if release_tag is not None and (
-        not isinstance(release_tag, str) or not RELEASE_TAG_RE.fullmatch(release_tag)
-    ):
-        raise ManifestError("release_tag must contain only letters, numbers, dots, underscores, or hyphens")
-    if not isinstance(release_asset, str) or not RELEASE_ASSET_RE.fullmatch(release_asset):
-        raise ManifestError("release_asset must be named like server.sops.env")
+    if not isinstance(asset, str) or not ASSET_RE.fullmatch(asset):
+        raise ManifestError("asset must be named like server.sops.env")
     if not isinstance(keys, list) or not keys:
         raise ManifestError("keys must be a non-empty list")
+    if not isinstance(apps, list) or not apps:
+        raise ManifestError("apps must be a non-empty list")
     if not isinstance(env, dict) or not env:
         raise ManifestError("env must be a non-empty mapping")
     for key in keys:
         if not isinstance(key, str) or not KEY_NAME_RE.fullmatch(key):
             raise ManifestError(f"invalid key name: {key!r}")
+    for app in apps:
+        if not isinstance(app, str) or not APP_NAME_RE.fullmatch(app):
+            raise ManifestError(f"invalid app name: {app!r}")
+    if len(apps) != len(set(apps)):
+        raise ManifestError("apps contains duplicate app names")
+    if "APPS" in env:
+        raise ManifestError("APPS must be configured through apps")
     for output_name, source_name in env.items():
         if not isinstance(output_name, str) or not ENV_NAME_RE.fullmatch(output_name):
             raise ManifestError(f"invalid output env name: {output_name!r}")
@@ -113,7 +111,7 @@ def resolve_value(source_name, secrets, variables):
 
 
 def render_env(manifest, secrets, variables):
-    lines = []
+    lines = [f"APPS={','.join(manifest['apps'])}"]
     missing = []
     for output_name, source_name in manifest["env"].items():
         value = resolve_value(source_name, secrets, variables)
@@ -148,9 +146,7 @@ def main(argv=None):
         args.output.chmod(0o600)
         write_github_outputs(
             {
-                "release_repo": manifest.get("release_repo", ""),
-                "release_tag": manifest.get("release_tag", ""),
-                "release_asset": manifest.get("release_asset", f"{args.manifest.stem}.sops.env"),
+                "asset": manifest["asset"],
                 "keys": ",".join(manifest["keys"]),
             }
         )

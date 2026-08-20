@@ -1,0 +1,39 @@
+name: Deploy
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Deploy target to redeploy. Use "all" to redeploy every target.
+        type: string
+        default: all
+jobs:
+  deploy-targets:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      count: ${{ steps.matrix.outputs.count }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: $/.github/actions/load-yaml-matrix
+        id: matrix
+        with:
+          directory: targets
+          name: ${{ inputs.target || 'all' }}
+  deploy:
+    needs: deploy-targets
+    if: needs.deploy-targets.outputs.count != '0'
+    strategy:
+      matrix: ${{ fromJson(needs.deploy-targets.outputs.matrix) }}
+    uses: $/.github/workflows/deploy-shared.yml
+    with:
+      hosts: ${{ toJson(matrix.hosts) }}
+      app-ref: ${{ matrix.flightdeck_ref }}
+      env-ref: ${{ matrix.env_ref }}
+      app-refs: ${{ toJson(matrix.app_refs) }}
+      path: ${{ matrix.path || '~/flightdeck' }}
+      keep-releases: ${{ matrix.keep_releases || 5 }}
+      sops-age-key-file: ${{ matrix.sops_age_key_file || '~/.config/sops/age/keys.txt' }}
+      tailscale-oauth-client-id: ${{ vars[matrix.credentials.variables.tailscale_oauth_client_id] }}
+    secrets:
+      ssh-private-key: ${{ secrets[matrix.credentials.secrets.ssh_private_key] }}
+      tailscale-oauth-secret: ${{ secrets[matrix.credentials.secrets.tailscale_oauth_secret] }}

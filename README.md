@@ -90,12 +90,13 @@ Target servers need Docker, Docker Compose, GitHub CLI (`gh`), SOPS, and the ser
 ansible-playbook ansible/deploy.yml \
   -i mainframe, \
   -u root \
-  -e flightdeck_env_ref=<owner>/<secrets-repo>@latest:<server>.sops.env
+  -e flightdeck_env_ref=<owner>/<secrets-repo>@latest:<server>.sops.env \
+  -e '{"flightdeck_app_refs":["rubykatzen/flightdeck@latest"]}'
 ```
 
 The `flightdeck_env_ref` format is `owner/repo@tag:asset`. Use an immutable semver tag for a pinned deploy, or `@latest` to resolve GitHub's latest release at deploy time. The playbook downloads the asset, decrypts it with the server-local SOPS age key (`flightdeck_sops_age_key_file`), links shared `.env` and `apps-data` into a timestamped release, switches `current`, and runs `./deploy.sh`.
 
-The `flightdeck_app_ref` defaults to `rubykatzen/flightdeck@latest`.
+`flightdeck_app_ref` (the machinery bundle) and `flightdeck_app_refs` (the app bundles to merge, `owner/repo@tag[:asset]` each) are both required — there's no default and no implicit `apps/`. `flightdeck_app_refs` must list at least one ref; for the default catalog, that's `rubykatzen/flightdeck@latest`.
 
 For private GitHub Releases, pass a token through the `FLIGHTDECK_GITHUB_TOKEN`
 environment variable. Store it as a secret in whatever system runs this
@@ -109,17 +110,17 @@ FLIGHTDECK_GITHUB_TOKEN=...
 When `FLIGHTDECK_GITHUB_TOKEN` is set, the playbook exports it as `GH_TOKEN`
 for `gh release download`. Public releases do not need this variable.
 
-Optional extra app bundles can be merged into the release before deploy:
+Additional app bundles merge in the exact same way, as further entries in `flightdeck_app_refs`:
 
 ```bash
 ansible-playbook ansible/deploy.yml \
   -i mainframe, \
   -u root \
   -e flightdeck_env_ref=<owner>/<secrets-repo>@latest:<server>.sops.env \
-  -e '{"flightdeck_extra_refs":["<owner>/<extra-repo>@latest"]}'
+  -e '{"flightdeck_app_refs":["rubykatzen/flightdeck@latest","<owner>/<extra-repo>@latest"]}'
 ```
 
-Extra bundles must contain an `apps/` directory. Extra app names cannot conflict with apps from the core bundle or earlier extra bundles.
+Every bundle in `flightdeck_app_refs` must contain an `apps/` directory. App names cannot conflict across bundles.
 
 ### 3. Select Applications
 
@@ -173,11 +174,16 @@ flightdeck/
 │   └── deploy.yml      # Deploy published bundle and encrypted env
 ├── .github/
 │   ├── actions/
-│   │   ├── discover-manifest-matrix/  # Build a strategy matrix from files matching a glob
-│   │   └── publish-sops-env/          # Encrypt env manifest and upload to GitHub Release
+│   │   ├── build-bundle/              # Build and upload the machinery bundle
+│   │   ├── build-apps-bundle/          # Build and upload an apps/ catalog bundle
+│   │   ├── encrypt-env/                # Encrypt a target env and upload it to a release
+│   │   └── load-yaml-matrix/            # Read a directory of YAML manifests into a workflow matrix
 │   └── workflows/
-│       └── release-please.yml      # Release Please + publish Flightdeck release bundle
+│       ├── deploy-shared.yml           # Reusable deployment workflow
+│       └── release.yml                 # Release Please + publish Flightdeck assets
 │
+├── vaults/                        # Encrypted env asset configurations
+├── targets/                       # Deployment targets
 ├── .env                          # All server configuration incl. APPS list (git-ignored)
 ├── .env.example                  # Configuration template
 │
@@ -253,7 +259,7 @@ The script stops each app one at a time, creates a zip archive, restarts it, the
 | **databasus** | Database management UI |
 | **rybbit** | Web analytics |
 
-Additional apps can live in an optional extra catalog repo (`apps/` directory) and be merged at deploy time with `flightdeck_extra_refs`.
+This catalog is itself published as its own release asset (`flightdeck-apps.zip`), merged at deploy time like any other entry in `flightdeck_app_refs`. Additional apps can live in any other repo's own `apps/`-shaped catalog, published the same way, and merged in by listing its ref alongside flightdeck's own.
 
 ## ⚙️ Configuration
 
@@ -437,61 +443,65 @@ If you're evaluating alternatives, these projects solve a similar problem from d
 
 ## ⚙️ GitHub Actions
 
-This repository provides two reusable composite actions under `.github/actions/` and one reusable workflow, `deploy-shared.yml`.
+This repository provides four composite actions under `.github/actions/` (`build-bundle`, `build-apps-bundle`, `encrypt-env`, and `load-yaml-matrix`) and one reusable workflow, `deploy-shared.yml`.
 
 ---
 
-### `discover-manifest-matrix`
+### Vaults And Targets
 
-Builds a GitHub Actions strategy matrix from files matching a glob pattern.
+Files in `vaults/` describe encrypted env assets. Files in `targets/` describe deployments. The two collections are independent; a deployment links to an encrypted asset explicitly through `env_ref`. Matching filenames are a convenience, not an implicit relationship.
 
-```yaml
-- id: discover
-  uses: rubykatzen/flightdeck/.github/actions/discover-manifest-matrix@main
-  with:
-    pattern: projects/*/*.yml   # required
-```
-
-**Outputs:** `matrix` — JSON object `{"manifest": ["path/a.yml", "path/b.yml", ...]}`.
-
-**Typical use** — feed the output into a matrix job:
+`vaults/mainframe.yml`:
 
 ```yaml
-jobs:
-  discover:
-    outputs:
-      matrix: ${{ steps.discover.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@v6
-      - id: discover
-        uses: rubykatzen/flightdeck/.github/actions/discover-manifest-matrix@main
-        with:
-          pattern: projects/*/*.yml
-
-  publish:
-    needs: discover
-    strategy:
-      matrix: ${{ fromJson(needs.discover.outputs.matrix) }}
-    steps:
-      - run: echo ${{ matrix.manifest }}
+asset: mainframe.sops.env
+keys:
+  - mainframe
+apps:
+  - traefik
+  - rybbit
+env:
+  APPS_DOMAIN: MAINFRAME_DOMAIN
 ```
+
+`targets/mainframe.yml`:
+
+```yaml
+flightdeck_ref: rubykatzen/flightdeck@latest
+env_ref: owner/config@latest:mainframe.sops.env
+app_refs:
+  - rubykatzen/flightdeck@latest
+  - owner/extra-apps@latest
+hosts:
+  - deploy@100.64.0.1
+  - deploy@100.64.0.2
+path: ~/flightdeck                                # optional, default shown
+sops_age_key_file: ~/.config/sops/age/keys.txt    # optional, default shown
+credentials:
+  variables:
+    tailscale_oauth_client_id: TAILSCALE_OAUTH_CLIENT_ID
+  secrets:
+    ssh_private_key: DEPLOY_SSH_PRIVATE_KEY
+    tailscale_oauth_secret: TAILSCALE_OAUTH_SECRET
+```
+
+Credential fields contain GitHub Variable/Secret names, never credential values. `apps`, `app_refs`, and `hosts` are YAML arrays. Each host uses the SSH `user@host` format. The app list is rendered into the encrypted asset as a comma-separated `APPS` value. `app_refs` must list at least one app bundle — flightdeck's own `apps/` catalog is just another entry, not implicit.
+
+`load-yaml-matrix` reads every file in `vaults/` or `targets/` into a matrix — it does not validate the manifest shape. Each manifest's fields are the responsibility of whatever consumes them: `encrypt-env` re-parses and validates its own manifest from `manifest`, and the workflows calling `deploy-shared.yml` apply `path`/`keep-releases`/`sops-age-key-file` defaults and pull `credentials.secrets`/`credentials.variables` values directly from the matrix item.
 
 ---
 
-### `publish-sops-env`
+### `encrypt-env`
 
-Renders an env manifest from GitHub Secrets/Variables, encrypts it with SOPS age recipients, and uploads `.sops.env` as a GitHub Release asset.
-
-The release must already exist before this action runs. Create it in a separate job and pass the tag explicitly.
+Renders an encryption config from GitHub Secrets/Variables, encrypts it with SOPS age recipients, and uploads `.sops.env` to an existing GitHub Release. Release creation remains the calling workflow's responsibility.
 
 ```yaml
-- uses: rubykatzen/flightdeck/.github/actions/publish-sops-env@main
+- uses: rubykatzen/flightdeck/.github/actions/encrypt-env@main
   with:
-    manifest: projects/flightdeck/mainframe.yml   # required
+    manifest: vaults/mainframe.yml                  # required
     keys-directory: keys                           # default: keys
-    release-tag: latest                            # default: manifest release_tag or repo name
+    release-tag: latest                            # required, must already exist
     release-repo: ""                               # default: current repository
-    asset-name: ""                                 # default: manifest release_asset or <stem>.sops.env
     token: ${{ secrets.GITHUB_TOKEN }}             # required
   env:
     GITHUB_SECRETS_JSON: ${{ toJson(secrets) }}
@@ -503,39 +513,80 @@ Requires `contents: write` permission on the calling job.
 **Manifest format:**
 
 ```yaml
-release_asset: flightdeck--mainframe.sops.env
-
+asset: mainframe.sops.env
 keys:
   - mainframe
-
+apps:
+  - traefik
+  - rybbit
 env:
   APPS_DOMAIN: APPS_DOMAIN         # output name: GitHub Secret/Variable name
-  APPS: APPS_AGATHA
 ```
 
 Secrets take precedence over Variables when both contain the same source key. Every source key must exist or the action fails.
 
 ---
 
+### `build-bundle`
+
+Builds a zip archive from caller-selected paths, rejects runtime state and env files, and uploads it to an existing GitHub Release. `paths` and `bundle-name` default to Flightdeck's own machinery bundle (everything except `apps/`, uploaded as `flightdeck.zip`) but are fully overridable.
+
+```yaml
+steps:
+  - uses: actions/checkout@v7
+    with:
+      ref: v1.2.3
+  - uses: rubykatzen/flightdeck/.github/actions/build-bundle@v1.2.3
+    with:
+      release-tag: v1.2.3
+      token: ${{ secrets.GITHUB_TOKEN }}
+      # paths: ...        # optional, defaults to the machinery file list
+      # bundle-name: ...  # optional, defaults to flightdeck.zip
+```
+
+Requires `contents: write` permission on the calling job.
+
+---
+
+### `build-apps-bundle`
+
+A thin defaults wrapper around `build-bundle`: `paths` defaults to `apps`, `bundle-name` defaults to `flightdeck-apps.zip`. The same action publishes flightdeck's own `apps/` catalog and any consumer repository's own app bundle.
+
+```yaml
+steps:
+  - uses: actions/checkout@v7
+    with:
+      ref: v1.2.3
+  - uses: rubykatzen/flightdeck/.github/actions/build-apps-bundle@v1.2.3
+    with:
+      release-tag: v1.2.3
+      token: ${{ secrets.GITHUB_TOKEN }}
+```
+
+Requires `contents: write` permission on the calling job. `flightdeck-apps.zip` is the default asset name a `flightdeck_app_refs` entry resolves to when it doesn't specify an explicit `:asset-name` suffix; override `bundle-name` and use that suffix when publishing under a different filename.
+
+---
+
 ### `deploy-shared.yml`
 
-Runs [`ansible/deploy.yml`](ansible/deploy.yml) from this repository against the caller-supplied inventory. Intended to be called from a private consumer repository that owns both the config and secrets side (SSH key, encrypted `.sops.env` releases, etc.) — this repository does not hold any deploy secrets itself. `flightdeck_env_ref` typically references that same calling repository via `${{ github.repository }}`, since it's both the config and secrets source.
+Runs [`ansible/deploy.yml`](ansible/deploy.yml) from this repository against the caller-supplied hosts. Intended to be called from a private consumer repository that owns both the config and secrets side (SSH key, encrypted `.sops.env` releases, etc.) — this repository does not hold any deploy secrets itself. `env-ref` typically references that same calling repository via `${{ github.repository }}`, since it's both the config and secrets source.
 
-Tailscale is optional, not a dependency of this workflow: set `tailscale-oauth-client-id` (and the matching `tailscale-oauth-secret`) to have the runner join a tailnet as an ephemeral node before deploying. Leave both unset to skip that step entirely — e.g. when the job already runs on a self-hosted runner with network access to the inventory hosts, or reaches them some other way.
+The interface is plain deploy vocabulary, not Ansible's — callers never see `flightdeck_*` variable names or hand-write `-e` JSON; the workflow builds that internally.
+
+Tailscale is optional, not a dependency of this workflow: set `tailscale-oauth-client-id` (and the matching `tailscale-oauth-secret`) to have the runner join a tailnet as an ephemeral node before deploying. Leave both unset to skip that step entirely — e.g. when the job already runs on a self-hosted runner with network access to the hosts, or reaches them some other way.
 
 ```yaml
 jobs:
   deploy:
     uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@v1.2.3
     with:
-      inventory: 100.64.0.1,100.64.0.2                               # required
-      user: root                                                     # default: root
-      extra-vars: |
-        {"flightdeck_env_ref":"${{ github.repository }}@latest:<server>.sops.env",
-         "flightdeck_extra_refs":[],
-         "flightdeck_path":"~/flightdeck",
-         "flightdeck_keep_releases":5,
-         "flightdeck_sops_age_key_file":"/home/deploy/.config/sops/age/keys.txt"}
+      hosts: '["deploy@100.64.0.1", "deploy@100.64.0.2"]'          # required JSON array
+      app-ref: rubykatzen/flightdeck@latest                          # required full release ref
+      env-ref: "${{ github.repository }}@latest:<server>.sops.env"   # required
+      app-refs: '["rubykatzen/flightdeck@latest"]'                   # required non-empty JSON array
+      # path: ~/flightdeck                 # optional, default shown
+      # keep-releases: 5                   # optional, default shown
+      # sops-age-key-file: /home/deploy/.config/sops/age/keys.txt   # optional, default: ~/.config/sops/age/keys.txt for `user`
       tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}  # optional, default: unset (skip joining a tailnet)
       tailscale-tags: tag:ci                                         # default: tag:ci
     secrets:
@@ -543,9 +594,7 @@ jobs:
       tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}  # optional, required only if tailscale-oauth-client-id is set
 ```
 
-The `@v1.2.3` pin on the `uses:` line is the only place the Flightdeck version needs to be written: it's what gets checked out to run `ansible/deploy.yml`, and it's also the default for `flightdeck_app_ref` (the release bundle the playbook downloads and deploys) unless `extra-vars` explicitly overrides it.
-
-`extra-vars` is a JSON object passed through as `ansible-playbook -e` — see [Ansible Deploy](#ansible-deploy) above for what each `flightdeck_*` key means.
+The `@v1.2.3` pin on the `uses:` line only controls which ref runs the playbook mechanism itself. `app-ref` is separate and required - it is the full release ref for the bundle the playbook downloads and deploys, and does not have to match the workflow pin.
 
 ## 📝 License
 

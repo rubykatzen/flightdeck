@@ -1,0 +1,31 @@
+name: Build and upload apps bundle
+description: Build an apps/ catalog bundle and upload it as a GitHub Release asset. Thin defaults wrapper around build-bundle.
+inputs:
+  paths:
+    description: Newline-separated paths to include in the bundle.
+    required: false
+    default: apps
+  bundle-name:
+    description: Bundle archive filename.
+    required: false
+    default: flightdeck-apps.zip
+  release-tag:
+    description: Release tag to upload the bundle asset to.
+    required: true
+  token:
+    description: Token with permission to upload release assets.
+    required: true
+outputs:
+  bundle-path:
+    description: Path to the built bundle archive.
+    value: ${{ steps.build.outputs.bundle-path }}
+runs:
+  using: composite
+  steps:
+    - uses: ./.github/actions/build-bundle
+      id: build
+      with:
+        paths: ${{ inputs.paths }}
+        bundle-name: ${{ inputs.bundle-name }}
+        release-tag: ${{ inputs.release-tag }}
+        token: ${{ inputs.token }}

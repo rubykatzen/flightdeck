@@ -1,0 +1,31 @@
+name: Load YAML matrix
+description: Read every YAML file in a directory into a GitHub Actions matrix. No schema validation.
+inputs:
+  directory:
+    description: Directory containing YAML files.
+    required: true
+  name:
+    description: Single manifest name to load, or all.
+    required: false
+    default: all
+outputs:
+  matrix:
+    description: JSON strategy matrix, one item per manifest, merging its parsed YAML fields with name and manifest.
+    value: ${{ steps.load.outputs.matrix }}
+  count:
+    description: Number of manifests in the matrix.
+    value: ${{ steps.load.outputs.count }}
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies
+      shell: bash
+      run: python3 -m pip install --disable-pip-version-check --requirement "$GITHUB_ACTION_PATH/requirements.txt"
+    - name: Load matrix
+      id: load
+      shell: bash
+      env:
+        DIRECTORY: ${{ inputs.directory }}
+        NAME: ${{ inputs.name }}
+      run: |
+        python3 "$GITHUB_ACTION_PATH/scripts/load-yaml-matrix.py" --directory "$DIRECTORY" --name "$NAME"

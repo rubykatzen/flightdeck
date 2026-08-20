@@ -11,12 +11,18 @@
         that:
           - flightdeck_app_ref is defined and flightdeck_app_ref | length > 0
           - flightdeck_env_ref is defined and flightdeck_env_ref | length > 0
-          - flightdeck_extra_refs is defined
-          - flightdeck_github_token | length > 0
+          - flightdeck_app_refs is defined and flightdeck_app_refs | length > 0
           - flightdeck_path is defined and flightdeck_path | length > 0
           - flightdeck_keep_releases is defined
           - flightdeck_sops_age_key_file is defined and flightdeck_sops_age_key_file | length > 0
-        fail_msg: "Set flightdeck_app_ref, flightdeck_env_ref, flightdeck_extra_refs, flightdeck_path, flightdeck_keep_releases, flightdeck_sops_age_key_file, and the FLIGHTDECK_GITHUB_TOKEN environment variable"
+        fail_msg: "Set flightdeck_app_ref, flightdeck_env_ref, flightdeck_app_refs, flightdeck_path, flightdeck_keep_releases, and flightdeck_sops_age_key_file"
+    - name: Resolve Flightdeck user paths
+      set_fact:
+        flightdeck_user_home: "{{ '/root' if ansible_user == 'root' else '/home/' + ansible_user }}"
+    - name: Expand Flightdeck user paths
+      set_fact:
+        flightdeck_path: "{{ flightdeck_path | regex_replace('^~', flightdeck_user_home) }}"
+        flightdeck_sops_age_key_file: "{{ flightdeck_sops_age_key_file | regex_replace('^~', flightdeck_user_home) }}"
     - name: Apply Flightdeck paths
       set_fact:
         flightdeck_release_name: "{{ ansible_facts['date_time'].iso8601_basic_short }}"
@@ -97,16 +103,20 @@
             src: "{{ flightdeck_app_pull.path }}/flightdeck.zip"
             dest: "{{ flightdeck_release_path }}"
             remote_src: true
-        - name: Create extra packages pull directory
+        - name: Ensure release apps directory
+          file:
+            path: "{{ flightdeck_release_path }}/apps"
+            state: directory
+            mode: "0755"
+        - name: Create app packages pull directory
           tempfile:
             state: directory
-            suffix: flightdeck-extra-packages
-          register: flightdeck_extra_pull
-          when: flightdeck_extra_refs | length > 0
-        - name: Pull and merge extra app packages
+            suffix: flightdeck-app-packages
+          register: flightdeck_app_packages_pull
+        - name: Pull and merge app packages
           shell: |
             set -euo pipefail
-            extra_root={{ flightdeck_extra_pull.path | quote }}
+            packages_root={{ flightdeck_app_packages_pull.path | quote }}
             release_apps={{ (flightdeck_release_path + '/apps') | quote }}
             download_release_ref() {
               ref="$1"
@@ -139,20 +149,20 @@
             if [ -n "${FLIGHTDECK_GITHUB_TOKEN:-}" ]; then
               export GH_TOKEN="$FLIGHTDECK_GITHUB_TOKEN"
             fi
-            {% for ref in flightdeck_extra_refs %}
-            package_dir="$extra_root/{{ loop.index }}"
+            {% for ref in flightdeck_app_refs %}
+            package_dir="$packages_root/{{ loop.index }}"
             mkdir -p "$package_dir/pull" "$package_dir/extract"
-            bundle="$(download_release_ref {{ ref | quote }} "$package_dir/pull" flightdeck-extra.zip)"
+            bundle="$(download_release_ref {{ ref | quote }} "$package_dir/pull" flightdeck-apps.zip)"
             unzip "$bundle" -d "$package_dir/extract"
             if [ ! -d "$package_dir/extract/apps" ]; then
-              echo "Extra package {{ ref }} does not contain apps/" >&2
+              echo "Package {{ ref }} does not contain apps/" >&2
               exit 1
             fi
             for app_path in "$package_dir/extract/apps"/*; do
               [ -d "$app_path" ] || continue
               app="$(basename "$app_path")"
               if [ -e "$release_apps/$app" ]; then
-                echo "Extra app conflicts with an existing app: $app" >&2
+                echo "App conflicts with an existing app: $app" >&2
                 exit 1
               fi
               cp -a "$app_path" "$release_apps/"
@@ -162,7 +172,6 @@
             executable: /bin/bash
           environment:
             FLIGHTDECK_GITHUB_TOKEN: "{{ flightdeck_github_token }}"
-          when: flightdeck_extra_refs | length > 0
         - name: Create env package pull directory
           tempfile:
             state: directory
@@ -275,8 +284,8 @@
             path: "{{ flightdeck_env_pull.path }}"
             state: absent
           when: flightdeck_env_pull is defined and flightdeck_env_pull.path is defined
-        - name: Remove extra packages pull directory
+        - name: Remove app packages pull directory
           file:
-            path: "{{ flightdeck_extra_pull.path }}"
+            path: "{{ flightdeck_app_packages_pull.path }}"
             state: absent
-          when: flightdeck_extra_pull is defined and flightdeck_extra_pull.path is defined
+          when: flightdeck_app_packages_pull is defined and flightdeck_app_packages_pull.path is defined

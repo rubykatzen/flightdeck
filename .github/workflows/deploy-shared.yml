@@ -2,20 +2,36 @@ name: Deploy (shared)
 on:
   workflow_call:
     inputs:
-      inventory:
-        description: Ansible inventory, e.g. a comma-separated Tailscale host list.
+      hosts:
+        description: JSON array of user@host SSH destinations to deploy to.
         type: string
         required: true
-      user:
-        description: SSH user for the Ansible connection.
-        type: string
-        default: root
-      extra-vars:
-        description: "JSON object passed to ansible-playbook as -e (flightdeck_env_ref, flightdeck_path, etc). flightdeck_app_ref defaults to the ref this workflow was called at (the @tag on the uses: line) and only needs to be set here to override that."
+      app-ref:
+        description: Full release ref of the Flightdeck bundle to deploy, in owner/repo@tag format.
         type: string
         required: true
+      env-ref:
+        description: Release ref for the encrypted env package, in owner/repo@tag:asset format.
+        type: string
+        required: true
+      app-refs:
+        description: JSON array of release refs for app bundles to merge into the release, in owner/repo@tag[:asset] format.
+        type: string
+        required: true
+      path:
+        description: Base path on the target host for releases, shared files, and the current symlink.
+        type: string
+        default: "~/flightdeck"
+      keep-releases:
+        description: Number of past releases to keep on the target host.
+        type: number
+        default: 5
+      sops-age-key-file:
+        description: Path to the server-local SOPS age key file, relative to each SSH user's home when it starts with ~.
+        type: string
+        default: "~/.config/sops/age/keys.txt"
       tailscale-oauth-client-id:
-        description: Tailscale OAuth client ID used to join the tailnet. Leave unset to skip joining a tailnet (e.g. when the runner already has network access to the inventory hosts).
+        description: Tailscale OAuth client ID used to join the tailnet. Leave unset to skip joining a tailnet (e.g. when the runner already has network access to the hosts).
         type: string
         default: ""
       tailscale-tags:
@@ -24,7 +40,7 @@ on:
         default: tag:ci
     secrets:
       ssh-private-key:
-        description: SSH private key used to connect to the inventory hosts.
+        description: SSH private key used to connect to the hosts.
         required: true
       tailscale-oauth-secret:
         description: Tailscale OAuth client secret used to join the tailnet. Required only when tailscale-oauth-client-id is set.
@@ -33,19 +49,10 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Resolve flightdeck ref
-        id: ref
-        shell: bash
-        run: |
-          ref="${{ github.workflow_ref }}"
-          ref="${ref#*@}"
-          ref="${ref#refs/tags/}"
-          ref="${ref#refs/heads/}"
-          echo "ref=$ref" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v7
         with:
-          repository: rubykatzen/flightdeck
-          ref: ${{ steps.ref.outputs.ref }}
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
       - name: Install ansible-core
         shell: bash
         run: pip install --user --break-system-packages ansible-core
@@ -62,13 +69,41 @@ jobs:
           echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
           ssh-add - <<< "${{ secrets.ssh-private-key }}"
+      - name: Build extra-vars
+        id: vars
+        shell: bash
+        env:
+          APP_REF: ${{ inputs.app-ref }}
+          ENV_REF: ${{ inputs.env-ref }}
+          APP_REFS: ${{ inputs.app-refs }}
+          HOSTS: ${{ inputs.hosts }}
+          DEPLOY_PATH: ${{ inputs.path }}
+          KEEP_RELEASES: ${{ inputs.keep-releases }}
+          SOPS_KEY_FILE: ${{ inputs.sops-age-key-file }}
+        run: |
+          hosts_json="$(jq -ce 'if type == "array" and length > 0 and all(.[]; type == "string" and test("^[a-z_][a-z0-9_-]*@[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$")) then . else error("hosts must be a non-empty user@host string array") end' <<< "$HOSTS")"
+          app_refs_json="$(jq -ce 'if type == "array" and length > 0 and all(.[]; type == "string" and length > 0) then . else error("app-refs must be a non-empty string array") end' <<< "$APP_REFS")"
+          jq -ce '
+            reduce .[] as $destination ({all: {hosts: {}}};
+              ($destination | capture("^(?<user>[^@]+)@(?<host>.+)$")) as $ssh |
+              .all.hosts[$ssh.host] = {ansible_user: $ssh.user}
+            )
+          ' <<< "$hosts_json" > "$RUNNER_TEMP/flightdeck-inventory.json"
+          json="$(jq -n \
+            --arg app_ref "$APP_REF" \
+            --arg env_ref "$ENV_REF" \
+            --argjson app_refs "$app_refs_json" \
+            --arg path "$DEPLOY_PATH" \
+            --argjson keep_releases "$KEEP_RELEASES" \
+            --arg sops_key_file "$SOPS_KEY_FILE" \
+            '{flightdeck_app_ref: $app_ref, flightdeck_env_ref: $env_ref, flightdeck_app_refs: $app_refs, flightdeck_path: $path, flightdeck_keep_releases: $keep_releases, flightdeck_sops_age_key_file: $sops_key_file}')"
+          echo "json=$json" >> "$GITHUB_OUTPUT"
+          echo "inventory=$RUNNER_TEMP/flightdeck-inventory.json" >> "$GITHUB_OUTPUT"
       - name: Run playbook
         shell: bash
         env:
           ANSIBLE_HOST_KEY_CHECKING: "false"
         run: |
           ansible-playbook ansible/deploy.yml \
-            -i "${{ inputs.inventory }}" \
-            -u "${{ inputs.user }}" \
-            -e "{\"flightdeck_app_ref\":\"rubykatzen/flightdeck@${{ steps.ref.outputs.ref }}\"}" \
-            -e "${{ inputs.extra-vars }}"
+            -i "${{ steps.vars.outputs.inventory }}" \
+            -e "${{ steps.vars.outputs.json }}"

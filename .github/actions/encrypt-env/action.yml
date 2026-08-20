@@ -1,0 +1,108 @@
+name: Encrypt env
+description: Render a target env, encrypt it with SOPS age recipients, and upload it to a GitHub Release.
+inputs:
+  manifest:
+    description: Path to the YAML env manifest.
+    required: true
+  release-repo:
+    description: GitHub repository containing the release. Defaults to the current repository.
+    required: false
+    default: ""
+  release-tag:
+    description: Existing release tag to publish the asset to.
+    required: true
+  keys-directory:
+    description: Directory containing public age recipients named <key>.pub.
+    required: false
+    default: keys
+  token:
+    description: Token with permission to write releases.
+    required: true
+outputs:
+  release-repo:
+    description: GitHub repository used for publication.
+    value: ${{ steps.publish.outputs.release_repo }}
+  tag:
+    description: Release tag used for publication.
+    value: ${{ steps.publish.outputs.tag }}
+  ref:
+    description: Release asset ref in owner/repo@tag:asset format.
+    value: ${{ steps.publish.outputs.ref }}
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies
+      shell: bash
+      env:
+        SOPS_VERSION: "3.13.1"
+      run: |
+        python3 -m pip install --disable-pip-version-check --requirement "$GITHUB_ACTION_PATH/requirements.txt"
+        mkdir -p "$RUNNER_TEMP/encrypt-env/bin"
+        curl --fail --location --silent --show-error \
+          "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64" \
+          --output "$RUNNER_TEMP/encrypt-env/bin/sops"
+        chmod +x "$RUNNER_TEMP/encrypt-env/bin/sops"
+        echo "$RUNNER_TEMP/encrypt-env/bin" >> "$GITHUB_PATH"
+    - name: Render env
+      id: render
+      shell: bash
+      env:
+        MANIFEST: ${{ inputs.manifest }}
+      run: |
+        mkdir -p "$RUNNER_TEMP/encrypt-env"
+        python3 "$GITHUB_ACTION_PATH/scripts/render-env.py" \
+          --manifest "$MANIFEST" \
+          --output "$RUNNER_TEMP/encrypt-env/plain.env"
+    - name: Resolve release target
+      id: target
+      shell: bash
+      env:
+        INPUT_RELEASE_REPO: ${{ inputs.release-repo }}
+        DEFAULT_RELEASE_REPO: ${{ github.repository }}
+        ASSET_NAME: ${{ steps.render.outputs.asset }}
+      run: |
+        release_repo="${INPUT_RELEASE_REPO:-$DEFAULT_RELEASE_REPO}"
+        echo "release_repo=$release_repo" >> "$GITHUB_OUTPUT"
+        echo "asset_name=$ASSET_NAME" >> "$GITHUB_OUTPUT"
+    - name: Encrypt env
+      shell: bash
+      env:
+        KEYS: ${{ steps.render.outputs.keys }}
+        KEYS_DIRECTORY: ${{ inputs.keys-directory }}
+      run: |
+        recipients=""
+        IFS=',' read -ra names <<< "$KEYS"
+        for name in "${names[@]}"; do
+          recipient="$(tr -d '[:space:]' < "$KEYS_DIRECTORY/${name}.pub")"
+          if [[ ! "$recipient" =~ ^age1 ]]; then
+            echo "Invalid age recipient: $KEYS_DIRECTORY/${name}.pub" >&2
+            exit 1
+          fi
+          recipients="${recipients:+$recipients,}$recipient"
+        done
+        SOPS_AGE_RECIPIENTS="$recipients" sops encrypt \
+          --input-type dotenv \
+          --output-type dotenv \
+          "$RUNNER_TEMP/encrypt-env/plain.env" \
+          > "$RUNNER_TEMP/encrypt-env/.sops.env"
+        rm "$RUNNER_TEMP/encrypt-env/plain.env"
+    - name: Upload encrypted env
+      id: publish
+      shell: bash
+      env:
+        RELEASE_REPO: ${{ steps.target.outputs.release_repo }}
+        TAG: ${{ inputs.release-tag }}
+        ASSET_NAME: ${{ steps.target.outputs.asset_name }}
+        GH_TOKEN: ${{ inputs.token }}
+      run: |
+        set -euo pipefail
+        asset_path="$RUNNER_TEMP/encrypt-env/$ASSET_NAME"
+        cp "$RUNNER_TEMP/encrypt-env/.sops.env" "$asset_path"
+        gh release upload "$TAG" "$asset_path" --repo "$RELEASE_REPO" --clobber
+        echo "release_repo=$RELEASE_REPO" >> "$GITHUB_OUTPUT"
+        echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+        echo "ref=$RELEASE_REPO@$TAG:$ASSET_NAME" >> "$GITHUB_OUTPUT"
+    - name: Cleanup
+      if: always()
+      shell: bash
+      run: rm -rf "$RUNNER_TEMP/encrypt-env"
