@@ -1,5 +1,0 @@
-paths:
-  .github/workflows/deploy-shared.yml:
-    # actionlint 1.7.12 predates these GitHub job context properties.
-    ignore:
-      - 'property "workflow_(repository|sha)" is not defined in object type'
