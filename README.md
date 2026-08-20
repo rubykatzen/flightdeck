@@ -475,8 +475,8 @@ app_refs:
 hosts:
   - deploy@100.64.0.1
   - deploy@100.64.0.2
-path: ~/flightdeck
-sops_age_key_file: ~/.config/sops/age/keys.txt
+path: ~/flightdeck                                # optional, default shown
+sops_age_key_file: ~/.config/sops/age/keys.txt    # optional, default shown
 credentials:
   variables:
     tailscale_oauth_client_id: TAILSCALE_OAUTH_CLIENT_ID
