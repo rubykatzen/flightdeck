@@ -12,7 +12,6 @@ import yaml
 ENV_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
 SOURCE_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*(?:__[A-Z0-9_]+)*$")
 KEY_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
-APP_NAME_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 ASSET_RE = re.compile(r"^[A-Za-z0-9_.-]+\.sops\.env$")
 
 
@@ -58,31 +57,21 @@ def load_manifest(path):
         raise ManifestError(f"{path} is not valid YAML: {exc}") from exc
     if not isinstance(manifest, dict):
         raise ManifestError(f"{path} must contain a YAML mapping")
-    unknown = sorted(set(manifest) - {"asset", "keys", "apps", "env"})
+    unknown = sorted(set(manifest) - {"asset", "keys", "env"})
     if unknown:
         raise ManifestError("manifest contains unknown keys: " + ", ".join(unknown))
     asset = manifest.get("asset")
     keys = manifest.get("keys")
-    apps = manifest.get("apps")
     env = manifest.get("env")
     if not isinstance(asset, str) or not ASSET_RE.fullmatch(asset):
         raise ManifestError("asset must be named like server.sops.env")
     if not isinstance(keys, list) or not keys:
         raise ManifestError("keys must be a non-empty list")
-    if not isinstance(apps, list) or not apps:
-        raise ManifestError("apps must be a non-empty list")
     if not isinstance(env, dict) or not env:
         raise ManifestError("env must be a non-empty mapping")
     for key in keys:
         if not isinstance(key, str) or not KEY_NAME_RE.fullmatch(key):
             raise ManifestError(f"invalid key name: {key!r}")
-    for app in apps:
-        if not isinstance(app, str) or not APP_NAME_RE.fullmatch(app):
-            raise ManifestError(f"invalid app name: {app!r}")
-    if len(apps) != len(set(apps)):
-        raise ManifestError("apps contains duplicate app names")
-    if "APPS" in env:
-        raise ManifestError("APPS must be configured through apps")
     for output_name, source_name in env.items():
         if not isinstance(output_name, str) or not ENV_NAME_RE.fullmatch(output_name):
             raise ManifestError(f"invalid output env name: {output_name!r}")
@@ -111,7 +100,7 @@ def resolve_value(source_name, secrets, variables):
 
 
 def render_env(manifest, secrets, variables):
-    lines = [f"APPS={','.join(manifest['apps'])}"]
+    lines = []
     missing = []
     for output_name, source_name in manifest["env"].items():
         value = resolve_value(source_name, secrets, variables)

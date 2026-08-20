@@ -32,12 +32,9 @@ permissions:
 asset: mainframe.sops.env
 keys:
   - mainframe
-apps:
-  - traefik
-  - rybbit
 env:
   APPS_DOMAIN: APPS_DOMAIN         # output name: GitHub Secret/Variable name
   APPS_TIMEZONE: APPS_TIMEZONE
 ```
 
-The action renders `apps` as the comma-separated `APPS` dotenv value. For each name in `keys`, it loads `<keys-directory>/<name>.pub`. Secrets take precedence over Variables when both contain the same source key. Every source key must resolve or the action fails.
+For each name in `keys`, it loads `<keys-directory>/<name>.pub`. Secrets take precedence over Variables when both contain the same source key. Every source key must resolve or the action fails. The manifest has no `apps` field — app selection lives on the deploy target, not the vault; see the main README's "Vaults And Targets" section.

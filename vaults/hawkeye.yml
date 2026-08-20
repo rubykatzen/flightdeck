@@ -1,9 +1,6 @@
 asset: hawkeye.sops.env
 keys:
   - hawkeye
-apps:
-  - traefik
-  - rybbit
 env:
   APPS_DOMAIN: RUBYKATZEN_COM_DOMAIN
   APPS_ADMIN_MAIL: RUBYKATZEN_COM_ADMIN_MAIL
