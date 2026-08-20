@@ -5,4 +5,4 @@ on:
   pull_request:
 jobs:
   embedder:
-    uses: rubykatzen/baseline/.github/workflows/embedder-shared.yml@v0.13.0
+    uses: rubykatzen/baseline/.github/workflows/embedder-shared.yml@v0.13.1
