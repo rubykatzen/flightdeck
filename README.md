@@ -207,7 +207,7 @@ chmod 600 apps-data/traefik/acme.json
 
 1. **Change Default Credentials** - Update vault-sourced secrets and re-deploy
 2. **Use Strong Passwords** - Generate with: `openssl rand -base64 32`
-3. **Keep Images Updated** - Watchtower-managed apps update automatically; others get the latest image on every deploy (`docker compose pull` runs before `up`)
+3. **Keep Images Updated** - every deploy runs `docker compose pull` before `up`, so all apps get their latest image on every deploy
 4. **Restrict Network Access** - Use firewall rules to limit access to Traefik ports (80, 443)
 5. **Enable HTTPS** - Always use HTTPS, never expose HTTP to internet
 6. **Backup Data** - Regularly back up `apps-data/` (backup automation is a separate, not-yet-decided piece of tooling)
@@ -217,6 +217,7 @@ chmod 600 apps-data/traefik/acme.json
 ## 📚 Additional Resources
 
 - [AGENTS.md](AGENTS.md) - Technical documentation for AI agents and developers
+- [RETIRED.md](RETIRED.md) - Apps removed from the active stack, and why
 - [Docker Documentation](https://docs.docker.com/)
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
 - [Traefik Documentation](https://doc.traefik.io/)
