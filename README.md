@@ -38,8 +38,6 @@ The deploy is push-based and runs entirely on the GitHub Actions runner:
 5. Render that app's config templates (`config/*.template.*`) using the decrypted values — the same substitution `envsubst` does, run here instead of on the host.
 6. Push the finished release (real `.env`, already-rendered config) to each host over SSH, switch the `current` symlink, and run `docker compose pull && docker compose up -d` per app.
 
-Nothing decrypts or renders on the target host. The only thing it ever receives is a finished, ready-to-run Docker Compose project per app.
-
 What gets deployed — which app bundles, which apps actually run, and which encrypted env sources feed each one — is configured declaratively per target; see "Vaults And Targets" below for the manifest format.
 
 ## 📁 Project Structure
@@ -166,70 +164,25 @@ Add the app to whichever target's `apps` mapping should run it, and give it a va
 
 ## 🔍 Troubleshooting
 
-Since there's no manual administration path, all of the following happen by SSHing into the target host directly, for debugging only:
-
-### Container Won't Start
+There's no manual administration path, so debugging means SSHing into the target host and using Docker Compose directly from the app's own folder — no wrapper needed, `apps/{app}/` is already a complete, ready-to-run Compose project:
 
 ```bash
-# Check logs
-cd apps/app-name && docker compose logs -f
-
-# Validate docker-compose configuration
-cd apps/app-name && docker compose config
-
-# Check network connectivity
-docker network ls
-docker network inspect traefik
+cd apps/app-name
+docker compose logs -f          # tail logs
+docker compose config           # validate/inspect the resolved config
+docker ps | grep app-name       # confirm it's running
 ```
 
-### SSL Certificate Issues
+A few things that don't fit that one-liner:
 
-```bash
-# Check Traefik logs
-cd apps/traefik && docker compose logs -f
-
-# Verify ACME certificate file
-ls -la apps-data/traefik/acme.json
-
-# Ensure correct permissions
-chmod 600 apps-data/traefik/acme.json
-```
-
-### Application Not Accessible
-
-1. Verify app is running: `docker ps | grep app-name`
-2. Check app logs: `cd apps/app-name && docker compose logs -f`
-3. Check Traefik logs: `cd apps/traefik && docker compose logs -f`
-4. Verify DNS resolves: `nslookup app-name.domain.com`
-5. Test internal connectivity: `docker exec -it traefik wget -q --spider http://app-name`
-
-## 🔐 Security Best Practices
-
-1. **Change Default Credentials** - Update vault-sourced secrets and re-deploy
-2. **Use Strong Passwords** - Generate with: `openssl rand -base64 32`
-3. **Keep Images Updated** - every deploy runs `docker compose pull` before `up`, so all apps get their latest image on every deploy
-4. **Restrict Network Access** - Use firewall rules to limit access to Traefik ports (80, 443)
-5. **Enable HTTPS** - Always use HTTPS, never expose HTTP to internet
-6. **Backup Data** - Regularly back up `apps-data/` (backup automation is a separate, not-yet-decided piece of tooling)
-7. **Monitor Logs** - Review logs regularly for errors and unauthorized access attempts
-8. **Update Dependencies** - Check for updates: `docker pull app:latest`
+- **Networking**: `docker network ls` / `docker network inspect traefik` to check connectivity; `docker exec -it traefik wget -q --spider http://app-name` to test an app's reachability from inside the `traefik` network.
+- **SSL**: `apps-data/traefik/acme.json` must exist and be `chmod 600`, or Traefik won't issue certificates.
+- **DNS**: `nslookup app-name.domain.com` if the app resolves but isn't reachable.
 
 ## 📚 Additional Resources
 
 - [AGENTS.md](AGENTS.md) - Technical documentation for AI agents and developers
 - [RETIRED.md](RETIRED.md) - Apps removed from the active stack, and why
-- [Docker Documentation](https://docs.docker.com/)
-- [Docker Compose Documentation](https://docs.docker.com/compose/)
-- [Traefik Documentation](https://doc.traefik.io/)
-
-## 🤝 Contributing
-
-Contributions are welcome! To add a new application:
-
-1. Follow the "Adding a New Application" section
-2. Verify by deploying it to a real target
-3. Document any special requirements
-4. Submit a pull request with the new app configuration
 
 ## 🔄 Similar Services
 
@@ -286,8 +239,8 @@ apps:
     env_refs:
       - owner/config@latest:mainframe-rybbit.sops.env
 hosts:
-  - deploy@100.64.0.1
-  - deploy@100.64.0.2
+  - deploy@app1.example.com
+  - deploy@app2.example.com
 path: ~/flightdeck                                # optional, default shown
 credentials:
   variables:
@@ -341,6 +294,8 @@ Secrets take precedence over Variables when both contain the same source key. Ev
 
 Builds a zip archive from caller-selected paths, rejects runtime state and env files, and uploads it to an existing GitHub Release. `paths` and `bundle-name` are required — this is a generic, reusable primitive (`build-apps-bundle` below is the only current caller).
 
+<!-- x-release-please-start-version -->
+
 ```yaml
 steps:
   - uses: actions/checkout@v7
@@ -354,6 +309,8 @@ steps:
       token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
+<!-- x-release-please-end -->
+
 Requires `contents: write` permission on the calling job.
 
 ---
@@ -361,6 +318,8 @@ Requires `contents: write` permission on the calling job.
 ### `build-apps-bundle`
 
 A thin defaults wrapper around `build-bundle`: `paths` defaults to `apps`, `bundle-name` defaults to `flightdeck-apps.zip`. The same action publishes flightdeck's own `apps/` catalog and any consumer repository's own app bundle.
+
+<!-- x-release-please-start-version -->
 
 ```yaml
 steps:
@@ -372,6 +331,8 @@ steps:
       release-tag: v1.2.3
       token: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+<!-- x-release-please-end -->
 
 Requires `contents: write` permission on the calling job. `flightdeck-apps.zip` is the default asset name an `app_refs` entry resolves to when it doesn't specify an explicit `:asset-name` suffix; override `bundle-name` and use that suffix when publishing under a different filename.
 
@@ -385,12 +346,14 @@ The interface is plain deploy vocabulary — callers never see `deploy.py`'s int
 
 Tailscale is optional, not a dependency of this workflow: set `tailscale-oauth-client-id` (and the matching `tailscale-oauth-secret`) to have the runner join a tailnet as an ephemeral node before deploying. Leave both unset to skip that step entirely — e.g. when the job already runs on a self-hosted runner with network access to the hosts, or reaches them some other way.
 
+<!-- x-release-please-start-version -->
+
 ```yaml
 jobs:
   deploy:
     uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@v1.2.3
     with:
-      hosts: '["deploy@100.64.0.1", "deploy@100.64.0.2"]'          # required JSON array
+      hosts: '["deploy@app1.example.com", "deploy@app2.example.com"]'  # required JSON array
       app-refs: '["rubykatzen/flightdeck@latest"]'                   # required non-empty JSON array
       apps: '{"traefik": {"env_refs": ["${{ github.repository }}@latest:mainframe-traefik.sops.env"]}}'  # required non-empty JSON object
       # path: ~/flightdeck                 # optional, default shown
@@ -403,14 +366,10 @@ jobs:
       tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}  # optional, required only if tailscale-oauth-client-id is set
 ```
 
-The `@v1.2.3` pin on the `uses:` line only controls which ref runs `deploy/deploy.py` itself. `app-refs` entries are separate and don't have to match the workflow pin.
+<!-- x-release-please-end -->
+
+The `@v1.2.3` pin on the `uses:` line only controls which ref runs `deploy/deploy.py` itself. `app-refs` entries are separate and don't have to match the workflow pin. <!-- x-release-please-version -->
 
 ## 📝 License
 
-This project is provided as-is for self-hosted deployment.
-
----
-
-**Last Updated**: 2026
-**Supported Docker Compose**: >= 2.0
-**Status**: Active Development
+[MIT](LICENSE)
