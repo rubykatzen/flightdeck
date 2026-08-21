@@ -70,11 +70,18 @@ The repository uses a modular docker-compose structure with reusable components:
    - `x-restart`: Restart policy (unless-stopped)
    - Pre-defined service profiles: `main`, `main-http`, `api`, `host`, `side`
 
-2. **Shared Infrastructure** (`apps/networks.yml`, `apps/postgres.yml`, `apps/redis.yml`):
+2. **Shared Infrastructure** (`apps/networks.yml` plus versioned database/cache/service templates):
    - `networks.yml`: Defines `internal`, `databases`, `mcp`, and `traefik` networks
-   - `postgres.yml`: PostgreSQL 17 service template
-   - `redis.yml`: Redis 7 service template
-   - Apps include these via `include:` directive to get database/cache services
+   - `postgres-17.yml`, `postgres-18.yml`: PostgreSQL service templates
+   - `paradedb-17.yml`, `pgvector-17.yml`: Postgres-compatible variants (full-text search, vector search)
+   - `redis-7.yml`, `redis-8.yml`: Redis service templates
+   - `mysql-8.yml`: MySQL service template
+   - `mongodb-8.yml`: MongoDB service template
+   - `clickhouse-25.4.yml`, `clickhouse-26.5.yml`: ClickHouse service templates
+   - `timescale-17.yml`: TimescaleDB service template
+   - `gotenberg-8.yml`: Gotenberg (document conversion) service template
+   - Templates are versioned by filename (e.g. `postgres-17.yml` vs `postgres-18.yml`) so an app picks its version explicitly via which file it includes, not a shared default
+   - Apps include these via `include:` directive to get database/cache/service dependencies
 
 3. **App Structure Pattern**:
    Each app in `apps/` has:
@@ -152,7 +159,7 @@ Backups are a separate, not-yet-decided piece of tooling (the old `backup.sh` as
 2. Create `docker-compose.yml`:
    - Include `../networks.yml` for network definitions
    - Extend `../common.yml` service definitions (usually `main`)
-   - Include `../postgres.yml` and/or `../redis.yml`, `../mongo.yml` if needed
+   - Include a versioned database/service template if needed, e.g. `../postgres-18.yml`, `../redis-8.yml`, `../mongodb-8.yml` (see "Shared Infrastructure" above for the full list)
    - Reference data path: `../../apps-data/${APP_NAME}/`
    - Set the service port explicitly with `expose` and `traefik.http.services.${APP_NAME}.loadbalancer.server.port`
 3. Wire it into a target's `apps` mapping and give it a vault declaring the env it needs (see README's "Vaults And Targets")
@@ -198,9 +205,9 @@ To maintain consistency across all applications, follow these strict field order
 # 1. INCLUDE DIRECTIVES (always first)
 include:
   - ../networks.yml      # Always first
-  - ../postgres.yml      # If PostgreSQL needed
-  - ../redis.yml         # If Redis needed
-  - ../mongo.yml         # If MongoDB needed
+  - ../postgres-18.yml   # If PostgreSQL needed (pick a version, see "Shared Infrastructure")
+  - ../redis-8.yml       # If Redis needed (pick a version)
+  - ../mongodb-8.yml     # If MongoDB needed
 
 # 2. X-IMAGE (if multiple services use the same image)
 x-image: &image
@@ -272,7 +279,7 @@ services:
 
 ### Key ordering principles:
 
-1. **Include order**: networks.yml → postgres.yml → redis.yml → mongo.yml
+1. **Include order**: networks.yml → database/cache templates (postgres/redis/mongodb/etc., pick a version) → others
 2. **X-fields order**: x-image → x-environment → x-volumes (only if needed)
 3. **X-image for shared images** - if multiple services use the same image, use `x-image: &image`
 4. **X-volumes for shared volumes** - if 2+ volumes repeat across services, extract them to `x-volumes: &volumes` and merge with unique ones
@@ -302,7 +309,7 @@ Example:
 ```yaml
 include:
   - ../networks.yml
-  - ../postgres.yml
+  - ../postgres-18.yml
 x-environment: &environment
   DATABASE_URL: postgresql://postgres:${APPS_DATABASE_PASSWORD}@postgres:5432/${APP_NAME}
   ENABLE_FEATURE: true
@@ -343,7 +350,7 @@ Each app in a target's `apps` mapping lists its own `env_refs` — release refs 
 
 - **traefik**: Entry point, uses external network. Note: currently carries the Watchtower label (see below) - a target that doesn't also run a `watchtower` container (hawkeye doesn't, as of this writing) would never get `docker compose up` run for it by the automated path. Known gap, not yet resolved.
 - **watchtower**: Infrastructure app — recommended on every server. Handles automatic image updates for apps that opt in via the `com.centurylinklabs.watchtower.enable=true` label. `deploy/deploy.py` skips running `docker compose pull`/`up` for any app with this label entirely, so Watchtower is their sole lifecycle manager.
-- Apps with databases include postgres.yml and create app-specific database named `${APP_NAME}`
+- Apps with databases include a versioned template (e.g. `postgres-18.yml`) and create app-specific database named `${APP_NAME}`
 - Config templates use `envsubst`-equivalent substitution (`deploy/render.py`) - variables must be shell-compatible (`${VAR}` syntax)
 
 ## Watchtower-managed Apps

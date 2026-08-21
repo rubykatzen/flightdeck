@@ -50,9 +50,11 @@ flightdeck/
 │   ├── traefik/                  # Reverse proxy & SSL
 │   ├── common.yml               # Shared service definitions
 │   ├── networks.yml             # Network configuration
-│   ├── postgres.yml             # PostgreSQL template
-│   ├── redis.yml                # Redis template
-│   ├── mongodb.yml              # MongoDB template
+│   ├── postgres-17.yml, postgres-18.yml   # PostgreSQL templates
+│   ├── redis-7.yml, redis-8.yml           # Redis templates
+│   ├── mongodb-8.yml, mysql-8.yml         # More database templates
+│   ├── clickhouse-25.4.yml, clickhouse-26.5.yml, timescale-17.yml, paradedb-17.yml, pgvector-17.yml   # Analytics/search-oriented database templates
+│   ├── gotenberg-8.yml           # Document conversion template
 │   └── {app-name}/              # Each app directory
 │       ├── docker-compose.yml   # App configuration
 │       └── config/              # Optional config templates
