@@ -17,18 +17,6 @@ jobs:
         id: release
         with:
           token: ${{ secrets.RELEASE_TOKEN }}
-  upload:
-    needs: release
-    if: needs.release.outputs.release_created == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.release.outputs.tag_name }}
-      - uses: $/.github/actions/build-bundle
-        with:
-          release-tag: ${{ needs.release.outputs.tag_name }}
-          token: ${{ secrets.GITHUB_TOKEN }}
   upload-apps:
     needs: release
     if: needs.release.outputs.release_created == 'true'
@@ -90,20 +78,19 @@ jobs:
         with:
           directory: targets
   deploy:
-    needs: [upload, upload-apps, encrypt, deploy-targets]
+    needs: [upload-apps, encrypt, deploy-targets]
     if: needs.deploy-targets.outputs.count != '0'
     strategy:
       matrix: ${{ fromJson(needs.deploy-targets.outputs.matrix) }}
     uses: $/.github/workflows/deploy-shared.yml
     with:
       hosts: ${{ toJson(matrix.hosts) }}
-      app-ref: ${{ matrix.flightdeck_ref }}
       app-refs: ${{ toJson(matrix.app_refs) }}
       apps: ${{ toJson(matrix.apps) }}
       path: ${{ matrix.path || '~/flightdeck' }}
       keep-releases: ${{ matrix.keep_releases || 5 }}
-      sops-age-key-file: ${{ matrix.sops_age_key_file || '~/.config/sops/age/keys.txt' }}
       tailscale-oauth-client-id: ${{ vars[matrix.credentials.variables.tailscale_oauth_client_id] }}
     secrets:
       ssh-private-key: ${{ secrets[matrix.credentials.secrets.ssh_private_key] }}
       tailscale-oauth-secret: ${{ secrets[matrix.credentials.secrets.tailscale_oauth_secret] }}
+      sops-age-key: ${{ secrets[matrix.credentials.secrets.sops_age_key] }}

@@ -1,23 +1,12 @@
 name: Build and upload bundle
-description: Build a zip bundle from specified paths and upload it as a GitHub Release asset. Defaults to Flightdeck's own machinery bundle.
+description: Build a zip bundle from specified paths and upload it as a GitHub Release asset.
 inputs:
   paths:
     description: Newline-separated paths to include in the bundle.
-    required: false
-    default: |
-      backup.sh
-      deploy.sh
-      down.sh
-      generate-env.sh
-      lib.sh
-      logs.sh
-      restart.sh
-      up.sh
-      README.md
+    required: true
   bundle-name:
     description: Bundle archive filename.
-    required: false
-    default: flightdeck.zip
+    required: true
   release-tag:
     description: Release tag to upload the bundle asset to.
     required: true

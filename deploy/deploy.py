@@ -1,16 +1,15 @@
 #!/usr/bin/env python3
-"""Push-based deploy: resolve and download release refs here on the runner,
-then push the finished release tree and per-app encrypted vault files to
-each target host over SSH, and run a short remote command sequence.
+"""Push-based deploy: resolve, download, decrypt, and render everything
+here on the runner, then push a fully finished release tree - real
+plaintext `.env` files and already-rendered config - to each target host
+over SSH, and run a short remote command sequence. The target host needs
+nothing but Docker and Docker Compose: no sops, no age key, no gh, no
+flightdeck scripts of any kind.
 
 Reads a JSON config from stdin (see README's "deploy-shared.yml" section
-for the exact shape). Decryption stays strictly server-side - the host's
-only vault-related capability is `sops decrypt` on a file it's handed,
-plus a dumb `cat` to concatenate multiple decrypted sources for one app.
-Ref-resolution, app-bundle merging, and env_refs collision detection all
-happen here instead, replacing the copies of this logic ansible/deploy.yml
-used to carry once per caller.
+for the exact shape).
 """
+import io
 import json
 import shlex
 import shutil
@@ -22,12 +21,15 @@ from pathlib import Path
 from zipfile import ZipFile
 
 import paramiko
+import yaml
 from collisions import check_env_collisions
 from fabric import Connection
+from render import render_template
 from resolve import download_ref
+from vault import decrypt_env, parse_dotenv
 
-MACHINERY_ASSET = "flightdeck.zip"
 APPS_BUNDLE_ASSET = "flightdeck-apps.zip"
+WATCHTOWER_LABEL = "com.centurylinklabs.watchtower.enable=true"
 
 
 class DeployError(Exception):
@@ -37,14 +39,8 @@ class DeployError(Exception):
 def build_release(config, work_dir):
     pull_dir = work_dir / "pull"
     release_dir = work_dir / "release"
-
-    bundle = download_ref(config["app_ref"], pull_dir / "machinery", default_asset=MACHINERY_ASSET)
-    release_dir.mkdir(parents=True)
-    with ZipFile(bundle) as archive:
-        archive.extractall(release_dir)
-
     apps_dir = release_dir / "apps"
-    apps_dir.mkdir(exist_ok=True)
+    apps_dir.mkdir(parents=True)
 
     for index, ref in enumerate(config["app_refs"], start=1):
         package_dir = pull_dir / f"apps-{index}"
@@ -57,28 +53,60 @@ def build_release(config, work_dir):
         if not package_apps_dir.is_dir():
             raise DeployError(f"Package {ref} does not contain apps/")
 
-        for app_path in sorted(package_apps_dir.iterdir()):
-            if not app_path.is_dir():
-                continue
-            target = apps_dir / app_path.name
+        for entry in sorted(package_apps_dir.iterdir()):
+            target = apps_dir / entry.name
             if target.exists():
-                raise DeployError(f"App conflicts with an existing app: {app_path.name}")
-            shutil.copytree(app_path, target)
+                raise DeployError(f"App conflicts with an existing app: {entry.name}")
+            if entry.is_dir():
+                shutil.copytree(entry, target)
+            else:
+                shutil.copy2(entry, target)
 
     return release_dir
 
 
-def resolve_app_envs(config, work_dir):
+def render_app_configs(release_dir, app, values):
+    template_dir = release_dir / "apps" / app / "config"
+    if not template_dir.is_dir():
+        return {}
+    rendered = {}
+    for template in sorted(template_dir.glob("*.template.*")):
+        filename = template.name.replace(".template.", ".", 1)
+        rendered[filename] = render_template(template.read_text(), values)
+    return rendered
+
+
+def resolve_app_envs(config, work_dir, release_dir, age_key_file):
     pull_dir = work_dir / "envs"
-    app_envs = {}
+    rendered_configs = {}
     for app, app_config in config["apps"].items():
         paths = [
             download_ref(ref, pull_dir / app / str(index))
             for index, ref in enumerate(app_config["env_refs"], start=1)
         ]
         check_env_collisions(paths)
-        app_envs[app] = paths
-    return app_envs
+
+        plaintext = "".join(decrypt_env(path, age_key_file) for path in paths)
+        app_env_path = release_dir / "apps" / app / ".env"
+        app_env_path.write_text(plaintext)
+        app_env_path.chmod(0o600)
+
+        rendered_configs[app] = render_app_configs(release_dir, app, parse_dotenv(plaintext))
+
+    return rendered_configs
+
+
+def list_required_networks(release_dir):
+    manifest = yaml.safe_load((release_dir / "apps" / "networks.yml").read_text())
+    return [
+        name
+        for name, definition in (manifest.get("networks") or {}).items()
+        if isinstance(definition, dict) and definition.get("external")
+    ]
+
+
+def is_watchtower_managed(compose_path):
+    return WATCHTOWER_LABEL in Path(compose_path).read_text()
 
 
 def archive_release(release_dir, work_dir):
@@ -93,32 +121,38 @@ def expand_home(path, home):
     return home + path[1:] if path.startswith("~") else path
 
 
-def push_app_envs(connection, release_path, shared_path, sops_key_file, app_envs):
-    vaults_path = f"{shared_path}/vaults-tmp"
-    connection.run(f"mkdir -p {shlex.quote(vaults_path)}", hide=True)
-    try:
-        for app, paths in app_envs.items():
-            remote_sources = []
-            for index, local_path in enumerate(paths, start=1):
-                remote_path = f"{vaults_path}/{app}-{index}.sops.env"
-                connection.put(str(local_path), remote=remote_path)
-                remote_sources.append(remote_path)
+def bootstrap_host(connection, base_path, networks):
+    apps_data = f"{base_path}/apps-data"
+    traefik_dir = f"{apps_data}/traefik"
+    connection.run(
+        f"mkdir -p {shlex.quote(base_path)}/releases {shlex.quote(traefik_dir)}",
+        hide=True,
+    )
+    for network in networks:
+        connection.run(f"docker network create {shlex.quote(network)} >/dev/null 2>&1 || true", hide=True)
+    acme_path = f"{traefik_dir}/acme.json"
+    connection.run(
+        f"[ -f {shlex.quote(acme_path)} ] || {{ touch {shlex.quote(acme_path)} && chmod 600 {shlex.quote(acme_path)}; }}",
+        hide=True,
+    )
 
-            app_env_path = f"{release_path}/apps/{app}/.env"
-            decrypt_steps = " && ".join(
-                f"SOPS_AGE_KEY_FILE={shlex.quote(sops_key_file)} sops decrypt {shlex.quote(source)}"
-                f" >> {shlex.quote(app_env_path)}.tmp"
-                for source in remote_sources
-            )
-            connection.run(
-                f": > {shlex.quote(app_env_path)}.tmp && "
-                f"{decrypt_steps} && "
-                f"mv {shlex.quote(app_env_path)}.tmp {shlex.quote(app_env_path)} && "
-                f"chmod 600 {shlex.quote(app_env_path)}",
-                hide=True,
-            )
-    finally:
-        connection.run(f"rm -rf {shlex.quote(vaults_path)}", hide=True)
+
+def push_release(connection, archive_path, release_path):
+    connection.run(f"mkdir -p {shlex.quote(release_path)}", hide=True)
+    connection.put(str(archive_path), remote=f"{release_path}.tar.gz")
+    connection.run(f"tar -xzf {shlex.quote(release_path)}.tar.gz -C {shlex.quote(release_path)}", hide=True)
+    connection.run(f"rm -f {shlex.quote(release_path)}.tar.gz", hide=True)
+    connection.run(f"chmod 600 {shlex.quote(release_path)}/apps/*/.env", hide=True)
+
+
+def push_app_configs(connection, base_path, rendered_configs):
+    for app, files in rendered_configs.items():
+        if not files:
+            continue
+        config_dir = f"{base_path}/apps-data/{app}/config"
+        connection.run(f"mkdir -p {shlex.quote(config_dir)}", hide=True)
+        for filename, text in files.items():
+            connection.put(io.StringIO(text), remote=f"{config_dir}/{filename}")
 
 
 def prune_releases(connection, releases_path, keep_releases):
@@ -129,50 +163,44 @@ def prune_releases(connection, releases_path, keep_releases):
         connection.run("rm -rf " + " ".join(shlex.quote(release) for release in stale), hide=True)
 
 
-def deploy_to_host(host, archive_path, app_envs, config):
+def deploy_to_host(host, archive_path, rendered_configs, all_apps, run_apps, networks, config):
     connection = Connection(host)
     connection.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
     home = connection.run("echo $HOME", hide=True).stdout.strip()
     base_path = expand_home(config.get("path", "~/flightdeck"), home)
-    sops_key_file = expand_home(config.get("sops_age_key_file", "~/.config/sops/age/keys.txt"), home)
     keep_releases = config.get("keep_releases", 5)
 
     releases_path = f"{base_path}/releases"
-    shared_path = f"{base_path}/shared"
     current_path = f"{base_path}/current"
     release_name = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     release_path = f"{releases_path}/{release_name}"
 
-    connection.run(
-        f"mkdir -p {shlex.quote(base_path)} {shlex.quote(releases_path)} {shlex.quote(shared_path)}",
-        hide=True,
-    )
-
-    connection.run(f"mkdir -p {shlex.quote(release_path)}", hide=True)
-    connection.put(str(archive_path), remote=f"{release_path}.tar.gz")
-    connection.run(f"tar -xzf {shlex.quote(release_path)}.tar.gz -C {shlex.quote(release_path)}", hide=True)
-    connection.run(f"rm -f {shlex.quote(release_path)}.tar.gz", hide=True)
-
-    push_app_envs(connection, release_path, shared_path, sops_key_file, app_envs)
+    bootstrap_host(connection, base_path, networks)
+    push_release(connection, archive_path, release_path)
+    push_app_configs(connection, base_path, rendered_configs)
+    for app in all_apps:
+        connection.run(f"mkdir -p {shlex.quote(f'{base_path}/apps-data/{app}')}", hide=True)
 
     connection.run(f"ln -sfn {shlex.quote(release_path)} {shlex.quote(current_path)}", hide=True)
 
-    apps = " ".join(shlex.quote(app) for app in app_envs)
-    connection.run(f"cd {shlex.quote(current_path)} && FLIGHTDECK_SKIP_ENV_GENERATION=1 ./deploy.sh {apps}")
+    for app in run_apps:
+        compose_dir = f"{current_path}/apps/{app}"
+        connection.run(f"cd {shlex.quote(compose_dir)} && docker compose pull && docker compose up -d --remove-orphans")
 
     prune_releases(connection, releases_path, keep_releases)
+    connection.run("docker container prune -f && docker image prune -a -f")
 
 
 def validate_config(config):
     if not config.get("hosts"):
         raise DeployError("Config must set hosts to a non-empty list")
-    if not config.get("app_ref"):
-        raise DeployError("Config must set app_ref")
     if not config.get("app_refs"):
         raise DeployError("Config must set app_refs to a non-empty list")
     if not config.get("apps"):
         raise DeployError("Config must set apps to a non-empty object")
+    if not config.get("sops_age_key"):
+        raise DeployError("Config must set sops_age_key")
 
 
 def main():
@@ -180,13 +208,24 @@ def main():
     validate_config(config)
     with tempfile.TemporaryDirectory(prefix="flightdeck-deploy-") as raw_dir:
         work_dir = Path(raw_dir)
+
+        age_key_file = work_dir / "age-key.txt"
+        age_key_file.write_text(config["sops_age_key"])
+        age_key_file.chmod(0o600)
+
         release_dir = build_release(config, work_dir)
-        app_envs = resolve_app_envs(config, work_dir)
+        rendered_configs = resolve_app_envs(config, work_dir, release_dir, age_key_file)
         archive_path = archive_release(release_dir, work_dir)
+        networks = list_required_networks(release_dir)
+
+        all_apps = list(config["apps"])
+        run_apps = [
+            app for app in all_apps if not is_watchtower_managed(release_dir / "apps" / app / "docker-compose.yml")
+        ]
 
         for host in config["hosts"]:
             print(f"Deploying to {host}")
-            deploy_to_host(host, archive_path, app_envs, config)
+            deploy_to_host(host, archive_path, rendered_configs, all_apps, run_apps, networks, config)
 
 
 if __name__ == "__main__":

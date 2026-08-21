@@ -1,7 +1,5 @@
 __pycache__
 /apps-data/*
-/.env
 /apps.env
-/backups/
 /apps/*/.env
 .claude/

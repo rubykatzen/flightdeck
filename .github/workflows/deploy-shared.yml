@@ -6,10 +6,6 @@ on:
         description: JSON array of user@host SSH destinations to deploy to.
         type: string
         required: true
-      app-ref:
-        description: Full release ref of the Flightdeck bundle to deploy, in owner/repo@tag format.
-        type: string
-        required: true
       app-refs:
         description: JSON array of release refs for app bundles to merge into the release, in owner/repo@tag[:asset] format.
         type: string
@@ -26,10 +22,6 @@ on:
         description: Number of past releases to keep on the target host.
         type: number
         default: 5
-      sops-age-key-file:
-        description: Path to the server-local SOPS age key file, relative to each SSH user's home when it starts with ~.
-        type: string
-        default: "~/.config/sops/age/keys.txt"
       tailscale-oauth-client-id:
         description: Tailscale OAuth client ID used to join the tailnet. Leave unset to skip joining a tailnet (e.g. when the runner already has network access to the hosts).
         type: string
@@ -41,6 +33,9 @@ on:
     secrets:
       ssh-private-key:
         description: SSH private key used to connect to the hosts.
+        required: true
+      sops-age-key:
+        description: Private SOPS age key used to decrypt this target's vault-sourced env, on the runner.
         required: true
       tailscale-oauth-secret:
         description: Tailscale OAuth client secret used to join the tailnet. Required only when tailscale-oauth-client-id is set.
@@ -56,6 +51,15 @@ jobs:
       - name: Install deploy dependencies
         shell: bash
         run: pip install --user --break-system-packages -r deploy/requirements.txt
+      - name: Install sops
+        shell: bash
+        env:
+          SOPS_VERSION: "3.13.1"
+        run: |
+          curl --fail --location --silent --show-error \
+            "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64" \
+            --output /usr/local/bin/sops
+          chmod +x /usr/local/bin/sops
       - uses: tailscale/github-action@v4
         if: inputs.tailscale-oauth-client-id != ''
         with:
@@ -73,20 +77,18 @@ jobs:
         shell: bash
         env:
           HOSTS: ${{ inputs.hosts }}
-          APP_REF: ${{ inputs.app-ref }}
           APP_REFS: ${{ inputs.app-refs }}
           APPS: ${{ inputs.apps }}
           DEPLOY_PATH: ${{ inputs.path }}
           KEEP_RELEASES: ${{ inputs.keep-releases }}
-          SOPS_KEY_FILE: ${{ inputs.sops-age-key-file }}
+          SOPS_AGE_KEY: ${{ secrets.sops-age-key }}
         run: |
           jq -n \
             --argjson hosts "$HOSTS" \
-            --arg app_ref "$APP_REF" \
             --argjson app_refs "$APP_REFS" \
             --argjson apps "$APPS" \
             --arg path "$DEPLOY_PATH" \
             --argjson keep_releases "$KEEP_RELEASES" \
-            --arg sops_key_file "$SOPS_KEY_FILE" \
-            '{hosts: $hosts, app_ref: $app_ref, app_refs: $app_refs, apps: $apps, path: $path, keep_releases: $keep_releases, sops_age_key_file: $sops_key_file}' \
+            --arg sops_age_key "$SOPS_AGE_KEY" \
+            '{hosts: $hosts, app_refs: $app_refs, apps: $apps, path: $path, keep_releases: $keep_releases, sops_age_key: $sops_age_key}' \
             | python3 deploy/deploy.py
