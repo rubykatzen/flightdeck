@@ -189,15 +189,6 @@ A few things that don't fit that one-liner:
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
 - [Traefik Documentation](https://doc.traefik.io/)
 
-## 🤝 Contributing
-
-Contributions are welcome! To add a new application:
-
-1. Follow the "Adding a New Application" section
-2. Verify by deploying it to a real target
-3. Document any special requirements
-4. Submit a pull request with the new app configuration
-
 ## 🔄 Similar Services
 
 If you're evaluating alternatives, these projects solve a similar problem from different angles:
