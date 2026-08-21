@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0](https://github.com/rubykatzen/flightdeck/compare/v0.3.0...v0.4.0) (2026-08-21)
+
+
+### Features
+
+* deploy rybbit for rubykatzen.com through flightdeck itself ([#102](https://github.com/rubykatzen/flightdeck/issues/102)) ([36b258d](https://github.com/rubykatzen/flightdeck/commit/36b258d64886ba68ba769c620fd76ca613add051))
+* move apps to targets, support env_refs as a list ([#110](https://github.com/rubykatzen/flightdeck/issues/110)) ([318b90e](https://github.com/rubykatzen/flightdeck/commit/318b90ee95df9ef985982a33786c89eff5038305))
+* push-based deploy - target host needs only Docker + Compose ([#115](https://github.com/rubykatzen/flightdeck/issues/115)) ([2a8ba58](https://github.com/rubykatzen/flightdeck/commit/2a8ba582f732ec1710168c25d47fcd5b545910cc))
+
 ## [0.3.0](https://github.com/rubykatzen/flightdeck/compare/v0.2.3...v0.3.0) (2026-08-18)
 
 
