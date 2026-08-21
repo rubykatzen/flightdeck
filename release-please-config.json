@@ -4,6 +4,13 @@
   "pull-request-header": "This pull request prepares the next release.",
   "pull-request-footer": "[Release Please documentation](https://github.com/googleapis/release-please#release-please)",
   "packages": {
-    ".": {}
+    ".": {
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "README.md"
+        }
+      ]
+    }
   }
 }

@@ -38,8 +38,6 @@ The deploy is push-based and runs entirely on the GitHub Actions runner:
 5. Render that app's config templates (`config/*.template.*`) using the decrypted values — the same substitution `envsubst` does, run here instead of on the host.
 6. Push the finished release (real `.env`, already-rendered config) to each host over SSH, switch the `current` symlink, and run `docker compose pull && docker compose up -d` per app.
 
-Nothing decrypts or renders on the target host. The only thing it ever receives is a finished, ready-to-run Docker Compose project per app.
-
 What gets deployed — which app bundles, which apps actually run, and which encrypted env sources feed each one — is configured declaratively per target; see "Vaults And Targets" below for the manifest format.
 
 ## 📁 Project Structure
@@ -185,9 +183,6 @@ A few things that don't fit that one-liner:
 
 - [AGENTS.md](AGENTS.md) - Technical documentation for AI agents and developers
 - [RETIRED.md](RETIRED.md) - Apps removed from the active stack, and why
-- [Docker Documentation](https://docs.docker.com/)
-- [Docker Compose Documentation](https://docs.docker.com/compose/)
-- [Traefik Documentation](https://doc.traefik.io/)
 
 ## 🔄 Similar Services
 
@@ -303,12 +298,12 @@ Builds a zip archive from caller-selected paths, rejects runtime state and env f
 steps:
   - uses: actions/checkout@v7
     with:
-      ref: v1.2.3
-  - uses: rubykatzen/flightdeck/.github/actions/build-bundle@v1.2.3
+      ref: v1.2.3 # x-release-please-version
+  - uses: rubykatzen/flightdeck/.github/actions/build-bundle@v1.2.3 # x-release-please-version
     with:
       paths: apps
       bundle-name: flightdeck-apps.zip
-      release-tag: v1.2.3
+      release-tag: v1.2.3 # x-release-please-version
       token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
@@ -324,10 +319,10 @@ A thin defaults wrapper around `build-bundle`: `paths` defaults to `apps`, `bund
 steps:
   - uses: actions/checkout@v7
     with:
-      ref: v1.2.3
-  - uses: rubykatzen/flightdeck/.github/actions/build-apps-bundle@v1.2.3
+      ref: v1.2.3 # x-release-please-version
+  - uses: rubykatzen/flightdeck/.github/actions/build-apps-bundle@v1.2.3 # x-release-please-version
     with:
-      release-tag: v1.2.3
+      release-tag: v1.2.3 # x-release-please-version
       token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
@@ -346,7 +341,7 @@ Tailscale is optional, not a dependency of this workflow: set `tailscale-oauth-c
 ```yaml
 jobs:
   deploy:
-    uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@v1.2.3
+    uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@v1.2.3 # x-release-please-version
     with:
       hosts: '["deploy@100.64.0.1", "deploy@100.64.0.2"]'          # required JSON array
       app-refs: '["rubykatzen/flightdeck@latest"]'                   # required non-empty JSON array
@@ -361,14 +356,8 @@ jobs:
       tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}  # optional, required only if tailscale-oauth-client-id is set
 ```
 
-The `@v1.2.3` pin on the `uses:` line only controls which ref runs `deploy/deploy.py` itself. `app-refs` entries are separate and don't have to match the workflow pin.
+The `@v1.2.3` pin on the `uses:` line only controls which ref runs `deploy/deploy.py` itself. `app-refs` entries are separate and don't have to match the workflow pin. <!-- x-release-please-version -->
 
 ## 📝 License
 
-This project is provided as-is for self-hosted deployment.
-
----
-
-**Last Updated**: 2026
-**Supported Docker Compose**: >= 2.0
-**Status**: Active Development
+[MIT](LICENSE)
