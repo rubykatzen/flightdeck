@@ -166,53 +166,20 @@ Add the app to whichever target's `apps` mapping should run it, and give it a va
 
 ## 🔍 Troubleshooting
 
-Since there's no manual administration path, all of the following happen by SSHing into the target host directly, for debugging only:
-
-### Container Won't Start
+There's no manual administration path, so debugging means SSHing into the target host and using Docker Compose directly from the app's own folder — no wrapper needed, `apps/{app}/` is already a complete, ready-to-run Compose project:
 
 ```bash
-# Check logs
-cd apps/app-name && docker compose logs -f
-
-# Validate docker-compose configuration
-cd apps/app-name && docker compose config
-
-# Check network connectivity
-docker network ls
-docker network inspect traefik
+cd apps/app-name
+docker compose logs -f          # tail logs
+docker compose config           # validate/inspect the resolved config
+docker ps | grep app-name       # confirm it's running
 ```
 
-### SSL Certificate Issues
+A few things that don't fit that one-liner:
 
-```bash
-# Check Traefik logs
-cd apps/traefik && docker compose logs -f
-
-# Verify ACME certificate file
-ls -la apps-data/traefik/acme.json
-
-# Ensure correct permissions
-chmod 600 apps-data/traefik/acme.json
-```
-
-### Application Not Accessible
-
-1. Verify app is running: `docker ps | grep app-name`
-2. Check app logs: `cd apps/app-name && docker compose logs -f`
-3. Check Traefik logs: `cd apps/traefik && docker compose logs -f`
-4. Verify DNS resolves: `nslookup app-name.domain.com`
-5. Test internal connectivity: `docker exec -it traefik wget -q --spider http://app-name`
-
-## 🔐 Security Best Practices
-
-1. **Change Default Credentials** - Update vault-sourced secrets and re-deploy
-2. **Use Strong Passwords** - Generate with: `openssl rand -base64 32`
-3. **Keep Images Updated** - every deploy runs `docker compose pull` before `up`, so all apps get their latest image on every deploy
-4. **Restrict Network Access** - Use firewall rules to limit access to Traefik ports (80, 443)
-5. **Enable HTTPS** - Always use HTTPS, never expose HTTP to internet
-6. **Backup Data** - Regularly back up `apps-data/` (backup automation is a separate, not-yet-decided piece of tooling)
-7. **Monitor Logs** - Review logs regularly for errors and unauthorized access attempts
-8. **Update Dependencies** - Check for updates: `docker pull app:latest`
+- **Networking**: `docker network ls` / `docker network inspect traefik` to check connectivity; `docker exec -it traefik wget -q --spider http://app-name` to test an app's reachability from inside the `traefik` network.
+- **SSL**: `apps-data/traefik/acme.json` must exist and be `chmod 600`, or Traefik won't issue certificates.
+- **DNS**: `nslookup app-name.domain.com` if the app resolves but isn't reachable.
 
 ## 📚 Additional Resources
 
