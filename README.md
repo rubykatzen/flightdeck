@@ -239,8 +239,8 @@ apps:
     env_refs:
       - owner/config@latest:mainframe-rybbit.sops.env
 hosts:
-  - deploy@100.64.0.1
-  - deploy@100.64.0.2
+  - deploy@app1.example.com
+  - deploy@app2.example.com
 path: ~/flightdeck                                # optional, default shown
 credentials:
   variables:
@@ -294,18 +294,22 @@ Secrets take precedence over Variables when both contain the same source key. Ev
 
 Builds a zip archive from caller-selected paths, rejects runtime state and env files, and uploads it to an existing GitHub Release. `paths` and `bundle-name` are required — this is a generic, reusable primitive (`build-apps-bundle` below is the only current caller).
 
+<!-- x-release-please-start-version -->
+
 ```yaml
 steps:
   - uses: actions/checkout@v7
     with:
-      ref: v1.2.3 # x-release-please-version
-  - uses: rubykatzen/flightdeck/.github/actions/build-bundle@v1.2.3 # x-release-please-version
+      ref: v1.2.3
+  - uses: rubykatzen/flightdeck/.github/actions/build-bundle@v1.2.3
     with:
       paths: apps
       bundle-name: flightdeck-apps.zip
-      release-tag: v1.2.3 # x-release-please-version
+      release-tag: v1.2.3
       token: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+<!-- x-release-please-end -->
 
 Requires `contents: write` permission on the calling job.
 
@@ -315,16 +319,20 @@ Requires `contents: write` permission on the calling job.
 
 A thin defaults wrapper around `build-bundle`: `paths` defaults to `apps`, `bundle-name` defaults to `flightdeck-apps.zip`. The same action publishes flightdeck's own `apps/` catalog and any consumer repository's own app bundle.
 
+<!-- x-release-please-start-version -->
+
 ```yaml
 steps:
   - uses: actions/checkout@v7
     with:
-      ref: v1.2.3 # x-release-please-version
-  - uses: rubykatzen/flightdeck/.github/actions/build-apps-bundle@v1.2.3 # x-release-please-version
+      ref: v1.2.3
+  - uses: rubykatzen/flightdeck/.github/actions/build-apps-bundle@v1.2.3
     with:
-      release-tag: v1.2.3 # x-release-please-version
+      release-tag: v1.2.3
       token: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+<!-- x-release-please-end -->
 
 Requires `contents: write` permission on the calling job. `flightdeck-apps.zip` is the default asset name an `app_refs` entry resolves to when it doesn't specify an explicit `:asset-name` suffix; override `bundle-name` and use that suffix when publishing under a different filename.
 
@@ -338,12 +346,14 @@ The interface is plain deploy vocabulary — callers never see `deploy.py`'s int
 
 Tailscale is optional, not a dependency of this workflow: set `tailscale-oauth-client-id` (and the matching `tailscale-oauth-secret`) to have the runner join a tailnet as an ephemeral node before deploying. Leave both unset to skip that step entirely — e.g. when the job already runs on a self-hosted runner with network access to the hosts, or reaches them some other way.
 
+<!-- x-release-please-start-version -->
+
 ```yaml
 jobs:
   deploy:
-    uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@v1.2.3 # x-release-please-version
+    uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@v1.2.3
     with:
-      hosts: '["deploy@100.64.0.1", "deploy@100.64.0.2"]'          # required JSON array
+      hosts: '["deploy@app1.example.com", "deploy@app2.example.com"]'  # required JSON array
       app-refs: '["rubykatzen/flightdeck@latest"]'                   # required non-empty JSON array
       apps: '{"traefik": {"env_refs": ["${{ github.repository }}@latest:mainframe-traefik.sops.env"]}}'  # required non-empty JSON object
       # path: ~/flightdeck                 # optional, default shown
@@ -355,6 +365,8 @@ jobs:
       sops-age-key: ${{ secrets.MAINFRAME_AGE_PRIVATE_KEY }}
       tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}  # optional, required only if tailscale-oauth-client-id is set
 ```
+
+<!-- x-release-please-end -->
 
 The `@v1.2.3` pin on the `uses:` line only controls which ref runs `deploy/deploy.py` itself. `app-refs` entries are separate and don't have to match the workflow pin. <!-- x-release-please-version -->
 
