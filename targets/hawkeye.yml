@@ -1,11 +1,12 @@
-flightdeck_ref: rubykatzen/flightdeck@latest
-env_refs:
-  - rubykatzen/flightdeck@latest:hawkeye.sops.env
 app_refs:
   - rubykatzen/flightdeck@latest
 apps:
-  - traefik
-  - rybbit
+  traefik:
+    env_refs:
+      - rubykatzen/flightdeck@latest:hawkeye-traefik.sops.env
+  rybbit:
+    env_refs:
+      - rubykatzen/flightdeck@latest:hawkeye-rybbit.sops.env
 hosts:
   - rubykatzen-com@100.75.50.2
 credentials:
@@ -14,3 +15,4 @@ credentials:
   secrets:
     ssh_private_key: DEPLOY_SSH_PRIVATE_KEY
     tailscale_oauth_secret: TAILSCALE_OAUTH_SECRET
+    sops_age_key: HAWKEYE_AGE_PRIVATE_KEY

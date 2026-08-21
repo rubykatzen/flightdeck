@@ -27,14 +27,12 @@ jobs:
     uses: $/.github/workflows/deploy-shared.yml
     with:
       hosts: ${{ toJson(matrix.hosts) }}
-      app-ref: ${{ matrix.flightdeck_ref }}
-      env-refs: ${{ toJson(matrix.env_refs) }}
       app-refs: ${{ toJson(matrix.app_refs) }}
       apps: ${{ toJson(matrix.apps) }}
       path: ${{ matrix.path || '~/flightdeck' }}
       keep-releases: ${{ matrix.keep_releases || 5 }}
-      sops-age-key-file: ${{ matrix.sops_age_key_file || '~/.config/sops/age/keys.txt' }}
       tailscale-oauth-client-id: ${{ vars[matrix.credentials.variables.tailscale_oauth_client_id] }}
     secrets:
       ssh-private-key: ${{ secrets[matrix.credentials.secrets.ssh_private_key] }}
       tailscale-oauth-secret: ${{ secrets[matrix.credentials.secrets.tailscale_oauth_secret] }}
+      sops-age-key: ${{ secrets[matrix.credentials.secrets.sops_age_key] }}

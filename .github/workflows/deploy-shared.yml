@@ -6,20 +6,12 @@ on:
         description: JSON array of user@host SSH destinations to deploy to.
         type: string
         required: true
-      app-ref:
-        description: Full release ref of the Flightdeck bundle to deploy, in owner/repo@tag format.
-        type: string
-        required: true
-      env-refs:
-        description: JSON array of release refs for encrypted env packages to decrypt and merge, in owner/repo@tag[:asset] format.
-        type: string
-        required: true
       app-refs:
         description: JSON array of release refs for app bundles to merge into the release, in owner/repo@tag[:asset] format.
         type: string
         required: true
       apps:
-        description: JSON array of app names to run on this target, rendered into the deployed env as APPS.
+        description: JSON object mapping each app name to run on this target to its own env_refs list, e.g. {"traefik":{"env_refs":["owner/repo@latest:traefik.sops.env"]}}.
         type: string
         required: true
       path:
@@ -30,10 +22,6 @@ on:
         description: Number of past releases to keep on the target host.
         type: number
         default: 5
-      sops-age-key-file:
-        description: Path to the server-local SOPS age key file, relative to each SSH user's home when it starts with ~.
-        type: string
-        default: "~/.config/sops/age/keys.txt"
       tailscale-oauth-client-id:
         description: Tailscale OAuth client ID used to join the tailnet. Leave unset to skip joining a tailnet (e.g. when the runner already has network access to the hosts).
         type: string
@@ -46,6 +34,9 @@ on:
       ssh-private-key:
         description: SSH private key used to connect to the hosts.
         required: true
+      sops-age-key:
+        description: Private SOPS age key used to decrypt this target's vault-sourced env, on the runner.
+        required: true
       tailscale-oauth-secret:
         description: Tailscale OAuth client secret used to join the tailnet. Required only when tailscale-oauth-client-id is set.
         required: false
@@ -57,9 +48,18 @@ jobs:
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
-      - name: Install ansible-core
+      - name: Install deploy dependencies
         shell: bash
-        run: pip install --user --break-system-packages ansible-core
+        run: pip install --user --break-system-packages -r deploy/requirements.txt
+      - name: Install sops
+        shell: bash
+        env:
+          SOPS_VERSION: "3.13.1"
+        run: |
+          curl --fail --location --silent --show-error \
+            "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64" \
+            --output /usr/local/bin/sops
+          chmod +x /usr/local/bin/sops
       - uses: tailscale/github-action@v4
         if: inputs.tailscale-oauth-client-id != ''
         with:
@@ -73,45 +73,22 @@ jobs:
           echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
           ssh-add - <<< "${{ secrets.ssh-private-key }}"
-      - name: Build extra-vars
-        id: vars
+      - name: Run deploy
         shell: bash
         env:
-          APP_REF: ${{ inputs.app-ref }}
-          ENV_REFS: ${{ inputs.env-refs }}
+          HOSTS: ${{ inputs.hosts }}
           APP_REFS: ${{ inputs.app-refs }}
           APPS: ${{ inputs.apps }}
-          HOSTS: ${{ inputs.hosts }}
           DEPLOY_PATH: ${{ inputs.path }}
           KEEP_RELEASES: ${{ inputs.keep-releases }}
-          SOPS_KEY_FILE: ${{ inputs.sops-age-key-file }}
+          SOPS_AGE_KEY: ${{ secrets.sops-age-key }}
         run: |
-          hosts_json="$(jq -ce 'if type == "array" and length > 0 and all(.[]; type == "string" and test("^[a-z_][a-z0-9_-]*@[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$")) then . else error("hosts must be a non-empty user@host string array") end' <<< "$HOSTS")"
-          env_refs_json="$(jq -ce 'if type == "array" and length > 0 and all(.[]; type == "string" and length > 0) then . else error("env-refs must be a non-empty string array") end' <<< "$ENV_REFS")"
-          app_refs_json="$(jq -ce 'if type == "array" and length > 0 and all(.[]; type == "string" and length > 0) then . else error("app-refs must be a non-empty string array") end' <<< "$APP_REFS")"
-          apps_json="$(jq -ce 'if type == "array" and length > 0 and all(.[]; type == "string" and length > 0) then . else error("apps must be a non-empty string array") end' <<< "$APPS")"
-          jq -ce '
-            reduce .[] as $destination ({all: {hosts: {}}};
-              ($destination | capture("^(?<user>[^@]+)@(?<host>.+)$")) as $ssh |
-              .all.hosts[$ssh.host] = {ansible_user: $ssh.user}
-            )
-          ' <<< "$hosts_json" > "$RUNNER_TEMP/flightdeck-inventory.json"
-          json="$(jq -n \
-            --arg app_ref "$APP_REF" \
-            --argjson env_refs "$env_refs_json" \
-            --argjson app_refs "$app_refs_json" \
-            --argjson apps "$apps_json" \
+          jq -n \
+            --argjson hosts "$HOSTS" \
+            --argjson app_refs "$APP_REFS" \
+            --argjson apps "$APPS" \
             --arg path "$DEPLOY_PATH" \
             --argjson keep_releases "$KEEP_RELEASES" \
-            --arg sops_key_file "$SOPS_KEY_FILE" \
-            '{flightdeck_app_ref: $app_ref, flightdeck_env_refs: $env_refs, flightdeck_app_refs: $app_refs, flightdeck_apps: $apps, flightdeck_path: $path, flightdeck_keep_releases: $keep_releases, flightdeck_sops_age_key_file: $sops_key_file}')"
-          echo "json=$json" >> "$GITHUB_OUTPUT"
-          echo "inventory=$RUNNER_TEMP/flightdeck-inventory.json" >> "$GITHUB_OUTPUT"
-      - name: Run playbook
-        shell: bash
-        env:
-          ANSIBLE_HOST_KEY_CHECKING: "false"
-        run: |
-          ansible-playbook ansible/deploy.yml \
-            -i "${{ steps.vars.outputs.inventory }}" \
-            -e "${{ steps.vars.outputs.json }}"
+            --arg sops_age_key "$SOPS_AGE_KEY" \
+            '{hosts: $hosts, app_refs: $app_refs, apps: $apps, path: $path, keep_releases: $keep_releases, sops_age_key: $sops_age_key}' \
+            | python3 deploy/deploy.py
