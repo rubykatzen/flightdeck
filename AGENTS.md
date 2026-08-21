@@ -85,7 +85,7 @@ The repository uses a modular docker-compose structure with reusable components:
 
 ### Environment Variable System
 
-Environment variables come from a single `.env` file deployed by Ansible from an encrypted secrets release asset. It contains shared `APPS_*` variables, per-app variables, and the comma-separated `APPS` list.
+Locally (manual quick-start, or the local mechanism a freshly-provisioned server relies on before its first automated deploy), environment variables come from a single root `.env` file — hand-edited locally, or bootstrapped from `.env.example` by `up.sh` on a server. It contains shared `APPS_*` variables, per-app variables, and the comma-separated `APPS` list.
 
 Before starting each app, `up.sh` runs `generate-env.sh`, which calls `generate_env` from `lib.sh`. The generated `apps/{app}/.env` contains:
 
@@ -94,6 +94,8 @@ Before starting each app, `up.sh` runs `generate-env.sh`, which calls `generate_
 - only variables beginning with the normalized app prefix, e.g. `TWOFAUTH_*` for `twofauth` or `BESZEL_AGENT_*` for `beszel-agent`
 
 Variables for one app must not be visible to other apps. This allows running docker compose directly from the app folder without any `--env-file` flags while keeping app secrets scoped.
+
+The automated deploy path (`deploy/deploy.py`) bypasses this mechanism entirely: it decrypts each app's own vault-sourced env directly into `apps/{app}/.env` on the target host, with no root `.env` and no app-prefix filtering involved. `up.sh` and `deploy.sh` both check `FLIGHTDECK_SKIP_ENV_GENERATION` (set only by the automated path) before calling `generate-env.sh`, so they don't clobber the file that was just placed.
 
 ### Per-app and per-server overrides
 
@@ -404,19 +406,17 @@ GitHub Actions workflow (`.github/workflows/release-please.yml`) manages release
 
 1. On every push to `main`, Release Please opens/updates a `chore(main): release X.Y.Z` PR with the computed version and generated `CHANGELOG.md` entry
 2. Merging that PR tags the release and publishes a GitHub Release
-3. A second and third job then build and upload two release assets: `flightdeck.zip` from helper scripts, examples, and README (verifying runtime state such as `.env`, `apps-data`, `backups`, and generated `apps/*/.env` is excluded), and `flightdeck-apps.zip` from the `apps/` catalog alone. Deploy refs may use `@latest` as a playbook-side alias for GitHub's latest release API; no mutable `latest` release/tag is created.
+3. A second and third job then build and upload two release assets: `flightdeck.zip` from helper scripts, examples, and README (verifying runtime state such as `.env`, `apps-data`, `backups`, and generated `apps/*/.env` is excluded), and `flightdeck-apps.zip` from the `apps/` catalog alone. Deploy refs may use `@latest` as an alias resolved through GitHub's latest release API (`deploy/resolve.py`); no mutable `latest` release/tag is created.
 
 Deployment helpers live in this repository:
 
-- `ansible/deploy.yml` pulls `flightdeck_app_ref` (the machinery bundle), merges every ref in `flightdeck_app_refs` (the app bundles, at least one required — flightdeck's own `apps/` catalog is just another entry, not implicit), decrypts and merges every ref in `flightdeck_env_refs` (at least one required) into the server's `.env`, switches a timestamped release, and runs `./deploy.sh`
+- `deploy/deploy.py` is the deploy entrypoint, run on the GitHub Actions runner (not the target host). It resolves and downloads `app_ref` (the machinery bundle) and merges every ref in `app_refs` (the app bundles, at least one required — flightdeck's own `apps/` catalog is just another entry, not implicit) into a release tree locally, resolves and downloads each app's own `env_refs`, then opens an SSH connection per host and pushes the finished release plus the encrypted env sources, switches a timestamped release, and runs `./deploy.sh` remotely. `deploy/resolve.py` and `deploy/collisions.py` hold the ref-resolution and collision-detection logic respectively, each with real `unittest` coverage in `deploy/tests/`.
 - `.github/actions/encrypt-env/` is a local composite action for rendering `vaults/` manifests from GitHub Secrets/Variables, encrypting them for age recipients, and publishing `.sops.env` as a GitHub Release asset — vault manifests hold only env/secrets, not app selection
-- `.github/workflows/deploy-shared.yml` is a reusable workflow consumer repos call to run `ansible/deploy.yml` from GitHub Actions over an optional Tailscale connection, without holding any deploy secrets in this repository
+- `.github/workflows/deploy-shared.yml` is a reusable workflow consumer repos call to run `deploy/deploy.py` from GitHub Actions over an optional Tailscale connection, without holding any deploy secrets in this repository
 
-App bundles listed in `flightdeck_app_refs` are release assets referenced as short refs like `<owner>/<repo>@latest` or `<owner>/<repo>@v1.2.3`, resolving to a default asset name of `flightdeck-apps.zip` unless the ref specifies an explicit `:asset-name` suffix. `@latest` is resolved by the deploy playbook through GitHub's latest release API. Every bundle must contain an `apps/` directory; app names may not conflict across bundles.
+App bundles listed in `app_refs` are release assets referenced as short refs like `<owner>/<repo>@latest` or `<owner>/<repo>@v1.2.3`, resolving to a default asset name of `flightdeck-apps.zip` unless the ref specifies an explicit `:asset-name` suffix. `@latest` is resolved through GitHub's latest release API. Every bundle must contain an `apps/` directory; app names may not conflict across bundles.
 
-Env packages listed in `flightdeck_env_refs` are release refs the same shape as app bundles, defaulting to a `$tag.sops.env`-named asset. The playbook decrypts each with the server-local SOPS age key, then merges them alongside a synthesized `APPS` line (built from `flightdeck_apps`, the target's own desired app set) — failing loud on any key collision across sources, `APPS` included. `apps` moved off the vault schema onto the target for exactly this reason: multiple vaults can be merged without having to reconcile per-vault `apps` lists.
-
-Private release assets are supported by passing `FLIGHTDECK_GITHUB_TOKEN` as a secret environment variable to `ansible/deploy.yml`. Store it as a secret in whatever system runs the playbook (e.g. a GitHub Actions secret when using `deploy-shared.yml`), not in plain configuration. When the token is present, the playbook exports it as `GH_TOKEN` for `gh release download`.
+Each app in a target's `apps` mapping lists its own `env_refs` — release refs the same shape as app bundles, with no default asset name (every entry must specify an explicit `:asset-name` suffix, since there's no single obvious default under a per-app model). `deploy/deploy.py` downloads them still encrypted and checks for key collisions from the ciphertext (SOPS's dotenv output only encrypts values, so key names are readable without decryption) — scoped to that one app's own sources, not across apps, since each app ends up with its own separate `.env`. Decryption itself (`sops decrypt` with the server-local age key) happens only on the target host, never on the runner. `apps` moved off the vault schema onto the target, and vaults moved from one-per-target to one-per-app, so that a vault can declare its output env var names directly (`HTTP_PORT`, not `TRAEFIK_HTTP_PORT`) without an implicit prefix-strip happening anywhere between the vault and the app's `.env`.
 
 ## Notable App Configurations
 

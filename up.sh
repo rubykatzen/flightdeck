@@ -46,7 +46,9 @@ do
     echo "Starting: ${app}"
 
     require_app_compose "${app}"
-    "$(dirname "$0")/generate-env.sh" "${app}"
+    if [ -z "${FLIGHTDECK_SKIP_ENV_GENERATION:-}" ]; then
+      "$(dirname "$0")/generate-env.sh" "${app}"
+    fi
 
     set -a
     source "./apps/${app}/.env"

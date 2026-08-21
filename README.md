@@ -5,7 +5,7 @@ A Docker-based orchestration system for deploying core self-hosted services, wit
 ## 🎯 Key Features
 
 - **Core Application Set** - Essential services for routing, auth, monitoring, automation, database access, error tracking, and analytics
-- **Extra Application Bundles** - Optional release app catalogs can be merged during Ansible deploy
+- **Extra Application Bundles** - Optional release app catalogs can be merged during deploy
 - **Traefik Reverse Proxy** - Automatic routing, SSL/TLS termination, and certificate management
 - **Automatic SSL Certificates** - Support for Cloudflare DNS and Let's Encrypt HTTP challenges
 - **Modular Architecture** - Reusable docker-compose components for easy maintenance and scaling
@@ -82,13 +82,13 @@ APPS_TIMEZONE=...
 
 ### Automated Deploy
 
-Deployment to a remote server goes through [`deploy-shared.yml`](.github/workflows/deploy-shared.yml) (documented in the GitHub Actions section below), a reusable workflow wrapping `ansible/deploy.yml` behind plain deploy vocabulary — `hosts`, `app-ref`, `env-refs`, `app-refs`, `apps`. `ansible/deploy.yml` is an implementation detail: callers of `deploy-shared.yml` never invoke `ansible-playbook` or write `flightdeck_*` `-e` variables themselves.
+Deployment to a remote server goes through [`deploy-shared.yml`](.github/workflows/deploy-shared.yml) (documented in the GitHub Actions section below), a reusable workflow wrapping [`deploy/deploy.py`](deploy/deploy.py) behind plain deploy vocabulary — `hosts`, `app-ref`, `app-refs`, `apps`.
 
-What gets deployed — which app bundles, which encrypted env sources, which apps actually run — is configured declaratively per target, not passed as ad-hoc flags; see "Vaults And Targets" below for the manifest format, including how multiple `app_refs`/`env_refs` entries merge (env merging fails loud on any key collision across sources, including against the synthesized `APPS` line).
+The deploy is push-based: `deploy/deploy.py` runs entirely on the GitHub Actions runner. It resolves and downloads every release ref (the machinery bundle, app bundles, and each app's encrypted env sources), merges the release tree, and checks each app's env sources for key collisions from the still-encrypted ciphertext (SOPS's dotenv output only encrypts values, so key names are readable without decryption) — all before anything reaches the target host. It then pushes the finished release and the encrypted env sources to each host over SSH and runs a short remote command sequence: `sops decrypt` each app's env sources into `apps/{app}/.env`, switch the `current` symlink, and run `./deploy.sh`. The target host never runs `gh` and never needs GitHub Release access — only `sops decrypt` on files it's handed.
 
-Target servers need Docker, Docker Compose, GitHub CLI (`gh`), SOPS, and the server-local age key.
+What gets deployed — which app bundles, which apps actually run, and which encrypted env sources feed each one — is configured declaratively per target, not passed as ad-hoc flags; see "Vaults And Targets" below for the manifest format, including how multiple `app_refs` bundles merge (fails loud on any app-name collision across bundles) and how an app's own `env_refs` are checked for key collisions (scoped to that app only — two different apps' env sources sharing a key, like `APPS_DOMAIN`, is expected, since each app gets its own separate `.env`).
 
-For private GitHub Releases, `deploy-shared.yml` passes a token through as `FLIGHTDECK_GITHUB_TOKEN`; the playbook exports it as `GH_TOKEN` for `gh release download`. Public releases don't need this.
+Target servers need Docker, Docker Compose, SOPS, and the server-local age key.
 
 ### 3. Select Applications
 
@@ -138,8 +138,10 @@ flightdeck/
 │       └── ...                  # App data directories
 │
 ├── backups/                       # Backup archives (git-ignored)
-├── ansible/
-│   └── deploy.yml      # Deploy published bundle and encrypted env
+├── deploy/
+│   ├── deploy.py       # Push-based deploy entrypoint (runs on the CI runner)
+│   ├── resolve.py      # owner/repo@tag[:asset] release ref resolution/download
+│   └── collisions.py   # Ciphertext-based env key collision detection
 ├── .github/
 │   ├── actions/
 │   │   ├── build-bundle/              # Build and upload the machinery bundle
@@ -417,12 +419,22 @@ This repository provides four composite actions under `.github/actions/` (`build
 
 ### Vaults And Targets
 
-Files in `vaults/` describe encrypted env assets — pure secrets/config, no app selection. Files in `targets/` describe deployments, including the desired `apps` set. The two collections are independent; a deployment links to encrypted assets explicitly through `env_refs`. Matching filenames are a convenience, not an implicit relationship.
+Files in `vaults/` describe encrypted env assets, one per app — pure secrets/config, no app selection. Files in `targets/` describe deployments, including which apps run and which vault(s) feed each one. The two collections are independent; a target links to encrypted assets explicitly through each app's own `env_refs`. Matching filenames are a convenience, not an implicit relationship.
 
-`vaults/mainframe.yml`:
+`vaults/mainframe-traefik.yml`:
 
 ```yaml
-asset: mainframe.sops.env
+asset: mainframe-traefik.sops.env
+keys:
+  - mainframe
+env:
+  HTTP_PORT: MAINFRAME_TRAEFIK_HTTP_PORT
+```
+
+`vaults/mainframe-rybbit.yml`:
+
+```yaml
+asset: mainframe-rybbit.sops.env
 keys:
   - mainframe
 env:
@@ -433,14 +445,16 @@ env:
 
 ```yaml
 flightdeck_ref: rubykatzen/flightdeck@latest
-env_refs:
-  - owner/config@latest:mainframe.sops.env
 app_refs:
   - rubykatzen/flightdeck@latest
   - owner/extra-apps@latest
 apps:
-  - traefik
-  - rybbit
+  traefik:
+    env_refs:
+      - owner/config@latest:mainframe-traefik.sops.env
+  rybbit:
+    env_refs:
+      - owner/config@latest:mainframe-rybbit.sops.env
 hosts:
   - deploy@100.64.0.1
   - deploy@100.64.0.2
@@ -454,7 +468,7 @@ credentials:
     tailscale_oauth_secret: TAILSCALE_OAUTH_SECRET
 ```
 
-Credential fields contain GitHub Variable/Secret names, never credential values. `env_refs`, `app_refs`, `apps`, and `hosts` are YAML arrays. Each host uses the SSH `user@host` format. `app_refs` must list at least one app bundle — flightdeck's own `apps/` catalog is just another entry, not implicit. `env_refs` must list at least one encrypted env asset; the deploy playbook decrypts and merges all of them plus a synthesized `APPS` line built from the target's own `apps`, failing loud on any key collision across sources (including against `APPS` itself, if a vault ever tried to define it).
+Credential fields contain GitHub Variable/Secret names, never credential values. `app_refs` and `hosts` are YAML arrays; `apps` is a mapping from app name to that app's own `env_refs` array. Each host uses the SSH `user@host` format. `app_refs` must list at least one app bundle — flightdeck's own `apps/` catalog is just another entry, not implicit. Each app in `apps` must list at least one `env_refs` entry; `deploy/deploy.py` decrypts and concatenates all of an app's sources into that app's own `.env`, failing loud on any key collision — but only within that one app's own sources. Two different apps' vaults sharing a key (e.g. both declaring `APPS_DOMAIN`) is expected, since each app gets a separate `.env`.
 
 `load-yaml-matrix` reads every file in `vaults/` or `targets/` into a matrix — it does not validate the manifest shape. Each manifest's fields are the responsibility of whatever consumes them: `encrypt-env` re-parses and validates its own manifest from `manifest`, and the workflows calling `deploy-shared.yml` apply `path`/`keep-releases`/`sops-age-key-file` defaults and pull `credentials.secrets`/`credentials.variables` values directly from the matrix item.
 
@@ -529,15 +543,15 @@ steps:
       token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-Requires `contents: write` permission on the calling job. `flightdeck-apps.zip` is the default asset name a `flightdeck_app_refs` entry resolves to when it doesn't specify an explicit `:asset-name` suffix; override `bundle-name` and use that suffix when publishing under a different filename.
+Requires `contents: write` permission on the calling job. `flightdeck-apps.zip` is the default asset name an `app_refs` entry resolves to when it doesn't specify an explicit `:asset-name` suffix; override `bundle-name` and use that suffix when publishing under a different filename.
 
 ---
 
 ### `deploy-shared.yml`
 
-Runs [`ansible/deploy.yml`](ansible/deploy.yml) from this repository against the caller-supplied hosts. Intended to be called from a private consumer repository that owns both the config and secrets side (SSH key, encrypted `.sops.env` releases, etc.) — this repository does not hold any deploy secrets itself. `env-refs` entries typically reference that same calling repository via `${{ github.repository }}`, since it's both the config and secrets source.
+Runs [`deploy/deploy.py`](deploy/deploy.py) from this repository against the caller-supplied hosts. Intended to be called from a private consumer repository that owns both the config and secrets side (SSH key, encrypted `.sops.env` releases, etc.) — this repository does not hold any deploy secrets itself. `apps.<name>.env_refs` entries typically reference that same calling repository via `${{ github.repository }}`, since it's both the config and secrets source.
 
-The interface is plain deploy vocabulary, not Ansible's — callers never see `flightdeck_*` variable names or hand-write `-e` JSON; the workflow builds that internally.
+The interface is plain deploy vocabulary — callers never see `deploy.py`'s internals or hand-write its JSON config; the workflow builds that internally and pipes it to `python3 deploy/deploy.py` on stdin. The runner resolves and downloads every ref, merges the release, checks each app's env sources for key collisions, and pushes the finished result to each host over SSH — see "Automated Deploy" above for the full sequence.
 
 Tailscale is optional, not a dependency of this workflow: set `tailscale-oauth-client-id` (and the matching `tailscale-oauth-secret`) to have the runner join a tailnet as an ephemeral node before deploying. Leave both unset to skip that step entirely — e.g. when the job already runs on a self-hosted runner with network access to the hosts, or reaches them some other way.
 
@@ -548,9 +562,8 @@ jobs:
     with:
       hosts: '["deploy@100.64.0.1", "deploy@100.64.0.2"]'          # required JSON array
       app-ref: rubykatzen/flightdeck@latest                          # required full release ref
-      env-refs: '["${{ github.repository }}@latest:<server>.sops.env"]'  # required non-empty JSON array
       app-refs: '["rubykatzen/flightdeck@latest"]'                   # required non-empty JSON array
-      apps: '["traefik", "rybbit"]'                                  # required non-empty JSON array
+      apps: '{"traefik": {"env_refs": ["${{ github.repository }}@latest:mainframe-traefik.sops.env"]}}'  # required non-empty JSON object
       # path: ~/flightdeck                 # optional, default shown
       # keep-releases: 5                   # optional, default shown
       # sops-age-key-file: /home/deploy/.config/sops/age/keys.txt   # optional, default: ~/.config/sops/age/keys.txt for `user`
@@ -561,7 +574,7 @@ jobs:
       tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}  # optional, required only if tailscale-oauth-client-id is set
 ```
 
-The `@v1.2.3` pin on the `uses:` line only controls which ref runs the playbook mechanism itself. `app-ref` is separate and required - it is the full release ref for the bundle the playbook downloads and deploys, and does not have to match the workflow pin.
+The `@v1.2.3` pin on the `uses:` line only controls which ref runs `deploy/deploy.py` itself. `app-ref` is separate and required - it is the full release ref for the bundle `deploy.py` downloads and deploys, and does not have to match the workflow pin.
 
 ## 📝 License
 

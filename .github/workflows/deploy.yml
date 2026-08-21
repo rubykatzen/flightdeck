@@ -28,7 +28,6 @@ jobs:
     with:
       hosts: ${{ toJson(matrix.hosts) }}
       app-ref: ${{ matrix.flightdeck_ref }}
-      env-refs: ${{ toJson(matrix.env_refs) }}
       app-refs: ${{ toJson(matrix.app_refs) }}
       apps: ${{ toJson(matrix.apps) }}
       path: ${{ matrix.path || '~/flightdeck' }}
