@@ -1,16 +1,6 @@
 #!/bin/bash
 set -e
 
-ensure_file() {
-  local source_file="$1"
-  local target_file="$2"
-
-  if [[ ! -f "$target_file" ]]; then
-    cp "$source_file" "$target_file"
-    echo "Created: $target_file"
-  fi
-}
-
 ensure_network() {
   local network="$1"
 
@@ -22,7 +12,6 @@ ensure_network() {
 
 source "$(dirname "$0")/lib.sh"
 
-ensure_file .env.example .env
 mkdir -p apps-data/traefik
 touch apps-data/traefik/acme.json
 chmod 600 apps-data/traefik/acme.json

@@ -25,20 +25,12 @@ A Docker-based orchestration system for deploying core self-hosted services, wit
 
 ## 🚀 Quick Start
 
-### 1. Clone and Initialize
+### 1. Clone
 
 ```bash
 git clone https://github.com/rubykatzen/flightdeck.git flightdeck
 cd flightdeck
-./up.sh
 ```
-
-This will:
-
-- Copy `.env.example` to `.env`
-- Create `apps-data/` directory structure
-- Create Docker networks
-- Set up Traefik SSL configuration
 
 ### Release Bundle
 
@@ -63,7 +55,7 @@ unzip -q flightdeck.zip -d /opt/flightdeck/releases/latest
 
 ### 2. Configure Environment
 
-Edit `.env` with your settings:
+Create `.env` with your settings:
 
 ```bash
 # Domain configuration
@@ -111,6 +103,8 @@ APPS=traefik,gatus,beszel,semaphore,rybbit
 ./logs.sh gatus
 ```
 
+The first run also creates the `apps-data/` directory structure, the Docker networks, and Traefik's SSL storage.
+
 All apps will be accessible at `https://{app-name}.{APPS_DOMAIN}`
 
 > **Tip**: To allow per-server overrides for specific variables, declare fallback syntax in the app's `docker-compose.yml`: `${MYAPP_APPS_DOMAIN:-${APPS_DOMAIN}}`. Set `MYAPP_APPS_DOMAIN` in the server's `.env` to override for that app only.
@@ -154,8 +148,7 @@ flightdeck/
 │
 ├── vaults/                        # Encrypted env asset configurations
 ├── targets/                       # Deployment targets
-├── .env                          # All server configuration incl. APPS list (git-ignored)
-├── .env.example                  # Configuration template
+├── .env                          # All server configuration incl. APPS list (git-ignored, hand-maintained)
 │
 ├── up.sh                         # Start applications
 ├── down.sh                       # Stop applications

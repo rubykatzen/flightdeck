@@ -5,7 +5,6 @@ inputs:
     description: Newline-separated paths to include in the bundle.
     required: false
     default: |
-      .env.example
       backup.sh
       deploy.sh
       down.sh

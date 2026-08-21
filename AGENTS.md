@@ -85,7 +85,7 @@ The repository uses a modular docker-compose structure with reusable components:
 
 ### Environment Variable System
 
-Locally (manual quick-start, or the local mechanism a freshly-provisioned server relies on before its first automated deploy), environment variables come from a single root `.env` file — hand-edited locally, or bootstrapped from `.env.example` by `up.sh` on a server. It contains shared `APPS_*` variables, per-app variables, and the comma-separated `APPS` list.
+Locally (manual quick-start, or the local mechanism a freshly-provisioned server relies on before its first automated deploy), environment variables come from a single root `.env` file, hand-maintained — no template is bootstrapped. It contains shared `APPS_*` variables, per-app variables, and the comma-separated `APPS` list.
 
 Before starting each app, `up.sh` runs `generate-env.sh`, which calls `generate_env` from `lib.sh`. The generated `apps/{app}/.env` contains:
 
@@ -224,7 +224,7 @@ The `up.sh` script performs first-run setup automatically before loading environ
 ./up.sh
 ```
 
-It creates `.env` from `.env.example`, `apps-data/traefik/acme.json`, and the external Docker networks `traefik`, `databases`, and `mcp` when missing.
+It creates `apps-data/traefik/acme.json` and the external Docker networks `traefik`, `databases`, and `mcp` when missing. `.env` itself is hand-maintained (no template is bootstrapped) and must already exist before the first run.
 
 ## Adding New Applications
 
