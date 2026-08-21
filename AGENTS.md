@@ -348,16 +348,14 @@ Each app in a target's `apps` mapping lists its own `env_refs` — release refs 
 
 ## Notable App Configurations
 
-- **traefik**: Entry point, uses external network. Note: currently carries the Watchtower label (see below) - a target that doesn't also run a `watchtower` container (hawkeye doesn't, as of this writing) would never get `docker compose up` run for it by the automated path. Known gap, not yet resolved.
-- **watchtower**: Infrastructure app — recommended on every server. Handles automatic image updates for apps that opt in via the `com.centurylinklabs.watchtower.enable=true` label. `deploy/deploy.py` skips running `docker compose pull`/`up` for any app with this label entirely, so Watchtower is their sole lifecycle manager.
+- **traefik**: Entry point, uses external network.
 - Apps with databases include a versioned template (e.g. `postgres-18.yml`) and create app-specific database named `${APP_NAME}`
 - Config templates use `envsubst`-equivalent substitution (`deploy/render.py`) - variables must be shell-compatible (`${VAR}` syntax)
 
-## Watchtower-managed Apps
-
-Apps that carry the `com.centurylinklabs.watchtower.enable=true` label are updated automatically by Watchtower and are **skipped by `deploy/deploy.py`** - their `.env`/config still gets pushed on every deploy, but `docker compose pull`/`up` is never run for them. The label in the compose file is the single source of truth — no separate skip list exists.
-
-Currently opted in: `traefik`, `semaphore`, `watchtower` itself.
+Watchtower was dropped entirely (there is no `apps/watchtower/`, and no app
+carries its label) — `deploy/deploy.py` already runs `docker compose pull &&
+up -d` for every app in a target's `apps` mapping on every deploy, which
+made Watchtower's own polling redundant. See `RETIRED.md`.
 
 ## Important: Template Files vs Generated Files
 

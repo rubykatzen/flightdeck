@@ -29,7 +29,6 @@ from resolve import download_ref
 from vault import decrypt_env, parse_dotenv
 
 APPS_BUNDLE_ASSET = "flightdeck-apps.zip"
-WATCHTOWER_LABEL = "com.centurylinklabs.watchtower.enable=true"
 
 
 class DeployError(Exception):
@@ -105,10 +104,6 @@ def list_required_networks(release_dir):
     ]
 
 
-def is_watchtower_managed(compose_path):
-    return WATCHTOWER_LABEL in Path(compose_path).read_text()
-
-
 def archive_release(release_dir, work_dir):
     archive_path = work_dir / "release.tar.gz"
     with tarfile.open(archive_path, "w:gz") as tar:
@@ -163,7 +158,7 @@ def prune_releases(connection, releases_path, keep_releases):
         connection.run("rm -rf " + " ".join(shlex.quote(release) for release in stale), hide=True)
 
 
-def deploy_to_host(host, archive_path, rendered_configs, all_apps, run_apps, networks, config):
+def deploy_to_host(host, archive_path, rendered_configs, apps, networks, config):
     connection = Connection(host)
     connection.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
@@ -179,12 +174,12 @@ def deploy_to_host(host, archive_path, rendered_configs, all_apps, run_apps, net
     bootstrap_host(connection, base_path, networks)
     push_release(connection, archive_path, release_path)
     push_app_configs(connection, base_path, rendered_configs)
-    for app in all_apps:
+    for app in apps:
         connection.run(f"mkdir -p {shlex.quote(f'{base_path}/apps-data/{app}')}", hide=True)
 
     connection.run(f"ln -sfn {shlex.quote(release_path)} {shlex.quote(current_path)}", hide=True)
 
-    for app in run_apps:
+    for app in apps:
         compose_dir = f"{current_path}/apps/{app}"
         connection.run(f"cd {shlex.quote(compose_dir)} && docker compose pull && docker compose up -d --remove-orphans")
 
@@ -218,14 +213,11 @@ def main():
         archive_path = archive_release(release_dir, work_dir)
         networks = list_required_networks(release_dir)
 
-        all_apps = list(config["apps"])
-        run_apps = [
-            app for app in all_apps if not is_watchtower_managed(release_dir / "apps" / app / "docker-compose.yml")
-        ]
+        apps = list(config["apps"])
 
         for host in config["hosts"]:
             print(f"Deploying to {host}")
-            deploy_to_host(host, archive_path, rendered_configs, all_apps, run_apps, networks, config)
+            deploy_to_host(host, archive_path, rendered_configs, apps, networks, config)
 
 
 if __name__ == "__main__":

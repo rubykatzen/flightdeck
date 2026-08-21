@@ -4,8 +4,6 @@ services:
   traefik:
     image: traefik
     environment: *environment
-    labels:
-      - "com.centurylinklabs.watchtower.enable=true"
     ports:
       - "${HTTP_PORT}:80"
       - "${HTTPS_PORT}:443"

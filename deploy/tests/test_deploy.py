@@ -264,20 +264,6 @@ class ListRequiredNetworksTest(unittest.TestCase):
             self.assertNotIn("internal", networks)
 
 
-class IsWatchtowerManagedTest(unittest.TestCase):
-    def test_true_when_label_present(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "docker-compose.yml"
-            path.write_text('labels:\n  - "com.centurylinklabs.watchtower.enable=true"\n')
-            self.assertTrue(deploy.is_watchtower_managed(path))
-
-    def test_false_when_label_absent(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "docker-compose.yml"
-            path.write_text("services: {}\n")
-            self.assertFalse(deploy.is_watchtower_managed(path))
-
-
 class ArchiveReleaseTest(unittest.TestCase):
     def test_archives_release_contents_without_wrapper_dir(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -337,8 +323,7 @@ class DeployToHostTest(unittest.TestCase):
                     "deploy@host",
                     archive_path,
                     rendered_configs,
-                    all_apps=["traefik", "rybbit"],
-                    run_apps=["rybbit"],
+                    apps=["traefik", "rybbit"],
                     networks=["traefik", "databases", "mcp"],
                     config=config,
                 )
@@ -359,7 +344,7 @@ class DeployToHostTest(unittest.TestCase):
             self.assertIn("mkdir -p /home/deploy/flightdeck/apps-data/rybbit", joined)
             self.assertIn("ln -sfn", joined)
             self.assertIn("apps/rybbit && docker compose pull && docker compose up -d --remove-orphans", joined)
-            self.assertNotIn("apps/traefik && docker compose", joined)
+            self.assertIn("apps/traefik && docker compose pull && docker compose up -d --remove-orphans", joined)
 
             prune_command = next(command for command in fake.commands if command.startswith("rm -rf") and "rel" in command)
             for stale in ("rel5", "rel6"):
