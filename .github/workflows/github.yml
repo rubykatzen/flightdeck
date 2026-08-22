@@ -5,4 +5,4 @@ on:
   pull_request:
 jobs:
   github:
-    uses: rubykatzen/baseline/.github/workflows/github-shared.yml@v0.13.1
+    uses: rubykatzen/baseline/.github/workflows/github-shared.yml@v0.15.0
