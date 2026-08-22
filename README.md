@@ -1,29 +1,24 @@
-# Flightdeck - Core Self-Hosted Application Runtime
+# Flightdeck - Docker Compose Deployment System
 
-A Docker-based orchestration system for deploying core self-hosted services, with optional extra application catalogs. Built with Traefik reverse proxy, automatic SSL certificate management, and GitHub Actions-driven deployment.
+A Docker-based deployment system for containerized services, with optional extra application catalogs. No manual administration — every deploy is push-based, resolved and applied entirely from GitHub Actions. Built with Traefik reverse proxy and automatic SSL certificate management.
 
 ## 🎯 Key Features
 
 - **Core Application Set** - Essential services for routing, auth, monitoring, automation, database access, error tracking, and analytics
-- **Extra Application Bundles** - Optional release app catalogs can be merged during deploy
-- **Traefik Reverse Proxy** - Automatic routing, SSL/TLS termination, and certificate management
-- **Automatic SSL Certificates** - Support for Cloudflare DNS and Let's Encrypt HTTP challenges
-- **Modular Architecture** - Reusable docker-compose components for easy maintenance and scaling
+- **Automatic SSL Certificates** - Cloudflare DNS and Let's Encrypt HTTP challenge support, routed through Traefik
+- **Modular Architecture** - Reusable docker-compose components for easy maintenance
 - **Vault-based Configuration** - Each app's env is declared, encrypted, decrypted, and rendered per app - no server-side secrets handling
 - **Persistent Data Management** - Organized storage with automatic backup-friendly structure
 - **Database Integration** - PostgreSQL, Redis, MongoDB, TimescaleDB pre-configured
 - **Health Checks** - Built-in health monitoring for all services
-- **Push-based Deploy** - GitHub Actions resolves, decrypts, and renders everything on the runner, then pushes a finished result over SSH
 
 ## 📋 Target Server Requirements
 
-There is no manual administration flow - target servers are never logged into to run commands, and there is no local quick-start. Every deploy goes through target/vault manifests and GitHub Actions. A target server needs only:
+A target server needs only:
 
 - **Docker** >= 20.10
 - **Docker Compose** >= 2.0
 - SSH access for the deploy key configured in that target's `credentials`
-
-Nothing else - no `sops`, no age key, no `gh`, no flightdeck scripts of any kind. All of that runs on the GitHub Actions runner instead; see "Automated Deploy" below.
 
 ## 🚀 Automated Deploy
 
@@ -186,14 +181,12 @@ A few things that don't fit that one-liner:
 
 ## 🔄 Similar Services
 
-If you're evaluating alternatives, these projects solve a similar problem from different angles:
+Useful as a source of ready-made Docker Compose definitions when adding a new app to this catalog, or as a reference for how to structure one:
 
-| Service | Website | Focus | Service Templates |
-|------|---------|---------|---------|
-| **flightdeck** | This repository | Git-based Docker Compose stack with reusable templates, deployed via GitHub Actions | [apps](./apps/) |
-| **Dokploy** | [dokploy.com](https://dokploy.com) | PaaS-style deployment panel for apps, databases, and containers | [Dokploy/templates/blueprints](https://github.com/Dokploy/templates/tree/canary/blueprints) |
-| **Runtipi** | [runtipi.io](https://runtipi.io) | Beginner-friendly self-hosted app store and dashboard | [runtipi/runtipi-appstore/apps](https://github.com/runtipi/runtipi-appstore/tree/master/apps) |
-| **Coolify** | [coolify.io](https://coolify.io) | Self-hosted Heroku/Vercel-style platform for apps, databases, and services | [coollabsio/coolify/templates/compose](https://github.com/coollabsio/coolify/tree/v4.x/templates/compose) |
+- [Dokploy](https://dokploy.com)
+- [Runtipi](https://runtipi.io)
+- [Coolify](https://coolify.io)
+- [Portainer](https://www.portainer.io)
 
 ## ⚙️ GitHub Actions
 
@@ -372,4 +365,4 @@ The `@v1.2.3` pin on the `uses:` line only controls which ref runs `deploy/deplo
 
 ## 📝 License
 
-[MIT](LICENSE)
+[MIT](LICENSE) - provided as is, without warranty of any kind.
