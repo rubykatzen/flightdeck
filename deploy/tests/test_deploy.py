@@ -150,7 +150,7 @@ class RenderAppConfigsTest(unittest.TestCase):
             release_dir = Path(directory)
             app_dir = release_dir / "apps" / "traefik"
             app_dir.mkdir(parents=True)
-            (app_dir / "traefik.tpl.yml").write_text("email: ${APPS_ADMIN_MAIL}\n")
+            (app_dir / "traefik.yml.tpl").write_text("email: ${APPS_ADMIN_MAIL}\n")
 
             deploy.render_app_configs(release_dir, "traefik", {"APPS_ADMIN_MAIL": "a@example.com"})
 
@@ -173,7 +173,7 @@ class ResolveAppEnvsTest(unittest.TestCase):
         app_dir = work_dir / "release" / "apps" / app
         app_dir.mkdir(parents=True)
         if template is not None:
-            (app_dir / f"{app}.tpl.yml").write_text(template)
+            (app_dir / f"{app}.yml.tpl").write_text(template)
         return work_dir / "release"
 
     def test_writes_decrypted_env_and_renders_configs(self):
