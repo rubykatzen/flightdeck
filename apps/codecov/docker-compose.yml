@@ -10,7 +10,7 @@ x-environment: &environment
   CODECOV_SCHEME: https
   RUN_ENV: ENTERPRISE
 x-volumes: &volumes
-  - ../../apps-data/${APP_NAME}/config:/config
+  - ./codecov.yml:/config/codecov.yml
 services:
   gateway:
     image: codecov/self-hosted-gateway:latest-stable
@@ -56,5 +56,5 @@ services:
       - timescale
     environment: *environment
     volumes:
-      - ../../apps-data/${APP_NAME}/config:/config
+      - ./codecov.yml:/config/codecov.yml
       - ../../apps-data/${APP_NAME}/archive:/archive

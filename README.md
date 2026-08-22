@@ -30,8 +30,8 @@ The deploy is push-based and runs entirely on the GitHub Actions runner:
 2. Merge the app bundles into a release tree.
 3. Check each app's env sources for key collisions from the still-encrypted ciphertext (SOPS's dotenv output only encrypts values, so key names are readable without decryption) — scoped to that app's own sources, not across apps.
 4. Decrypt each app's env with the target's private SOPS age key (a GitHub Secret) and write it straight into that app's `.env` in the release tree.
-5. Render that app's config templates (`config/*.template.*`) using the decrypted values — the same substitution `envsubst` does, run here instead of on the host.
-6. Push the finished release (real `.env`, already-rendered config) to each host over SSH, switch the `current` symlink, and run `docker compose pull && docker compose up -d` per app.
+5. Render that app's `*.template.*` config files in place, next to its `docker-compose.yml`, using the decrypted values — the same substitution `envsubst` does, run here instead of on the host.
+6. Push the finished release (real `.env`, already-rendered config, one tarball) to each host over SSH, switch the `current` symlink, and run `docker compose pull && docker compose up -d` per app.
 
 What gets deployed — which app bundles, which apps actually run, and which encrypted env sources feed each one — is configured declaratively per target; see "Vaults And Targets" below for the manifest format.
 
@@ -50,12 +50,12 @@ flightdeck/
 │   ├── gotenberg-8.yml           # Document conversion template
 │   └── {app-name}/              # Each app directory
 │       ├── docker-compose.yml   # App configuration
-│       └── config/              # Optional config templates
+│       └── *.template.*         # Optional config file templates, rendered in place at deploy time
 │
 ├── apps-data/                     # Persistent data on the target host, not in this repo
-│   ├── traefik/                 # SSL certificates
+│   ├── traefik/                 # SSL certificates (acme.json)
 │   ├── postgres/                # PostgreSQL data
-│   └── {app-name}/              # Each app's data + rendered config
+│   └── {app-name}/              # Each app's data that must survive across releases
 │
 ├── deploy/
 │   ├── deploy.py       # Push-based deploy entrypoint (runs on the CI runner)
