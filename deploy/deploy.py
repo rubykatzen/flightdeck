@@ -65,8 +65,8 @@ def build_release(config, work_dir):
 
 def render_app_configs(release_dir, app, values):
     app_dir = release_dir / "apps" / app
-    for template in sorted(app_dir.glob("*.template")):
-        rendered_path = template.with_name(template.stem)
+    for template in sorted(app_dir.glob("*.tpl.*")):
+        rendered_path = template.with_name(template.name.replace(".tpl.", ".", 1))
         rendered_path.write_text(render_template(template.read_text(), values))
         rendered_path.chmod(0o600)
 
