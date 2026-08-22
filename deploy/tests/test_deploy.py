@@ -145,25 +145,27 @@ class BuildReleaseTest(unittest.TestCase):
 
 
 class RenderAppConfigsTest(unittest.TestCase):
-    def test_renders_templates_found_for_app(self):
+    def test_renders_templates_found_for_app_next_to_the_template(self):
         with tempfile.TemporaryDirectory() as directory:
             release_dir = Path(directory)
-            config_dir = release_dir / "apps" / "traefik" / "config"
-            config_dir.mkdir(parents=True)
-            (config_dir / "traefik.template.yml").write_text("email: ${APPS_ADMIN_MAIL}\n")
+            app_dir = release_dir / "apps" / "traefik"
+            app_dir.mkdir(parents=True)
+            (app_dir / "traefik.yml.tpl").write_text("email: ${APPS_ADMIN_MAIL}\n")
 
-            rendered = deploy.render_app_configs(release_dir, "traefik", {"APPS_ADMIN_MAIL": "a@example.com"})
+            deploy.render_app_configs(release_dir, "traefik", {"APPS_ADMIN_MAIL": "a@example.com"})
 
-            self.assertEqual(rendered, {"traefik.yml": "email: a@example.com\n"})
+            rendered_path = app_dir / "traefik.yml"
+            self.assertEqual(rendered_path.read_text(), "email: a@example.com\n")
+            self.assertEqual(oct(rendered_path.stat().st_mode)[-3:], "600")
 
-    def test_returns_empty_dict_when_no_config_dir(self):
+    def test_does_nothing_when_app_has_no_templates(self):
         with tempfile.TemporaryDirectory() as directory:
             release_dir = Path(directory)
             (release_dir / "apps" / "rybbit").mkdir(parents=True)
 
-            rendered = deploy.render_app_configs(release_dir, "rybbit", {})
+            deploy.render_app_configs(release_dir, "rybbit", {})  # does not raise
 
-            self.assertEqual(rendered, {})
+            self.assertEqual(list((release_dir / "apps" / "rybbit").iterdir()), [])
 
 
 class ResolveAppEnvsTest(unittest.TestCase):
@@ -171,9 +173,7 @@ class ResolveAppEnvsTest(unittest.TestCase):
         app_dir = work_dir / "release" / "apps" / app
         app_dir.mkdir(parents=True)
         if template is not None:
-            config_dir = app_dir / "config"
-            config_dir.mkdir()
-            (config_dir / f"{app}.template.yml").write_text(template)
+            (app_dir / f"{app}.yml.tpl").write_text(template)
         return work_dir / "release"
 
     def test_writes_decrypted_env_and_renders_configs(self):
@@ -189,12 +189,14 @@ class ResolveAppEnvsTest(unittest.TestCase):
                 patch.object(deploy, "download_ref", return_value=ciphertext),
                 patch.object(deploy, "decrypt_env", return_value="APPS_ADMIN_MAIL=a@example.com\n"),
             ):
-                rendered = deploy.resolve_app_envs(config, work_dir / "work", release_dir, work_dir / "key.txt")
+                deploy.resolve_app_envs(config, work_dir / "work", release_dir, work_dir / "key.txt")
 
             env_path = release_dir / "apps" / "traefik" / ".env"
             self.assertEqual(env_path.read_text(), "APPS_ADMIN_MAIL=a@example.com\n")
             self.assertEqual(oct(env_path.stat().st_mode)[-3:], "600")
-            self.assertEqual(rendered, {"traefik": {"traefik.yml": "email: a@example.com\n"}})
+
+            rendered_path = release_dir / "apps" / "traefik" / "traefik.yml"
+            self.assertEqual(rendered_path.read_text(), "email: a@example.com\n")
 
     def test_raises_on_collision_within_one_apps_own_env_refs(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -311,10 +313,6 @@ class DeployToHostTest(unittest.TestCase):
             work_dir = Path(directory)
             archive_path = work_dir / "release.tar.gz"
             archive_path.write_text("fake archive\n")
-            rendered_configs = {
-                "traefik": {"traefik.yml": "email: a@example.com\n"},
-                "rybbit": {},
-            }
             config = {"hosts": ["deploy@host"], "keep_releases": 5}
 
             fake = FakeConnection("deploy@host")
@@ -322,7 +320,6 @@ class DeployToHostTest(unittest.TestCase):
                 deploy.deploy_to_host(
                     "deploy@host",
                     archive_path,
-                    rendered_configs,
                     apps=["traefik", "rybbit"],
                     networks=["traefik", "databases", "mcp"],
                     config=config,
@@ -330,9 +327,7 @@ class DeployToHostTest(unittest.TestCase):
 
             self.assertEqual(fake.uploads[0], (str(archive_path), fake.uploads[0][1]))
             self.assertTrue(fake.uploads[0][1].endswith(".tar.gz"))
-
-            config_upload = next(upload for upload in fake.uploads if upload[1].endswith("traefik.yml"))
-            self.assertEqual(config_upload[0].getvalue(), "email: a@example.com\n")
+            self.assertEqual(len(fake.uploads), 1)
 
             joined = "\n".join(fake.commands)
             self.assertIn("docker network create traefik", joined)

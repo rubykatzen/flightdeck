@@ -9,7 +9,6 @@ flightdeck scripts of any kind.
 Reads a JSON config from stdin (see README's "deploy-shared.yml" section
 for the exact shape).
 """
-import io
 import json
 import shlex
 import shutil
@@ -65,19 +64,15 @@ def build_release(config, work_dir):
 
 
 def render_app_configs(release_dir, app, values):
-    template_dir = release_dir / "apps" / app / "config"
-    if not template_dir.is_dir():
-        return {}
-    rendered = {}
-    for template in sorted(template_dir.glob("*.template.*")):
-        filename = template.name.replace(".template.", ".", 1)
-        rendered[filename] = render_template(template.read_text(), values)
-    return rendered
+    app_dir = release_dir / "apps" / app
+    for template in sorted(app_dir.glob("*.tpl")):
+        rendered_path = template.with_name(template.stem)
+        rendered_path.write_text(render_template(template.read_text(), values))
+        rendered_path.chmod(0o600)
 
 
 def resolve_app_envs(config, work_dir, release_dir, age_key_file):
     pull_dir = work_dir / "envs"
-    rendered_configs = {}
     for app, app_config in config["apps"].items():
         paths = [
             download_ref(ref, pull_dir / app / str(index))
@@ -90,9 +85,7 @@ def resolve_app_envs(config, work_dir, release_dir, age_key_file):
         app_env_path.write_text(plaintext)
         app_env_path.chmod(0o600)
 
-        rendered_configs[app] = render_app_configs(release_dir, app, parse_dotenv(plaintext))
-
-    return rendered_configs
+        render_app_configs(release_dir, app, parse_dotenv(plaintext))
 
 
 def list_required_networks(release_dir):
@@ -140,16 +133,6 @@ def push_release(connection, archive_path, release_path):
     connection.run(f"chmod 600 {shlex.quote(release_path)}/apps/*/.env", hide=True)
 
 
-def push_app_configs(connection, base_path, rendered_configs):
-    for app, files in rendered_configs.items():
-        if not files:
-            continue
-        config_dir = f"{base_path}/apps-data/{app}/config"
-        connection.run(f"mkdir -p {shlex.quote(config_dir)}", hide=True)
-        for filename, text in files.items():
-            connection.put(io.StringIO(text), remote=f"{config_dir}/{filename}")
-
-
 def prune_releases(connection, releases_path, keep_releases):
     result = connection.run(f"ls -1dt {shlex.quote(releases_path)}/*/ 2>/dev/null || true", hide=True)
     releases = [line.strip().rstrip("/") for line in result.stdout.splitlines() if line.strip()]
@@ -158,7 +141,7 @@ def prune_releases(connection, releases_path, keep_releases):
         connection.run("rm -rf " + " ".join(shlex.quote(release) for release in stale), hide=True)
 
 
-def deploy_to_host(host, archive_path, rendered_configs, apps, networks, config):
+def deploy_to_host(host, archive_path, apps, networks, config):
     connection = Connection(host)
     connection.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
@@ -173,7 +156,6 @@ def deploy_to_host(host, archive_path, rendered_configs, apps, networks, config)
 
     bootstrap_host(connection, base_path, networks)
     push_release(connection, archive_path, release_path)
-    push_app_configs(connection, base_path, rendered_configs)
     for app in apps:
         connection.run(f"mkdir -p {shlex.quote(f'{base_path}/apps-data/{app}')}", hide=True)
 
@@ -209,7 +191,7 @@ def main():
         age_key_file.chmod(0o600)
 
         release_dir = build_release(config, work_dir)
-        rendered_configs = resolve_app_envs(config, work_dir, release_dir, age_key_file)
+        resolve_app_envs(config, work_dir, release_dir, age_key_file)
         archive_path = archive_release(release_dir, work_dir)
         networks = list_required_networks(release_dir)
 
@@ -217,7 +199,7 @@ def main():
 
         for host in config["hosts"]:
             print(f"Deploying to {host}")
-            deploy_to_host(host, archive_path, rendered_configs, apps, networks, config)
+            deploy_to_host(host, archive_path, apps, networks, config)
 
 
 if __name__ == "__main__":
