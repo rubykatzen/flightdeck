@@ -2,7 +2,7 @@
 
 A Docker-based deployment system for containerized services, with optional extra application catalogs. No manual administration — every deploy is push-based, resolved and applied entirely from GitHub Actions. Built with Traefik reverse proxy and automatic SSL certificate management.
 
-## 🎯 Key Features
+## Key Features
 
 - **Core Application Set** - Essential services for routing, auth, monitoring, automation, database access, error tracking, and analytics
 - **Automatic SSL Certificates** - Cloudflare DNS and Let's Encrypt HTTP challenge support, routed through Traefik
@@ -12,7 +12,7 @@ A Docker-based deployment system for containerized services, with optional extra
 - **Database Integration** - PostgreSQL, Redis, MongoDB, TimescaleDB pre-configured
 - **Health Checks** - Built-in health monitoring for all services
 
-## 📋 Target Server Requirements
+## Target Server Requirements
 
 A target server needs only:
 
@@ -20,7 +20,7 @@ A target server needs only:
 - **Docker Compose** >= 2.0
 - SSH access for the deploy key configured in that target's `credentials`
 
-## 🚀 Automated Deploy
+## Automated Deploy
 
 Deployment goes through [`deploy-shared.yml`](.github/workflows/deploy-shared.yml) (documented in the GitHub Actions section below), a reusable workflow wrapping [`deploy/deploy.py`](deploy/deploy.py) behind plain deploy vocabulary — `hosts`, `app-refs`, `apps`.
 
@@ -35,7 +35,7 @@ The deploy is push-based and runs entirely on the GitHub Actions runner:
 
 What gets deployed — which app bundles, which apps actually run, and which encrypted env sources feed each one — is configured declaratively per target; see "Vaults And Targets" below for the manifest format.
 
-## 📁 Project Structure
+## Project Structure
 
 ```text
 flightdeck/
@@ -77,7 +77,7 @@ flightdeck/
 └── targets/                       # Deployment targets
 ```
 
-## 📦 Core Applications
+## Core Applications
 
 | Name | Purpose |
 |------|---------|
@@ -93,7 +93,7 @@ flightdeck/
 
 This catalog is itself published as its own release asset (`flightdeck-apps.zip`), merged at deploy time like any other entry in `app_refs`. Additional apps can live in any other repo's own `apps/`-shaped catalog, published the same way, and merged in by listing its ref alongside flightdeck's own.
 
-## ⚙️ Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -116,7 +116,7 @@ To use the override for a given deploy, that app's own vault sets `MYAPP_SOME_PA
 
 `traefik` and `databases` are created on the target host by `deploy/deploy.py` (derived from `apps/networks.yml`'s `external: true` entries); `internal` is created by Docker Compose itself.
 
-## 🆕 Adding a New Application
+## Adding a New Application
 
 ### Step 1: Create App Directory
 
@@ -156,7 +156,7 @@ services:
 
 Add the app to whichever target's `apps` mapping should run it, and give it a vault declaring the env it needs (`MY_VALUE` in the example above) — see "Vaults And Targets" below. There is no local way to run an app outside of a real deploy; verify a new app definition by deploying it to a real (even if disposable) target.
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 There's no manual administration path, so debugging means SSHing into the target host and using Docker Compose directly from the app's own folder — no wrapper needed, `apps/{app}/` is already a complete, ready-to-run Compose project:
 
@@ -173,12 +173,12 @@ A few things that don't fit that one-liner:
 - **SSL**: `apps-data/traefik/acme.json` must exist and be `chmod 600`, or Traefik won't issue certificates.
 - **DNS**: `nslookup app-name.domain.com` if the app resolves but isn't reachable.
 
-## 📚 Additional Resources
+## Additional Resources
 
 - [AGENTS.md](AGENTS.md) - Technical documentation for AI agents and developers
 - [RETIRED.md](RETIRED.md) - Apps removed from the active stack, and why
 
-## 🔄 Similar Services
+## Similar Services
 
 Useful as a source of ready-made Docker Compose definitions when adding a new app to this catalog, or as a reference for how to structure one:
 
@@ -187,7 +187,7 @@ Useful as a source of ready-made Docker Compose definitions when adding a new ap
 - [Coolify](https://coolify.io)
 - [Portainer](https://www.portainer.io)
 
-## ⚙️ GitHub Actions
+## GitHub Actions
 
 This repository provides four composite actions under `.github/actions/` (`build-bundle`, `build-apps-bundle`, `encrypt-env`, and `load-yaml-matrix`) and one reusable workflow, `deploy-shared.yml`.
 
@@ -362,6 +362,6 @@ jobs:
 
 The `@v1.2.3` pin on the `uses:` line only controls which ref runs `deploy/deploy.py` itself. `app-refs` entries are separate and don't have to match the workflow pin. <!-- x-release-please-version -->
 
-## 📝 License
+## License
 
 Flightdeck is released under the [MIT License](LICENSE).
