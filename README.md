@@ -364,4 +364,4 @@ The `@v1.2.3` pin on the `uses:` line only controls which ref runs `deploy/deplo
 
 ## 📝 License
 
-[MIT](LICENSE) - provided as is, without warranty of any kind.
+Flightdeck is released under the [MIT License](LICENSE).
