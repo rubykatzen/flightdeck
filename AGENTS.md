@@ -40,12 +40,14 @@ This repository uses [Baseline](https://github.com/rubykatzen/baseline) to
 verify shared content fragments across repositories.
 
 Do not change a required fragment only in the consuming repository. Change
-the fragment in `config/embedder.yml` in Baseline and release it. Dependabot
-will then update the Baseline workflow version in consuming repositories and
-CI will show the required fragment diff.
+the fragment in `config/embedder.yml` or the selected extra configuration in
+Baseline and release it. Dependabot will then update the Baseline workflow
+version in consuming repositories and CI will show the required fragment
+diff.
 
 A repository-specific exception must be declared through the `skip` input of
-`embedder-shared.yml`.
+`embedder-shared.yml`. Optional policies are selected through its `extra`
+input.
 <!-- /baseline fragment: embedded-fragments -->
 
 ## Repository Overview
@@ -342,7 +344,7 @@ services:
 
 GitHub Actions workflow (`.github/workflows/release.yml`) manages releases via [Release Please](https://github.com/googleapis/release-please):
 
-1. On every push to `main`, Release Please opens/updates a `chore(main): release X.Y.Z` PR with the computed version and generated `CHANGELOG.md` entry
+1. On every push to `main`, Release Please opens/updates a `chore: release X.Y.Z` PR with the computed version and generated `CHANGELOG.md` entry
 2. Merging that PR tags the release and publishes a GitHub Release
 3. A job then builds and uploads `flightdeck-apps.zip` from the `apps/` catalog. Deploy refs may use `@latest` as an alias resolved through GitHub's latest release API (`deploy/resolve.py`); no mutable `latest` release/tag is created.
 
