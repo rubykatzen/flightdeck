@@ -113,9 +113,8 @@ To use the override for a given deploy, that app's own vault sets `MYAPP_SOME_PA
 - **traefik** - External network for reverse proxy communication
 - **internal** - Isolated network for app-to-app communication
 - **databases** - Dedicated network for database services (PostgreSQL, Redis, MongoDB)
-- **mcp** - External network for MCP services consumed by MetaMCP
 
-`traefik`, `databases`, and `mcp` are created on the target host by `deploy/deploy.py` (derived from `apps/networks.yml`'s `external: true` entries); `internal` is created by Docker Compose itself.
+`traefik` and `databases` are created on the target host by `deploy/deploy.py` (derived from `apps/networks.yml`'s `external: true` entries); `internal` is created by Docker Compose itself.
 
 ## 🆕 Adding a New Application
 
