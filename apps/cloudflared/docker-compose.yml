@@ -1,0 +1,15 @@
+x-vault-env: &vault-env
+  TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+services:
+  cloudflared:
+    image: cloudflare/cloudflared
+    command: tunnel --no-autoupdate run
+    environment: *vault-env
+    networks:
+      - traefik
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+networks:
+  traefik:
+    external: true
