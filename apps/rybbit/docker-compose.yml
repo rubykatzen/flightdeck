@@ -2,7 +2,6 @@ include:
   - ../networks.yml
   - ../postgres-18.yml
   - ../clickhouse-26.5.yml
-# Vault interface - see vaults/*-rybbit.yml's env: mapping
 x-vault-env: &vault-env
   BASE_URL: https://${APP_NAME}.${DOMAIN}
   BETTER_AUTH_SECRET: ${KEY_HEX_32}
@@ -11,7 +10,6 @@ x-vault-env: &vault-env
   MAPBOX_TOKEN: ${MAPBOX_TOKEN:-}
   POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
   CLICKHOUSE_PASSWORD: ${DATABASE_PASSWORD}
-# Fixed / derived from APP_NAME - internal wiring, not vault-sourced
 x-internal-env: &internal-env
   NODE_ENV: production
   POSTGRES_HOST: postgres
