@@ -109,27 +109,14 @@ Compose files mount the rendered file by its plain relative path (`./traefik.yml
 
 When adding config for a new app: only reach for a template if the image has no env-var-driven config path at all. If it does (most well-behaved images do), prefer plain `environment:` entries over a template - fewer moving parts, and the value never touches disk as a separate file.
 
-### Per-app and per-server overrides
-
-Compose files explicitly declare which variables are overridable using bash fallback syntax:
-
-```yaml
-# App-specific override, falls back to server-wide value
-SHOWS_PATH: ${JELLYFIN_SHOWS_PATH:-${SHOWS_PATH}}
-
-# App-specific only — must be set per app
-SHOWS_PATH: ${JELLYFIN_SHOWS_PATH}
-
-# Server-wide — same value for all apps on this server
-SHOWS_PATH: ${SHOWS_PATH}
-```
+### App-specific vs. shared variables
 
 Naming convention:
 
-- `{APPNAME}_{VAR}` — app-specific variable where `{APPNAME}` is the uppercased app directory with hyphens replaced by underscores (e.g. `JELLYFIN_SHOWS_PATH`, `BESZEL_AGENT_PUBLIC_KEY`, `TWOFAUTH_DOMAIN`)
-- `{VAR}` (bare, no prefix) — server-wide variable shared across apps (e.g. `DOMAIN`, `TIMEZONE`)
+- `{APPNAME}_{VAR}` — app-specific variable where `{APPNAME}` is the uppercased app directory with hyphens replaced by underscores, only that app receives it (e.g. `BESZEL_AGENT_PUBLIC_KEY`)
+- `{VAR}` (bare, no prefix) — shared across apps (e.g. `DOMAIN`, `TIMEZONE`) — shared by convention (every vault that maps it feeds the same value to every app referencing it), not by any prefix enforcing it
 
-The compose file is the source of truth for which overrides are allowed. Not every variable needs an app-specific override — only declare one when you actually want to allow it. There's no reserved namespace separating "shared" from "app-specific" bare names - a plain `{VAR}` is shared by convention (every vault that maps it feeds the same value to every app referencing it), not by any prefix enforcing it.
+There's no per-app override mechanism (a bash-fallback `${APPNAME_VAR:-${VAR}}` pattern existed here before and was removed - nothing in the catalog ever used it). If an app genuinely needs to deviate from a shared value, give it its own app-specific variable name instead.
 
 Common shared variables a target's vaults map into one or more apps' `.env`:
 

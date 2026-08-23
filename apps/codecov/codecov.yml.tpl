@@ -1,7 +1,7 @@
 setup:
   # Replace with the http location of your Codecov
   # https://docs.codecov.io/docs/configuration#section-codecov-url
-  codecov_url: https://${APP_NAME}.${CODECOV_DOMAIN:-${DOMAIN}}
+  codecov_url: https://${APP_NAME}.${DOMAIN}
   # codecov_api_url: <codecov-url> # this defaults to <codecov-url> and is designed to work out of the box like this
   # api_allowed_hosts: [] # this defaults to <codecov-url> and is designed to work out of the box like this
   # Replace with your Codecov Enterprise License key. This is required for the containers to function.
@@ -12,7 +12,7 @@ setup:
       username: ${CODECOV_ADMIN_GITHUB_USERNAME}
   http:
     cookie_secret: ${KEY_HEX_32} # Replace it with a random string
-    cookies_domain: ${APP_NAME}.${CODECOV_DOMAIN:-${DOMAIN}}
+    cookies_domain: ${APP_NAME}.${DOMAIN}
   timeseries:
     enabled: true
   guest_access: "off"

@@ -99,14 +99,7 @@ This catalog is itself published as its own release asset (`flightdeck-apps.zip`
 
 Every app's env comes from its own vault(s), declared in that target's manifest (see "Vaults And Targets" below). A vault declares the exact final variable names an app receives, mapped to GitHub Secret/Variable names - there is no server-side prefix filtering or shared root env file. Two apps' vaults can share a source secret (e.g. both mapping `DOMAIN`) without conflict, since each app ends up with its own separate `.env`.
 
-**Per-app overrides** are declared directly in each app's `docker-compose.yml` using bash fallback syntax:
-
-```yaml
-# App-specific override, falls back to server-wide value
-SOME_PATH: ${MYAPP_SOME_PATH:-${SOME_PATH}}
-```
-
-To use the override for a given deploy, that app's own vault sets `MYAPP_SOME_PATH` in its `env:` mapping; to fall back to the shared value, the vault just omits it and relies on `SOME_PATH` alone. App prefixes are the uppercased app directory with hyphens replaced by underscores. See `AGENTS.md` for the full naming convention.
+**App-specific variables** (a value only one app needs) are prefixed with the uppercased app directory name, e.g. `BESZEL_AGENT_PUBLIC_KEY`. See `AGENTS.md` for the full naming convention.
 
 ### Network Architecture
 

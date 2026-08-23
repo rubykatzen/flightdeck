@@ -7,7 +7,7 @@ x-environment: &environment
   APP_DEBUG: false
   SITE_OWNER: ${ADMIN_MAIL}
   APP_KEY: ${KEY_HEX_16}
-  APP_URL: https://${APP_NAME}.${TWOFAUTH_DOMAIN:-${DOMAIN}}
+  APP_URL: https://${APP_NAME}.${DOMAIN}
   IS_DEMO_APP: false
   LOG_CHANNEL: daily
   LOG_LEVEL: error
@@ -45,7 +45,7 @@ services:
       - 8000
     labels:
       - "traefik.http.services.${APP_NAME}.loadbalancer.server.port=8000"
-      - "traefik.http.routers.${APP_NAME}.rule=Host(`${APP_NAME}.${TWOFAUTH_DOMAIN:-${DOMAIN}}`)"
+      - "traefik.http.routers.${APP_NAME}.rule=Host(`${APP_NAME}.${DOMAIN}`)"
     environment: *environment
     volumes:
       - ../../apps-data/${APP_NAME}/2fauth:/2fauth
