@@ -2,22 +2,25 @@ include:
   - ../networks.yml
   - ../postgres-18.yml
   - ../clickhouse-26.5.yml
-x-environment: &environment
-  NODE_ENV: production
+# Vault interface - see vaults/*-rybbit.yml's env: mapping
+x-vault-env: &vault-env
   BASE_URL: https://${APP_NAME}.${DOMAIN}
   BETTER_AUTH_SECRET: ${KEY_HEX_32}
   DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
   DISABLE_TELEMETRY: ${DISABLE_TELEMETRY:-true}
   MAPBOX_TOKEN: ${MAPBOX_TOKEN:-}
+  POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+  CLICKHOUSE_PASSWORD: ${DATABASE_PASSWORD}
+# Fixed / derived from APP_NAME - internal wiring, not vault-sourced
+x-internal-env: &internal-env
+  NODE_ENV: production
   POSTGRES_HOST: postgres
   POSTGRES_PORT: 5432
   POSTGRES_DB: ${APP_NAME}
   POSTGRES_USER: ${APP_NAME}
-  POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
   CLICKHOUSE_HOST: http://clickhouse:8123
   CLICKHOUSE_DB: ${APP_NAME}
   CLICKHOUSE_USER: ${APP_NAME}
-  CLICKHOUSE_PASSWORD: ${DATABASE_PASSWORD}
 services:
   client:
     image: ghcr.io/rybbit-io/rybbit-client
@@ -43,7 +46,8 @@ services:
       - 3001
     labels:
       - "traefik.http.services.${APP_NAME}-api.loadbalancer.server.port=3001"
-    environment: *environment
+    environment:
+      <<: [*vault-env, *internal-env]
     depends_on:
       clickhouse:
         condition: service_healthy
