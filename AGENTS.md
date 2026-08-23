@@ -152,6 +152,8 @@ If an app's env is entirely one kind, use a single anchor named for that kind (`
 
 `docker compose`'s multi-anchor merge key (`<<: [*a, *b]`) is what makes this work; verified it resolves identically to a single flat block via `docker compose config`.
 
+The same split applies to non-`environment` fields too, whenever an app has vault-configurable values there - e.g. `apps/beszel-agent/docker-compose.yml`'s `devices:` list is vault-sourced (`BESZEL_AGENT_DISK_1_DEVICE`/`_2_DEVICE`, each defaulting to `/dev/null` when unset), so it's declared as `x-vault-devices: &vault-devices` and referenced with `devices: *vault-devices`. A YAML anchor isn't limited to a map - it can hold a list just as well. Name the anchor for the compose field it targets (`x-vault-{field}`) so it's still obvious at a glance which fields the app's vault interface actually touches.
+
 ### Traefik Integration
 
 All apps use Traefik labels pattern:
