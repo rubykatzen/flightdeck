@@ -115,29 +115,29 @@ Compose files explicitly declare which variables are overridable using bash fall
 
 ```yaml
 # App-specific override, falls back to server-wide value
-SHOWS_PATH: ${JELLYFIN_SHOWS_PATH:-${APPS_SHOWS_PATH}}
+SHOWS_PATH: ${JELLYFIN_SHOWS_PATH:-${SHOWS_PATH}}
 
 # App-specific only — must be set per app
 SHOWS_PATH: ${JELLYFIN_SHOWS_PATH}
 
 # Server-wide — same value for all apps on this server
-SHOWS_PATH: ${APPS_SHOWS_PATH}
+SHOWS_PATH: ${SHOWS_PATH}
 ```
 
 Naming convention:
 
-- `{APPNAME}_{VAR}` — app-specific variable where `{APPNAME}` is the uppercased app directory with hyphens replaced by underscores (e.g. `JELLYFIN_SHOWS_PATH`, `BESZEL_AGENT_PUBLIC_KEY`, `TWOFAUTH_APPS_DOMAIN`)
-- `APPS_{VAR}` — server-wide variable shared across apps (e.g. `APPS_DOMAIN`, `APPS_TIMEZONE`)
+- `{APPNAME}_{VAR}` — app-specific variable where `{APPNAME}` is the uppercased app directory with hyphens replaced by underscores (e.g. `JELLYFIN_SHOWS_PATH`, `BESZEL_AGENT_PUBLIC_KEY`, `TWOFAUTH_DOMAIN`)
+- `{VAR}` (bare, no prefix) — server-wide variable shared across apps (e.g. `DOMAIN`, `TIMEZONE`)
 
-The compose file is the source of truth for which overrides are allowed. Not every variable needs an app-specific override — only declare one when you actually want to allow it.
+The compose file is the source of truth for which overrides are allowed. Not every variable needs an app-specific override — only declare one when you actually want to allow it. There's no reserved namespace separating "shared" from "app-specific" bare names - a plain `{VAR}` is shared by convention (every vault that maps it feeds the same value to every app referencing it), not by any prefix enforcing it.
 
-Common `APPS_*` variables a target's vaults map into one or more apps' `.env`:
+Common shared variables a target's vaults map into one or more apps' `.env`:
 
-- `APPS_DOMAIN` - Base domain for all services
-- `APPS_CERTIFICATE_RESOLVER` - SSL resolver (Cloudflare DNS or HTTP challenge)
-- `APPS_DATABASE_PASSWORD` - Shared database password
-- `APPS_KEY_HEX_{16,32,64}` - Encryption keys for various apps
-- `APPS_TIMEZONE` - System timezone
+- `DOMAIN` - Base domain for all services
+- `CERTIFICATE_RESOLVER` - SSL resolver (Cloudflare DNS or HTTP challenge)
+- `DATABASE_PASSWORD` - Shared database password
+- `KEY_HEX_{16,32,64}` - Encryption keys for various apps
+- `TIMEZONE` - System timezone
 
 ### Traefik Integration
 
@@ -145,12 +145,12 @@ All apps use Traefik labels pattern:
 
 ```yaml
 traefik.enable=true
-traefik.http.routers.${APP_NAME}.rule=Host(`${APP_NAME}.${APPS_DOMAIN}`)
-traefik.http.routers.${APP_NAME}.tls.certresolver=${APPS_CERTIFICATE_RESOLVER}
+traefik.http.routers.${APP_NAME}.rule=Host(`${APP_NAME}.${DOMAIN}`)
+traefik.http.routers.${APP_NAME}.tls.certresolver=${CERTIFICATE_RESOLVER}
 traefik.http.services.${APP_NAME}.loadbalancer.server.port=8080
 ```
 
-Apps are accessible at `{app-name}.{APPS_DOMAIN}` with automatic SSL.
+Apps are accessible at `{app-name}.{DOMAIN}` with automatic SSL.
 
 ## Operations
 
@@ -230,7 +230,7 @@ x-image: &image
 # 3. X-ENVIRONMENT (only if environment variables exist)
 x-environment: &environment
   VAR1: ${VALUE1}
-  DATABASE_URL: postgresql://postgres:${APPS_DATABASE_PASSWORD}@postgres:5432/${APP_NAME}
+  DATABASE_URL: postgresql://postgres:${DATABASE_PASSWORD}@postgres:5432/${APP_NAME}
 
 # 4. X-VOLUMES (if multiple services share volumes)
 x-volumes: &volumes
@@ -258,7 +258,7 @@ services:
     command: ["start", "--config", "/config.yml"]
 
     # 4. USER (if required)
-    user: "${APPS_UID}:${APPS_GID}"
+    user: "${PUID}:${PGID}"  # not UID/GID - those are shell-reserved
 
     # 5. ENVIRONMENT (mandatory, via anchor)
     environment: *environment
@@ -324,7 +324,7 @@ include:
   - ../networks.yml
   - ../postgres-18.yml
 x-environment: &environment
-  DATABASE_URL: postgresql://postgres:${APPS_DATABASE_PASSWORD}@postgres:5432/${APP_NAME}
+  DATABASE_URL: postgresql://postgres:${DATABASE_PASSWORD}@postgres:5432/${APP_NAME}
   ENABLE_FEATURE: true
   PORT: 8080
 services:
@@ -334,7 +334,7 @@ services:
       file: ../common.yml
       service: main
     command: ["worker", "--concurrency", "10"]
-    user: "${APPS_UID}:${APPS_GID}"
+    user: "${PUID}:${PGID}"  # not UID/GID - those are shell-reserved
     environment: *environment
     volumes:
       - ../../apps-data/${APP_NAME}/data:/data

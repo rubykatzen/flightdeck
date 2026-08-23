@@ -2,7 +2,7 @@
 """Detect duplicate env keys across an app's env_refs sources, from ciphertext.
 
 SOPS's dotenv output format only encrypts values, not key names
-(`APPS_DOMAIN=ENC[...]`), so this needs no decryption at all - it runs in
+(`DOMAIN=ENC[...]`), so this needs no decryption at all - it runs in
 CI, before anything is pushed to the target host, on files whose private
 key CI never has access to in the first place.
 """

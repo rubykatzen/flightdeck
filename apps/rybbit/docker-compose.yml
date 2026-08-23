@@ -4,20 +4,20 @@ include:
   - ../clickhouse-26.5.yml
 x-environment: &environment
   NODE_ENV: production
-  BASE_URL: https://${APP_NAME}.${APPS_DOMAIN}
-  BETTER_AUTH_SECRET: ${APPS_KEY_HEX_32}
-  DISABLE_SIGNUP: ${APPS_DISABLE_SIGNUP:-false}
-  DISABLE_TELEMETRY: ${APPS_DISABLE_TELEMETRY:-true}
-  MAPBOX_TOKEN: ${APPS_MAPBOX_TOKEN:-}
+  BASE_URL: https://${APP_NAME}.${DOMAIN}
+  BETTER_AUTH_SECRET: ${KEY_HEX_32}
+  DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
+  DISABLE_TELEMETRY: ${DISABLE_TELEMETRY:-true}
+  MAPBOX_TOKEN: ${MAPBOX_TOKEN:-}
   POSTGRES_HOST: postgres
   POSTGRES_PORT: 5432
   POSTGRES_DB: ${APP_NAME}
   POSTGRES_USER: ${APP_NAME}
-  POSTGRES_PASSWORD: ${APPS_DATABASE_PASSWORD}
+  POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
   CLICKHOUSE_HOST: http://clickhouse:8123
   CLICKHOUSE_DB: ${APP_NAME}
   CLICKHOUSE_USER: ${APP_NAME}
-  CLICKHOUSE_PASSWORD: ${APPS_DATABASE_PASSWORD}
+  CLICKHOUSE_PASSWORD: ${DATABASE_PASSWORD}
 services:
   client:
     image: ghcr.io/rybbit-io/rybbit-client
@@ -30,8 +30,8 @@ services:
       - "traefik.http.services.${APP_NAME}.loadbalancer.server.port=3002"
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_BACKEND_URL: https://${APP_NAME}.${APPS_DOMAIN}
-      NEXT_PUBLIC_DISABLE_SIGNUP: ${APPS_DISABLE_SIGNUP:-false}
+      NEXT_PUBLIC_BACKEND_URL: https://${APP_NAME}.${DOMAIN}
+      NEXT_PUBLIC_DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
     depends_on:
       - backend
   backend:

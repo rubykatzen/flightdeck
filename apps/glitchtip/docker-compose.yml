@@ -4,13 +4,13 @@ include:
   - ../redis-8.yml
 x-image: &image glitchtip/glitchtip
 x-environment: &environment
-  DATABASE_URL: postgresql://${APP_NAME}:${APPS_DATABASE_PASSWORD}@postgres:5432/${APP_NAME}
+  DATABASE_URL: postgresql://${APP_NAME}:${DATABASE_PASSWORD}@postgres:5432/${APP_NAME}
   REDIS_URL: redis://redis:6379
-  SECRET_KEY: ${APPS_KEY_HEX_64}
+  SECRET_KEY: ${KEY_HEX_64}
   PORT: 8000
   EMAIL_URL: ${GLITCHTIP_EMAIL_URL:-consolemail://}
-  GLITCHTIP_DOMAIN: https://${APP_NAME}.${APPS_DOMAIN}
-  DEFAULT_FROM_EMAIL: ${GLITCHTIP_DEFAULT_FROM_EMAIL:-noreply@${APPS_DOMAIN}}
+  GLITCHTIP_DOMAIN: https://${APP_NAME}.${DOMAIN}
+  DEFAULT_FROM_EMAIL: ${GLITCHTIP_DEFAULT_FROM_EMAIL:-noreply@${DOMAIN}}
   CELERY_WORKER_AUTOSCALE: "1,3"
 services:
   web:

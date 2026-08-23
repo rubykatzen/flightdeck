@@ -4,9 +4,9 @@ include:
   - ../postgres-17.yml
   - ../timescale-17.yml
 x-environment: &environment
-  CODECOV_BASE_HOST: ${APP_NAME}.${CODECOV_APPS_DOMAIN:-${APPS_DOMAIN}}
-  CODECOV_API_HOST: ${APP_NAME}.${CODECOV_APPS_DOMAIN:-${APPS_DOMAIN}}
-  CODECOV_IA_HOST: ${APP_NAME}.${CODECOV_APPS_DOMAIN:-${APPS_DOMAIN}}
+  CODECOV_BASE_HOST: ${APP_NAME}.${CODECOV_DOMAIN:-${DOMAIN}}
+  CODECOV_API_HOST: ${APP_NAME}.${CODECOV_DOMAIN:-${DOMAIN}}
+  CODECOV_IA_HOST: ${APP_NAME}.${CODECOV_DOMAIN:-${DOMAIN}}
   CODECOV_SCHEME: https
   RUN_ENV: ENTERPRISE
 x-volumes: &volumes
@@ -21,7 +21,7 @@ services:
       - 8080
     labels:
       - "traefik.http.services.${APP_NAME}.loadbalancer.server.port=8080"
-      - "traefik.http.routers.${APP_NAME}.rule=Host(`${APP_NAME}.${CODECOV_APPS_DOMAIN:-${APPS_DOMAIN}}`)"
+      - "traefik.http.routers.${APP_NAME}.rule=Host(`${APP_NAME}.${CODECOV_DOMAIN:-${DOMAIN}}`)"
     depends_on:
       - api
       - frontend

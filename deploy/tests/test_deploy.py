@@ -150,9 +150,9 @@ class RenderAppConfigsTest(unittest.TestCase):
             release_dir = Path(directory)
             app_dir = release_dir / "apps" / "traefik"
             app_dir.mkdir(parents=True)
-            (app_dir / "traefik.yml.tpl").write_text("email: ${APPS_ADMIN_MAIL}\n")
+            (app_dir / "traefik.yml.tpl").write_text("email: ${ADMIN_MAIL}\n")
 
-            deploy.render_app_configs(release_dir, "traefik", {"APPS_ADMIN_MAIL": "a@example.com"})
+            deploy.render_app_configs(release_dir, "traefik", {"ADMIN_MAIL": "a@example.com"})
 
             rendered_path = app_dir / "traefik.yml"
             self.assertEqual(rendered_path.read_text(), "email: a@example.com\n")
@@ -179,20 +179,20 @@ class ResolveAppEnvsTest(unittest.TestCase):
     def test_writes_decrypted_env_and_renders_configs(self):
         with tempfile.TemporaryDirectory() as directory:
             work_dir = Path(directory)
-            release_dir = self._release_dir_with_app(work_dir, "traefik", template="email: ${APPS_ADMIN_MAIL}\n")
+            release_dir = self._release_dir_with_app(work_dir, "traefik", template="email: ${ADMIN_MAIL}\n")
             ciphertext = work_dir / "a.sops.env"
-            ciphertext.write_text("APPS_ADMIN_MAIL=ENC[...]\n")
+            ciphertext.write_text("ADMIN_MAIL=ENC[...]\n")
 
             config = {"apps": {"traefik": {"env_refs": ["owner/repo@latest:a.sops.env"]}}}
 
             with (
                 patch.object(deploy, "download_ref", return_value=ciphertext),
-                patch.object(deploy, "decrypt_env", return_value="APPS_ADMIN_MAIL=a@example.com\n"),
+                patch.object(deploy, "decrypt_env", return_value="ADMIN_MAIL=a@example.com\n"),
             ):
                 deploy.resolve_app_envs(config, work_dir / "work", release_dir, work_dir / "key.txt")
 
             env_path = release_dir / "apps" / "traefik" / ".env"
-            self.assertEqual(env_path.read_text(), "APPS_ADMIN_MAIL=a@example.com\n")
+            self.assertEqual(env_path.read_text(), "ADMIN_MAIL=a@example.com\n")
             self.assertEqual(oct(env_path.stat().st_mode)[-3:], "600")
 
             rendered_path = release_dir / "apps" / "traefik" / "traefik.yml"
@@ -203,9 +203,9 @@ class ResolveAppEnvsTest(unittest.TestCase):
             work_dir = Path(directory)
             release_dir = self._release_dir_with_app(work_dir, "traefik")
             first_env = work_dir / "a.sops.env"
-            first_env.write_text("APPS_DOMAIN=ENC[AES256_GCM,data:Ab==,iv:xx==,tag:yy==,type:str]\n")
+            first_env.write_text("DOMAIN=ENC[AES256_GCM,data:Ab==,iv:xx==,tag:yy==,type:str]\n")
             second_env = work_dir / "b.sops.env"
-            second_env.write_text("APPS_DOMAIN=ENC[AES256_GCM,data:Cd==,iv:xx==,tag:yy==,type:str]\n")
+            second_env.write_text("DOMAIN=ENC[AES256_GCM,data:Cd==,iv:xx==,tag:yy==,type:str]\n")
 
             def fake_download_ref(ref, out_dir, default_asset=None, run=None):
                 return first_env if ref.endswith(":a.sops.env") else second_env
@@ -229,15 +229,15 @@ class ResolveAppEnvsTest(unittest.TestCase):
             release_dir = self._release_dir_with_app(work_dir, "traefik")
             self._release_dir_with_app(work_dir, "rybbit")
             traefik_env = work_dir / "a.sops.env"
-            traefik_env.write_text("APPS_DOMAIN=ENC[AES256_GCM,data:Ab==,iv:xx==,tag:yy==,type:str]\n")
+            traefik_env.write_text("DOMAIN=ENC[AES256_GCM,data:Ab==,iv:xx==,tag:yy==,type:str]\n")
             rybbit_env = work_dir / "b.sops.env"
-            rybbit_env.write_text("APPS_DOMAIN=ENC[AES256_GCM,data:Cd==,iv:xx==,tag:yy==,type:str]\n")
+            rybbit_env.write_text("DOMAIN=ENC[AES256_GCM,data:Cd==,iv:xx==,tag:yy==,type:str]\n")
 
             def fake_download_ref(ref, out_dir, default_asset=None, run=None):
                 return traefik_env if "traefik" in ref else rybbit_env
 
             def fake_decrypt_env(path, age_key_file, run=None):
-                return "APPS_DOMAIN=example.com\n"
+                return "DOMAIN=example.com\n"
 
             config = {
                 "apps": {

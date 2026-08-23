@@ -1,7 +1,7 @@
 setup:
   # Replace with the http location of your Codecov
   # https://docs.codecov.io/docs/configuration#section-codecov-url
-  codecov_url: https://${APP_NAME}.${CODECOV_APPS_DOMAIN:-${APPS_DOMAIN}}
+  codecov_url: https://${APP_NAME}.${CODECOV_DOMAIN:-${DOMAIN}}
   # codecov_api_url: <codecov-url> # this defaults to <codecov-url> and is designed to work out of the box like this
   # api_allowed_hosts: [] # this defaults to <codecov-url> and is designed to work out of the box like this
   # Replace with your Codecov Enterprise License key. This is required for the containers to function.
@@ -11,8 +11,8 @@ setup:
     - service: github
       username: ${CODECOV_ADMIN_GITHUB_USERNAME}
   http:
-    cookie_secret: ${APPS_KEY_HEX_32} # Replace it with a random string
-    cookies_domain: ${APP_NAME}.${CODECOV_APPS_DOMAIN:-${APPS_DOMAIN}}
+    cookie_secret: ${KEY_HEX_32} # Replace it with a random string
+    cookies_domain: ${APP_NAME}.${CODECOV_DOMAIN:-${DOMAIN}}
   timeseries:
     enabled: true
   guest_access: "off"
@@ -25,13 +25,13 @@ github:
     pem: /config/key.pem
 services:
   redis_url: "redis://redis:6379"
-  database_url: "postgres://${APP_NAME}:${APPS_DATABASE_PASSWORD}@postgres:5432/${APP_NAME}"
-  timeseries_database_url: "postgres://${APP_NAME}:${APPS_DATABASE_PASSWORD}@timescale:5432/${APP_NAME}"
+  database_url: "postgres://${APP_NAME}:${DATABASE_PASSWORD}@postgres:5432/${APP_NAME}"
+  timeseries_database_url: "postgres://${APP_NAME}:${DATABASE_PASSWORD}@timescale:5432/${APP_NAME}"
   minio:
-    host: ${APPS_S3_HOST}
+    host: ${S3_HOST}
     bucket: ${CODECOV_S3_BUCKET}
-    region: ${APPS_S3_REGION}
+    region: ${S3_REGION}
     verify_ssl: true
     port: 443
-    access_key_id: ${APPS_S3_ACCESS_KEY_ID}
-    secret_access_key: ${APPS_S3_SECRET_ACCESS_KEY}
+    access_key_id: ${S3_ACCESS_KEY_ID}
+    secret_access_key: ${S3_SECRET_ACCESS_KEY}

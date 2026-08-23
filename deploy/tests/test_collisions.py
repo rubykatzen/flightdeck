@@ -12,7 +12,7 @@ SPEC.loader.exec_module(collisions)
 TRAEFIK_ENV = """\
 HTTP_PORT=ENC[AES256_GCM,data:Ab==,iv:xx==,tag:yy==,type:str]
 HTTPS_PORT=ENC[AES256_GCM,data:Cd==,iv:xx==,tag:yy==,type:str]
-APPS_DOMAIN=ENC[AES256_GCM,data:Ef==,iv:xx==,tag:yy==,type:str]
+DOMAIN=ENC[AES256_GCM,data:Ef==,iv:xx==,tag:yy==,type:str]
 sops_age__list_0__map_enc=-----BEGIN AGE ENCRYPTED FILE-----
 sops_lastmodified=2026-08-19T00:00:00Z
 sops_mac=ENC[AES256_GCM,data:Gh==,iv:xx==,tag:yy==,type:str]
@@ -20,14 +20,14 @@ sops_version=3.13.1
 """
 
 RYBBIT_ENV = """\
-APPS_DATABASE_PASSWORD=ENC[AES256_GCM,data:Ij==,iv:xx==,tag:yy==,type:str]
-APPS_KEY_HEX_32=ENC[AES256_GCM,data:Kl==,iv:xx==,tag:yy==,type:str]
+DATABASE_PASSWORD=ENC[AES256_GCM,data:Ij==,iv:xx==,tag:yy==,type:str]
+KEY_HEX_32=ENC[AES256_GCM,data:Kl==,iv:xx==,tag:yy==,type:str]
 sops_lastmodified=2026-08-19T00:00:00Z
 sops_version=3.13.1
 """
 
 COLLIDING_ENV = """\
-APPS_DOMAIN=ENC[AES256_GCM,data:Mn==,iv:xx==,tag:yy==,type:str]
+DOMAIN=ENC[AES256_GCM,data:Mn==,iv:xx==,tag:yy==,type:str]
 sops_version=3.13.1
 """
 
@@ -59,7 +59,7 @@ class CheckEnvCollisionsTest(unittest.TestCase):
             keys = collisions.extract_keys(traefik) | collisions.extract_keys(rybbit)
             self.assertFalse(any(key.startswith("sops_") for key in keys))
             self.assertIn("HTTP_PORT", keys)
-            self.assertIn("APPS_KEY_HEX_32", keys)
+            self.assertIn("KEY_HEX_32", keys)
 
 
 if __name__ == "__main__":

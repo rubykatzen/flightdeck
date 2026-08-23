@@ -3,26 +3,26 @@ x-labels: &labels
   - "traefik.docker.network=traefik"
   - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
   - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=false"
-  - "traefik.http.routers.${APP_NAME}-http.rule=Host(`${APP_NAME}.${APPS_DOMAIN}`)"
+  - "traefik.http.routers.${APP_NAME}-http.rule=Host(`${APP_NAME}.${DOMAIN}`)"
   - "traefik.http.routers.${APP_NAME}-http.entrypoints=http"
   - "traefik.http.routers.${APP_NAME}-http.middlewares=redirect-to-https"
-  - "traefik.http.routers.${APP_NAME}.rule=Host(`${APP_NAME}.${APPS_DOMAIN}`)"
+  - "traefik.http.routers.${APP_NAME}.rule=Host(`${APP_NAME}.${DOMAIN}`)"
   - "traefik.http.routers.${APP_NAME}.entrypoints=https"
-  - "traefik.http.routers.${APP_NAME}.tls.certresolver=${APPS_CERTIFICATE_RESOLVER}"
+  - "traefik.http.routers.${APP_NAME}.tls.certresolver=${CERTIFICATE_RESOLVER}"
 x-labels-http: &labels-http
   - "traefik.enable=true"
   - "traefik.docker.network=traefik"
-  - "traefik.http.routers.${APP_NAME}.rule=Host(`${APP_NAME}.${APPS_DOMAIN}`)"
+  - "traefik.http.routers.${APP_NAME}.rule=Host(`${APP_NAME}.${DOMAIN}`)"
   - "traefik.http.routers.${APP_NAME}.entrypoints=https"
-  - "traefik.http.routers.${APP_NAME}.tls.certresolver=${APPS_CERTIFICATE_RESOLVER}"
-  - "traefik.http.routers.${APP_NAME}-plain.rule=Host(`${APP_NAME}.${APPS_DOMAIN}`)"
+  - "traefik.http.routers.${APP_NAME}.tls.certresolver=${CERTIFICATE_RESOLVER}"
+  - "traefik.http.routers.${APP_NAME}-plain.rule=Host(`${APP_NAME}.${DOMAIN}`)"
   - "traefik.http.routers.${APP_NAME}-plain.entrypoints=http"
 x-labels-api: &labels-api
   - traefik.enable=true
   - traefik.docker.network=traefik
-  - traefik.http.routers.${APP_NAME}-api.rule=Host(`${APP_NAME}.${APPS_DOMAIN}`) && PathPrefix(`/api`)
+  - traefik.http.routers.${APP_NAME}-api.rule=Host(`${APP_NAME}.${DOMAIN}`) && PathPrefix(`/api`)
   - traefik.http.routers.${APP_NAME}-api.entrypoints=https
-  - traefik.http.routers.${APP_NAME}-api.tls.certresolver=${APPS_CERTIFICATE_RESOLVER}
+  - traefik.http.routers.${APP_NAME}-api.tls.certresolver=${CERTIFICATE_RESOLVER}
 x-env-file: &env-file
   - ./${APP_NAME}/.env
 x-restart: &restart unless-stopped

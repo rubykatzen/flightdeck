@@ -1,5 +1,5 @@
 x-environment: &environment
-  CF_DNS_API_TOKEN: ${APPS_CLOUDFLARE_DNS_API_TOKEN}
+  CF_DNS_API_TOKEN: ${CLOUDFLARE_DNS_API_TOKEN}
 services:
   traefik:
     image: traefik

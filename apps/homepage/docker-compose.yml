@@ -1,7 +1,7 @@
 include:
   - ../networks.yml
 x-environment: &environment
-  HOMEPAGE_ALLOWED_HOSTS: ${APP_NAME}.${APPS_DOMAIN}
+  HOMEPAGE_ALLOWED_HOSTS: ${APP_NAME}.${DOMAIN}
 services:
   homepage:
     image: ghcr.io/gethomepage/homepage
