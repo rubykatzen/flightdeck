@@ -308,7 +308,7 @@ services:
 ### Key ordering principles:
 
 1. **Include order**: networks.yml → database/cache templates (postgres/redis/mongodb/etc., pick a version) → others
-2. **X-fields order**: x-image → x-vault-env/x-internal-env (or x-environment if the app's env is entirely one kind - see "Vault-Sourced vs. Internal Environment" above) → x-volumes (only if needed)
+2. **X-fields order**: x-image → all `x-vault-*` anchors together → all `x-internal-*` anchors together → x-volumes (only if needed). Vault-sourced anchors are grouped first regardless of which compose field they target (e.g. `x-vault-env` then `x-vault-devices`, both before `x-internal-env`) - see "Vault-Sourced vs. Internal Environment" above
 3. **X-image for shared images** - if multiple services use the same image, use `x-image: &image`
 4. **X-volumes for shared volumes** - if 2+ volumes repeat across services, extract them to `x-volumes: &volumes` and merge with unique ones
 5. **Image before extends** - declare what image is used, then extend common config

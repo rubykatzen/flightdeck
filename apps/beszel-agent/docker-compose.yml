@@ -1,10 +1,10 @@
 x-vault-env: &vault-env
   KEY: ${BESZEL_AGENT_PUBLIC_KEY}
-x-internal-env: &internal-env
-  PORT: 45876
 x-vault-devices: &vault-devices
   - ${BESZEL_AGENT_DISK_1_DEVICE:-/dev/null}:${BESZEL_AGENT_DISK_1_DEVICE:-/dev/null}
   - ${BESZEL_AGENT_DISK_2_DEVICE:-/dev/null}:${BESZEL_AGENT_DISK_2_DEVICE:-/dev/null}
+x-internal-env: &internal-env
+  PORT: 45876
 services:
   beszel-agent:
     image: "henrygd/beszel-agent:alpine"
