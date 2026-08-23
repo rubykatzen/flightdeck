@@ -99,7 +99,7 @@ This catalog is itself published as its own release asset (`flightdeck-apps.zip`
 
 Every app's env comes from its own vault(s), declared in that target's manifest (see "Vaults And Targets" below). A vault declares the exact final variable names an app receives, mapped to GitHub Secret/Variable names - there is no server-side prefix filtering or shared root env file. Two apps' vaults can share a source secret (e.g. both mapping `DOMAIN`) without conflict, since each app ends up with its own separate `.env`.
 
-**App-specific variables** (a value only one app needs) are prefixed with the uppercased app directory name, e.g. `BESZEL_AGENT_PUBLIC_KEY`. See `AGENTS.md` for the full naming convention.
+Variable names inside a compose file are always bare, never prefixed with the app's own name - each compose file is already scoped to one app. Whether a name is "shared" or app-specific only matters on the vault side (whether more than one app's vault maps it). See `AGENTS.md` for the full naming convention.
 
 ### Network Architecture
 

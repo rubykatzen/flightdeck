@@ -111,12 +111,13 @@ When adding config for a new app: only reach for a template if the image has no 
 
 ### App-specific vs. shared variables
 
-Naming convention:
+Inside a `docker-compose.yml`/`*.tpl` file, variable names are always bare - never prefixed with the app's own name. Each app already has its own compose file and its own generated `.env`, so an app-name prefix inside it would disambiguate nothing; `${PUBLIC_KEY}` in `apps/beszel-agent/docker-compose.yml` and `${DOMAIN}` shared across a dozen apps look exactly the same from inside the file, because the file is already scoped to one app.
 
-- `{APPNAME}_{VAR}` — app-specific variable where `{APPNAME}` is the uppercased app directory with hyphens replaced by underscores, only that app receives it (e.g. `BESZEL_AGENT_PUBLIC_KEY`)
-- `{VAR}` (bare, no prefix) — shared across apps (e.g. `DOMAIN`, `TIMEZONE`) — shared by convention (every vault that maps it feeds the same value to every app referencing it), not by any prefix enforcing it
+What makes a variable "shared" vs. "app-specific" is a fact about the *vault*, not the compose file: whether multiple apps' vaults map the same variable name to the same GitHub Secret/Variable, or only one app's vault ever references it at all.
 
-There's no per-app override mechanism (a bash-fallback `${APPNAME_VAR:-${VAR}}` pattern existed here before and was removed - nothing in the catalog ever used it). If an app genuinely needs to deviate from a shared value, give it its own app-specific variable name instead.
+App-name prefixing happens on the *other* side of a vault manifest's `env:` mapping - the GitHub Secret/Variable name - and only as a judgment call when it helps a human scanning a flat list of a target's Secrets/Variables tell which app a value belongs to (e.g. `TRAEFIK_HTTP_PORT` keeps its prefix because a bare `HTTP_PORT` wouldn't self-document; `ADMIN_MAIL` doesn't need one because it doesn't need explaining). See "Vaults And Targets" in README for the manifest format.
+
+There's no per-app override mechanism (a bash-fallback `${APPNAME_VAR:-${VAR}}` pattern existed here before and was removed - nothing in the catalog ever used it). If an app genuinely needs a value another app also uses but with a different value, give it its own distinctly-named variable instead - not a namespaced variant of the same name.
 
 Common shared variables a target's vaults map into one or more apps' `.env`:
 
@@ -152,7 +153,7 @@ If an app's env is entirely one kind, use a single anchor named for that kind (`
 
 `docker compose`'s multi-anchor merge key (`<<: [*a, *b]`) is what makes this work; verified it resolves identically to a single flat block via `docker compose config`.
 
-The same split applies to non-`environment` fields too, whenever an app has vault-configurable values there - e.g. `apps/beszel-agent/docker-compose.yml`'s `devices:` list is vault-sourced (`BESZEL_AGENT_DISK_1_DEVICE`/`_2_DEVICE`, each defaulting to `/dev/null` when unset), so it's declared as `x-vault-devices: &vault-devices` and referenced with `devices: *vault-devices`. A YAML anchor isn't limited to a map - it can hold a list just as well. Name the anchor for the compose field it targets (`x-vault-{field}`) so it's still obvious at a glance which fields the app's vault interface actually touches.
+The same split applies to non-`environment` fields too, whenever an app has vault-configurable values there - e.g. `apps/beszel-agent/docker-compose.yml`'s `devices:` list is vault-sourced (`DISK_1_DEVICE`/`DISK_2_DEVICE`, each defaulting to `/dev/null` when unset), so it's declared as `x-vault-devices: &vault-devices` and referenced with `devices: *vault-devices`. A YAML anchor isn't limited to a map - it can hold a list just as well. Name the anchor for the compose field it targets (`x-vault-{field}`) so it's still obvious at a glance which fields the app's vault interface actually touches.
 
 ### Traefik Integration
 

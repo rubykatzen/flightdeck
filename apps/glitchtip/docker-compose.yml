@@ -6,9 +6,9 @@ x-image: &image glitchtip/glitchtip
 x-vault-env: &vault-env
   DATABASE_URL: postgresql://${APP_NAME}:${DATABASE_PASSWORD}@postgres:5432/${APP_NAME}
   SECRET_KEY: ${KEY_HEX_64}
-  EMAIL_URL: ${GLITCHTIP_EMAIL_URL:-consolemail://}
+  EMAIL_URL: ${EMAIL_URL:-consolemail://}
   GLITCHTIP_DOMAIN: https://${APP_NAME}.${DOMAIN}
-  DEFAULT_FROM_EMAIL: ${GLITCHTIP_DEFAULT_FROM_EMAIL:-noreply@${DOMAIN}}
+  DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-noreply@${DOMAIN}}
 x-internal-env: &internal-env
   REDIS_URL: redis://redis:6379
   PORT: 8000
