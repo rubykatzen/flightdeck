@@ -119,12 +119,14 @@ App-name prefixing happens on the *other* side of a vault manifest's `env:` mapp
 
 There's no per-app override mechanism (a bash-fallback `${APPNAME_VAR:-${VAR}}` pattern existed here before and was removed - nothing in the catalog ever used it). If an app genuinely needs a value another app also uses but with a different value, give it its own distinctly-named variable instead - not a namespaced variant of the same name.
 
+Name a variable by what it *is*, never by its format (`SESSION_KEY`, not `KEY_HEX_32`) - a format-shaped name invites treating same-format secrets as interchangeable across apps when they aren't. This matters concretely for keys: a **session-signing key** (Better Auth, Django's `SECRET_KEY` - only ever used to sign/verify sessions and CSRF tokens) is safe to genuinely share across apps, since compromising it just forces every app's active sessions to re-authenticate - so it gets one shared name (`SESSION_KEY`) and one shared vault mapping. An **encryption key** (Laravel's `APP_KEY`, Semaphore's access-key encryption - used to encrypt stored data) must never be shared, since compromising or rotating it can make one app's already-stored ciphertext unrecoverable, and that risk shouldn't leak to a second app sharing the same key. Give each app's encryption key the same semantic app-side name (`ENCRYPTION_KEY`) so its role is still obvious from the compose file, but map it to a distinct, app-prefixed GitHub Secret per app (`TWOFAUTH_ENCRYPTION_KEY`, `SEMAPHORE_ENCRYPTION_KEY`) so the values themselves are never shared.
+
 Common shared variables a target's vaults map into one or more apps' `.env`:
 
 - `DOMAIN` - Base domain for all services
 - `CERTIFICATE_RESOLVER` - SSL resolver (Cloudflare DNS or HTTP challenge)
 - `DATABASE_PASSWORD` - Shared database password
-- `KEY_HEX_{16,32,64}` - Encryption keys for various apps
+- `SESSION_KEY` - Shared session-signing key (safe to share - see above)
 - `TIMEZONE` - System timezone
 - `TELEGRAM_TOKEN`, `TELEGRAM_CHAT` - Shared Telegram bot for app-originated alerts
 
@@ -137,7 +139,7 @@ When an app has both kinds, split into two anchors instead of one, declared in t
 ```yaml
 x-vault-env: &vault-env
   BASE_URL: https://${APP_NAME}.${DOMAIN}
-  BETTER_AUTH_SECRET: ${KEY_HEX_32}
+  BETTER_AUTH_SECRET: ${SESSION_KEY}
 x-internal-env: &internal-env
   NODE_ENV: production
   POSTGRES_HOST: postgres

@@ -5,7 +5,7 @@ include:
 x-image: &image glitchtip/glitchtip
 x-vault-env: &vault-env
   DATABASE_URL: postgresql://${APP_NAME}:${DATABASE_PASSWORD}@postgres:5432/${APP_NAME}
-  SECRET_KEY: ${KEY_HEX_64}
+  SECRET_KEY: ${SESSION_KEY}
   EMAIL_URL: ${EMAIL_URL:-consolemail://}
   GLITCHTIP_DOMAIN: https://${APP_NAME}.${DOMAIN}
   DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-noreply@${DOMAIN}}

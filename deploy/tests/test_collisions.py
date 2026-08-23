@@ -21,7 +21,7 @@ sops_version=3.13.1
 
 RYBBIT_ENV = """\
 DATABASE_PASSWORD=ENC[AES256_GCM,data:Ij==,iv:xx==,tag:yy==,type:str]
-KEY_HEX_32=ENC[AES256_GCM,data:Kl==,iv:xx==,tag:yy==,type:str]
+SESSION_KEY=ENC[AES256_GCM,data:Kl==,iv:xx==,tag:yy==,type:str]
 sops_lastmodified=2026-08-19T00:00:00Z
 sops_version=3.13.1
 """
@@ -59,7 +59,7 @@ class CheckEnvCollisionsTest(unittest.TestCase):
             keys = collisions.extract_keys(traefik) | collisions.extract_keys(rybbit)
             self.assertFalse(any(key.startswith("sops_") for key in keys))
             self.assertIn("HTTP_PORT", keys)
-            self.assertIn("KEY_HEX_32", keys)
+            self.assertIn("SESSION_KEY", keys)
 
 
 if __name__ == "__main__":

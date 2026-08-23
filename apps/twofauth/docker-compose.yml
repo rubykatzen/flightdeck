@@ -2,7 +2,7 @@ include:
   - ../networks.yml
 x-vault-env: &vault-env
   SITE_OWNER: ${ADMIN_MAIL}
-  APP_KEY: ${KEY_HEX_16}
+  APP_KEY: ${ENCRYPTION_KEY}
   APP_URL: https://${APP_NAME}.${DOMAIN}
   MAIL_HOST: ${SMTP_HOSTNAME}
   MAIL_PORT: ${SMTP_PORT}

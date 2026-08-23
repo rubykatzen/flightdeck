@@ -11,7 +11,7 @@ setup:
     - service: github
       username: ${ADMIN_GITHUB_USERNAME}
   http:
-    cookie_secret: ${KEY_HEX_32} # Replace it with a random string
+    cookie_secret: ${SESSION_KEY} # Replace it with a random string
     cookies_domain: ${APP_NAME}.${DOMAIN}
   timeseries:
     enabled: true

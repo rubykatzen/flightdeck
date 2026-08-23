@@ -4,7 +4,7 @@ include:
   - ../clickhouse-26.5.yml
 x-vault-env: &vault-env
   BASE_URL: https://${APP_NAME}.${DOMAIN}
-  BETTER_AUTH_SECRET: ${KEY_HEX_32}
+  BETTER_AUTH_SECRET: ${SESSION_KEY}
   DISABLE_SIGNUP: ${DISABLE_SIGNUP:-false}
   DISABLE_TELEMETRY: ${DISABLE_TELEMETRY:-true}
   MAPBOX_TOKEN: ${MAPBOX_TOKEN:-}
