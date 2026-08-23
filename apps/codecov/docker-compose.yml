@@ -3,10 +3,11 @@ include:
   - ../redis-7.yml
   - ../postgres-17.yml
   - ../timescale-17.yml
-x-environment: &environment
+x-vault-env: &vault-env
   CODECOV_BASE_HOST: ${APP_NAME}.${DOMAIN}
   CODECOV_API_HOST: ${APP_NAME}.${DOMAIN}
   CODECOV_IA_HOST: ${APP_NAME}.${DOMAIN}
+x-internal-env: &internal-env
   CODECOV_SCHEME: https
   RUN_ENV: ENTERPRISE
 x-volumes: &volumes
@@ -31,7 +32,8 @@ services:
     extends:
       file: ../common.yml
       service: side
-    environment: *environment
+    environment:
+      <<: [*vault-env, *internal-env]
     volumes: *volumes
     expose:
       - "8080"
@@ -54,7 +56,8 @@ services:
       - redis
       - postgres
       - timescale
-    environment: *environment
+    environment:
+      <<: [*vault-env, *internal-env]
     volumes:
       - ./codecov.yml:/config/codecov.yml
       - ../../apps-data/${APP_NAME}/archive:/archive

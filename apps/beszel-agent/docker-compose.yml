@@ -1,7 +1,8 @@
-x-environment: &environment
+x-vault-env: &vault-env
+  KEY: ${BESZEL_AGENT_PUBLIC_KEY}
+x-internal-env: &internal-env
   PORT: 45876
   HEALTHCHECK_CMD: "nc -z 127.0.0.1 $${PORT} || exit 1"
-  KEY: ${BESZEL_AGENT_PUBLIC_KEY}
 services:
   beszel-agent:
     image: "henrygd/beszel-agent:alpine"
@@ -11,7 +12,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /home:/extra-filesystems/home:ro
-    environment: *environment
+    environment:
+      <<: [*vault-env, *internal-env]
     cap_add:
       - SYS_RAWIO # required for S.M.A.R.T. data
       - SYS_ADMIN # required for NVMe S.M.A.R.T. data

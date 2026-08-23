@@ -1,9 +1,9 @@
-x-environment: &environment
+x-vault-env: &vault-env
   CF_DNS_API_TOKEN: ${CLOUDFLARE_DNS_API_TOKEN}
 services:
   traefik:
     image: traefik
-    environment: *environment
+    environment: *vault-env
     ports:
       - "${HTTP_PORT}:80"
       - "${HTTPS_PORT}:443"

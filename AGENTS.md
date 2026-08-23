@@ -125,6 +125,32 @@ Common shared variables a target's vaults map into one or more apps' `.env`:
 - `DATABASE_PASSWORD` - Shared database password
 - `KEY_HEX_{16,32,64}` - Encryption keys for various apps
 - `TIMEZONE` - System timezone
+- `TELEGRAM_TOKEN`, `TELEGRAM_CHAT` - Shared Telegram bot for app-originated alerts
+
+### Vault-Sourced vs. Internal Environment
+
+An app's `environment:` mix two different kinds of values: ones that must come from its vault (secrets, domain, feature flags - anything a deploy actually configures) and ones that are fixed or purely derived from `${APP_NAME}` (service hostnames, ports, internal db/user names - values that never change across deploys). Keeping them in one flat `x-environment` block makes it impossible to tell, at a glance, what an app actually needs from its vault.
+
+When an app has both kinds, split into two anchors instead of one, declared in this order:
+
+```yaml
+x-vault-env: &vault-env
+  BASE_URL: https://${APP_NAME}.${DOMAIN}
+  BETTER_AUTH_SECRET: ${KEY_HEX_32}
+x-internal-env: &internal-env
+  NODE_ENV: production
+  POSTGRES_HOST: postgres
+services:
+  backend:
+    environment:
+      <<: [*vault-env, *internal-env]
+```
+
+Classification rule: a variable goes in `x-vault-env` if its value references *any* vault-sourced variable, even mixed with `${APP_NAME}` or literal text (e.g. `https://${APP_NAME}.${DOMAIN}` is vault-env, because it can't resolve to anything meaningful without `DOMAIN`). It goes in `x-internal-env` if its value is a hardcoded literal or derived only from `${APP_NAME}` - it would be exactly the same regardless of which vault fed the deploy.
+
+If an app's env is entirely one kind, use a single anchor named for that kind (`x-vault-env` or `x-internal-env`) instead of the generic `x-environment` - don't split into two just to leave one empty. No section comments above the anchors - the names are meant to be self-explanatory.
+
+`docker compose`'s multi-anchor merge key (`<<: [*a, *b]`) is what makes this work; verified it resolves identically to a single flat block via `docker compose config`.
 
 ### Traefik Integration
 
@@ -280,11 +306,11 @@ services:
 ### Key ordering principles:
 
 1. **Include order**: networks.yml → database/cache templates (postgres/redis/mongodb/etc., pick a version) → others
-2. **X-fields order**: x-image → x-environment → x-volumes (only if needed)
+2. **X-fields order**: x-image → x-vault-env/x-internal-env (or x-environment if the app's env is entirely one kind - see "Vault-Sourced vs. Internal Environment" above) → x-volumes (only if needed)
 3. **X-image for shared images** - if multiple services use the same image, use `x-image: &image`
 4. **X-volumes for shared volumes** - if 2+ volumes repeat across services, extract them to `x-volumes: &volumes` and merge with unique ones
 5. **Image before extends** - declare what image is used, then extend common config
-6. **Environment via anchor** - always use `x-environment: &environment` pattern
+6. **Environment via anchor** - always declare env vars in an anchor, referenced with `environment: *name` (or merged via `<<: [*vault-env, *internal-env]` when split) - never inline a service's `environment:` map directly
 7. **Networks from extends** - `main`, `main-http`, and `api` profiles include `traefik` and `internal`; never add `databases` (it's only for DB admin tools)
 8. **Depends_on as simple list** - use array format without `condition:`, healthchecks are in common.yml
 9. **Depends_on order**: postgres → redis → mongo → app services

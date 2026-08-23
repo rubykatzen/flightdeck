@@ -1,20 +1,21 @@
 include:
   - ../networks.yml
   - ../postgres-17.yml
-x-environment: &environment
+x-vault-env: &vault-env
   SEMAPHORE_ACCESS_KEY_ENCRYPTION: ${KEY_HEX_16}
+  SEMAPHORE_DB_PASS: ${DATABASE_PASSWORD}
+  SEMAPHORE_ADMIN_PASSWORD: ${ADMIN_DEFAULT_PASS}
+  SEMAPHORE_ADMIN_EMAIL: ${ADMIN_MAIL}
+  SEMAPHORE_TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
+  SEMAPHORE_TELEGRAM_CHAT: ${TELEGRAM_CHAT}
+x-internal-env: &internal-env
   SEMAPHORE_DB_DIALECT: postgres
   SEMAPHORE_DB_HOST: postgres
   SEMAPHORE_DB_NAME: ${APP_NAME}
   SEMAPHORE_DB_USER: ${APP_NAME}
-  SEMAPHORE_DB_PASS: ${DATABASE_PASSWORD}
   SEMAPHORE_ADMIN: admin
-  SEMAPHORE_ADMIN_PASSWORD: ${ADMIN_DEFAULT_PASS}
   SEMAPHORE_ADMIN_NAME: admin
-  SEMAPHORE_ADMIN_EMAIL: ${ADMIN_MAIL}
   SEMAPHORE_TELEGRAM_ALERT: true
-  SEMAPHORE_TELEGRAM_TOKEN: ${TELEGRAM_TOKEN}
-  SEMAPHORE_TELEGRAM_CHAT: ${TELEGRAM_CHAT}
   ANSIBLE_HOST_KEY_CHECKING: false
 services:
   semaphore:
@@ -26,6 +27,7 @@ services:
       - 3000
     labels:
       - "traefik.http.services.${APP_NAME}.loadbalancer.server.port=3000"
-    environment: *environment
+    environment:
+      <<: [*vault-env, *internal-env]
     depends_on:
       - postgres
