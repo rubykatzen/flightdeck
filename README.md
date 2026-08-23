@@ -163,7 +163,7 @@ docker ps | grep app-name       # confirm it's running
 A few things that don't fit that one-liner:
 
 - **Networking**: `docker network ls` / `docker network inspect traefik` to check connectivity; `docker exec -it traefik wget -q --spider http://app-name` to test an app's reachability from inside the `traefik` network.
-- **SSL**: `apps-data/traefik/acme.json` must exist and be `chmod 600`, or Traefik won't issue certificates.
+- **SSL**: Traefik creates `apps-data/traefik/acme.json` itself on first start, with the right permissions - check its logs if certificates aren't being issued.
 - **DNS**: `nslookup app-name.domain.com` if the app resolves but isn't reachable.
 
 ## Additional Resources

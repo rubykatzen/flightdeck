@@ -1,5 +1,5 @@
 x-vault-env: &vault-env
-  CF_DNS_API_TOKEN: ${CLOUDFLARE_DNS_API_TOKEN}
+  CF_DNS_API_TOKEN: ${CLOUDFLARE_DNS_API_TOKEN:-}
 services:
   traefik:
     image: traefik
@@ -11,7 +11,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./traefik.yml:/traefik.yml:ro
-      - ../../apps-data/${APP_NAME}/acme.json:/acme.json
+      - ../../apps-data/${APP_NAME}:/letsencrypt
     networks:
       - traefik
     security_opt:

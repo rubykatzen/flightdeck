@@ -31,13 +31,13 @@ certificatesResolvers:
   acmeHttpChallengeResolver:
     acme:
       email: ${ADMIN_MAIL}
-      storage: acme.json
+      storage: /letsencrypt/acme.json
       httpChallenge:
         entryPoint: http
   acmeCloudflareDnsChallengeResolver:
     acme:
       email: ${ADMIN_MAIL}
-      storage: acme.json
+      storage: /letsencrypt/acme.json
       dnsChallenge:
         provider: cloudflare
         delayBeforeCheck: 0

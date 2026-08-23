@@ -333,7 +333,6 @@ class DeployToHostTest(unittest.TestCase):
             self.assertIn("docker network create traefik", joined)
             self.assertIn("docker network create databases", joined)
             self.assertIn("docker network create mcp", joined)
-            self.assertIn("acme.json", joined)
             self.assertIn("tar -xzf", joined)
             self.assertIn("mkdir -p /home/deploy/flightdeck/apps-data/traefik", joined)
             self.assertIn("mkdir -p /home/deploy/flightdeck/apps-data/rybbit", joined)

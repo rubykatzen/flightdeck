@@ -172,7 +172,7 @@ Apps are accessible at `{app-name}.{DOMAIN}` with automatic SSL.
 
 ## Operations
 
-There are no wrapper scripts and nothing runs them - starting, stopping, and restarting apps all happen by deploying (`deploy/deploy.py`, see "CI/CD" below). `apps-data/traefik/acme.json` and the external Docker networks `traefik`, `databases`, and `mcp` are created idempotently by `deploy/deploy.py` on every deploy (derived from `apps/networks.yml`'s `external: true` entries), not by a separate first-run step.
+There are no wrapper scripts and nothing runs them - starting, stopping, and restarting apps all happen by deploying (`deploy/deploy.py`, see "CI/CD" below). The external Docker networks `traefik`, `databases`, and `mcp` are created idempotently by `deploy/deploy.py` on every deploy (derived from `apps/networks.yml`'s `external: true` entries), not by a separate first-run step. `apps-data/traefik/acme.json` isn't created by `deploy/deploy.py` at all - traefik's `docker-compose.yml` mounts `apps-data/{app}/` as a directory (not the file directly, which would make Docker create a directory in its place if the file doesn't exist yet), and Traefik creates `acme.json` inside it itself on first start, with the permissions it requires.
 
 Debugging an already-deployed app means SSHing into the target host directly and using Docker Compose itself - no wrapper needed, since each app's directory is already a complete, ready-to-run Compose project (real `.env` sitting next to the compose file):
 
@@ -381,7 +381,7 @@ Each app in a target's `apps` mapping lists its own `env_refs` — release refs 
 
 ## Notable App Configurations
 
-- **traefik**: Entry point, uses external network.
+- **traefik**: Entry point, uses external network. Always declares both `acmeHttpChallengeResolver` and `acmeCloudflareDnsChallengeResolver` - which one an app actually gets is decided per-app by its own `CERTIFICATE_RESOLVER` value, not by traefik itself. `CLOUDFLARE_DNS_API_TOKEN` is only required by targets that actually use the Cloudflare resolver for at least one app - a target that only needs HTTP-01 challenges can omit it from `vaults/{target}-traefik.yml`'s `env:` mapping entirely (`CF_DNS_API_TOKEN` defaults to empty in the compose file).
 - Apps with databases include a versioned template (e.g. `postgres-18.yml`) and create app-specific database named `${APP_NAME}`
 - Config templates use `envsubst`-equivalent substitution (`deploy/render.py`) - variables must be shell-compatible (`${VAR}` syntax)
 
