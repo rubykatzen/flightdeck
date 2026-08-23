@@ -97,16 +97,9 @@ This catalog is itself published as its own release asset (`flightdeck-apps.zip`
 
 ### Environment Variables
 
-Every app's env comes from its own vault(s), declared in that target's manifest (see "Vaults And Targets" below). A vault declares the exact final variable names an app receives, mapped to GitHub Secret/Variable names - there is no server-side prefix filtering or shared root env file. Two apps' vaults can share a source secret (e.g. both mapping `APPS_DOMAIN`) without conflict, since each app ends up with its own separate `.env`.
+Every app's env comes from its own vault(s), declared in that target's manifest (see "Vaults And Targets" below). A vault declares the exact final variable names an app receives, mapped to GitHub Secret/Variable names - there is no server-side prefix filtering or shared root env file. Two apps' vaults can share a source secret (e.g. both mapping `DOMAIN`) without conflict, since each app ends up with its own separate `.env`.
 
-**Per-app overrides** are declared directly in each app's `docker-compose.yml` using bash fallback syntax:
-
-```yaml
-# App-specific override, falls back to server-wide value
-SOME_PATH: ${MYAPP_SOME_PATH:-${APPS_SOME_PATH}}
-```
-
-To use the override for a given deploy, that app's own vault sets `MYAPP_SOME_PATH` in its `env:` mapping; to fall back to the shared value, the vault just omits it and relies on `APPS_SOME_PATH` alone. App prefixes are the uppercased app directory with hyphens replaced by underscores. See `AGENTS.md` for the full naming convention.
+Variable names inside a compose file are always bare, never prefixed with the app's own name - each compose file is already scoped to one app. Whether a name is "shared" or app-specific only matters on the vault side (whether more than one app's vault maps it). See `AGENTS.md` for the full naming convention.
 
 ### Network Architecture
 
@@ -214,7 +207,7 @@ asset: mainframe-rybbit.sops.env
 keys:
   - mainframe
 env:
-  APPS_DOMAIN: MAINFRAME_DOMAIN
+  DOMAIN: MAINFRAME_DOMAIN
 ```
 
 `targets/mainframe.yml`:
@@ -243,7 +236,7 @@ credentials:
     sops_age_key: MAINFRAME_AGE_PRIVATE_KEY
 ```
 
-Credential fields contain GitHub Variable/Secret names, never credential values. `app_refs` and `hosts` are YAML arrays; `apps` is a mapping from app name to that app's own `env_refs` array. Each host uses the SSH `user@host` format. `app_refs` must list at least one app bundle — flightdeck's own `apps/` catalog is just another entry, not implicit. Each app in `apps` must list at least one `env_refs` entry; `deploy/deploy.py` decrypts and concatenates all of an app's sources into that app's own `.env` on the runner, failing loud on any key collision — but only within that one app's own sources. Two different apps' vaults sharing a key (e.g. both declaring `APPS_DOMAIN`) is expected, since each app gets a separate `.env`. `credentials.secrets.sops_age_key` names the GitHub Secret holding this target's *private* age key — the one used to decrypt its vaults, matching the public key in `keys/<target>.pub` used to encrypt them.
+Credential fields contain GitHub Variable/Secret names, never credential values. `app_refs` and `hosts` are YAML arrays; `apps` is a mapping from app name to that app's own `env_refs` array. Each host uses the SSH `user@host` format. `app_refs` must list at least one app bundle — flightdeck's own `apps/` catalog is just another entry, not implicit. Each app in `apps` must list at least one `env_refs` entry; `deploy/deploy.py` decrypts and concatenates all of an app's sources into that app's own `.env` on the runner, failing loud on any key collision — but only within that one app's own sources. Two different apps' vaults sharing a key (e.g. both declaring `DOMAIN`) is expected, since each app gets a separate `.env`. `credentials.secrets.sops_age_key` names the GitHub Secret holding this target's *private* age key — the one used to decrypt its vaults, matching the public key in `keys/<target>.pub` used to encrypt them.
 
 `load-yaml-matrix` reads every file in `vaults/` or `targets/` into a matrix — it does not validate the manifest shape. Each manifest's fields are the responsibility of whatever consumes them: `encrypt-env` re-parses and validates its own manifest from `manifest`, and the workflows calling `deploy-shared.yml` apply `path`/`keep-releases` defaults and pull `credentials.secrets`/`credentials.variables` values directly from the matrix item.
 

@@ -1,7 +1,7 @@
 include:
   - ../networks.yml
-x-environment: &environment
-  HOMEPAGE_ALLOWED_HOSTS: ${APP_NAME}.${APPS_DOMAIN}
+x-vault-env: &vault-env
+  HOMEPAGE_ALLOWED_HOSTS: ${APP_NAME}.${DOMAIN}
 services:
   homepage:
     image: ghcr.io/gethomepage/homepage
@@ -12,6 +12,6 @@ services:
       - 3000
     labels:
       - "traefik.http.services.${APP_NAME}.loadbalancer.server.port=3000"
-    environment: *environment
+    environment: *vault-env
     volumes:
       - ../../apps-data/${APP_NAME}/config:/app/config

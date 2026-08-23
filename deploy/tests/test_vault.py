@@ -28,9 +28,9 @@ def fail(stderr="boom"):
 class DecryptEnvTest(unittest.TestCase):
     def test_returns_decrypted_stdout(self):
         calls = []
-        run = fake_run(calls, [ok("APPS_DOMAIN=example.com\n")])
+        run = fake_run(calls, [ok("DOMAIN=example.com\n")])
         plaintext = vault.decrypt_env("traefik.sops.env", "/tmp/key.txt", run=run)
-        self.assertEqual(plaintext, "APPS_DOMAIN=example.com\n")
+        self.assertEqual(plaintext, "DOMAIN=example.com\n")
 
     def test_passes_sops_decrypt_dotenv_args(self):
         calls = []
@@ -49,20 +49,20 @@ class DecryptEnvTest(unittest.TestCase):
 
 class ParseDotenvTest(unittest.TestCase):
     def test_parses_key_value_pairs(self):
-        values = vault.parse_dotenv("APPS_DOMAIN=example.com\nHTTP_PORT=80\n")
-        self.assertEqual(values, {"APPS_DOMAIN": "example.com", "HTTP_PORT": "80"})
+        values = vault.parse_dotenv("DOMAIN=example.com\nHTTP_PORT=80\n")
+        self.assertEqual(values, {"DOMAIN": "example.com", "HTTP_PORT": "80"})
 
     def test_splits_only_on_first_equals(self):
-        values = vault.parse_dotenv("APPS_HTPASSWD=user:pass=word\n")
-        self.assertEqual(values["APPS_HTPASSWD"], "user:pass=word")
+        values = vault.parse_dotenv("HTPASSWD=user:pass=word\n")
+        self.assertEqual(values["HTPASSWD"], "user:pass=word")
 
     def test_ignores_lines_without_equals(self):
-        values = vault.parse_dotenv("not a valid line\nAPPS_DOMAIN=example.com\n")
-        self.assertEqual(values, {"APPS_DOMAIN": "example.com"})
+        values = vault.parse_dotenv("not a valid line\nDOMAIN=example.com\n")
+        self.assertEqual(values, {"DOMAIN": "example.com"})
 
     def test_ignores_blank_lines(self):
-        values = vault.parse_dotenv("\n\nAPPS_DOMAIN=example.com\n")
-        self.assertEqual(values, {"APPS_DOMAIN": "example.com"})
+        values = vault.parse_dotenv("\n\nDOMAIN=example.com\n")
+        self.assertEqual(values, {"DOMAIN": "example.com"})
 
 
 if __name__ == "__main__":

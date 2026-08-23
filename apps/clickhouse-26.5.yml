@@ -5,7 +5,7 @@ services:
     environment:
       CLICKHOUSE_DB: ${APP_NAME}
       CLICKHOUSE_USER: ${APP_NAME}
-      CLICKHOUSE_PASSWORD: ${APPS_DATABASE_PASSWORD}
+      CLICKHOUSE_PASSWORD: ${DATABASE_PASSWORD}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     volumes:
       - ../apps-data/${APP_NAME}/clickhouse/data:/var/lib/clickhouse

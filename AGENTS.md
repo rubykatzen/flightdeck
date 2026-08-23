@@ -109,35 +109,53 @@ Compose files mount the rendered file by its plain relative path (`./traefik.yml
 
 When adding config for a new app: only reach for a template if the image has no env-var-driven config path at all. If it does (most well-behaved images do), prefer plain `environment:` entries over a template - fewer moving parts, and the value never touches disk as a separate file.
 
-### Per-app and per-server overrides
+### App-specific vs. shared variables
 
-Compose files explicitly declare which variables are overridable using bash fallback syntax:
+Inside a `docker-compose.yml`/`*.tpl` file, variable names are always bare - never prefixed with the app's own name. Each app already has its own compose file and its own generated `.env`, so an app-name prefix inside it would disambiguate nothing; `${PUBLIC_KEY}` in `apps/beszel-agent/docker-compose.yml` and `${DOMAIN}` shared across a dozen apps look exactly the same from inside the file, because the file is already scoped to one app.
+
+What makes a variable "shared" vs. "app-specific" is a fact about the *vault*, not the compose file: whether multiple apps' vaults map the same variable name to the same GitHub Secret/Variable, or only one app's vault ever references it at all.
+
+App-name prefixing happens on the *other* side of a vault manifest's `env:` mapping - the GitHub Secret/Variable name - and only as a judgment call when it helps a human scanning a flat list of a target's Secrets/Variables tell which app a value belongs to (e.g. `TRAEFIK_HTTP_PORT` keeps its prefix because a bare `HTTP_PORT` wouldn't self-document; `ADMIN_MAIL` doesn't need one because it doesn't need explaining). See "Vaults And Targets" in README for the manifest format.
+
+There's no per-app override mechanism (a bash-fallback `${APPNAME_VAR:-${VAR}}` pattern existed here before and was removed - nothing in the catalog ever used it). If an app genuinely needs a value another app also uses but with a different value, give it its own distinctly-named variable instead - not a namespaced variant of the same name.
+
+Name a variable by what it *is*, never by its format (`SESSION_KEY`, not `KEY_HEX_32`) - a format-shaped name invites treating same-format secrets as interchangeable across apps when they aren't. This matters concretely for keys: a **session-signing key** (Better Auth, Django's `SECRET_KEY` - only ever used to sign/verify sessions and CSRF tokens) is safe to genuinely share across apps, since compromising it just forces every app's active sessions to re-authenticate - so it gets one shared name (`SESSION_KEY`) and one shared vault mapping. An **encryption key** (Laravel's `APP_KEY`, Semaphore's access-key encryption - used to encrypt stored data) must never be shared, since compromising or rotating it can make one app's already-stored ciphertext unrecoverable, and that risk shouldn't leak to a second app sharing the same key. Give each app's encryption key the same semantic app-side name (`ENCRYPTION_KEY`) so its role is still obvious from the compose file, but map it to a distinct, app-prefixed GitHub Secret per app (`TWOFAUTH_ENCRYPTION_KEY`, `SEMAPHORE_ENCRYPTION_KEY`) so the values themselves are never shared.
+
+Common shared variables a target's vaults map into one or more apps' `.env`:
+
+- `DOMAIN` - Base domain for all services
+- `CERTIFICATE_RESOLVER` - SSL resolver (Cloudflare DNS or HTTP challenge)
+- `DATABASE_PASSWORD` - Shared database password
+- `SESSION_KEY` - Shared session-signing key (safe to share - see above)
+- `TIMEZONE` - System timezone
+- `TELEGRAM_TOKEN`, `TELEGRAM_CHAT` - Shared Telegram bot for app-originated alerts
+
+### Vault-Sourced vs. Internal Environment
+
+An app's `environment:` mix two different kinds of values: ones that must come from its vault (secrets, domain, feature flags - anything a deploy actually configures) and ones that are fixed or purely derived from `${APP_NAME}` (service hostnames, ports, internal db/user names - values that never change across deploys). Keeping them in one flat `x-environment` block makes it impossible to tell, at a glance, what an app actually needs from its vault.
+
+When an app has both kinds, split into two anchors instead of one, declared in this order:
 
 ```yaml
-# App-specific override, falls back to server-wide value
-SHOWS_PATH: ${JELLYFIN_SHOWS_PATH:-${APPS_SHOWS_PATH}}
-
-# App-specific only — must be set per app
-SHOWS_PATH: ${JELLYFIN_SHOWS_PATH}
-
-# Server-wide — same value for all apps on this server
-SHOWS_PATH: ${APPS_SHOWS_PATH}
+x-vault-env: &vault-env
+  BASE_URL: https://${APP_NAME}.${DOMAIN}
+  BETTER_AUTH_SECRET: ${SESSION_KEY}
+x-internal-env: &internal-env
+  NODE_ENV: production
+  POSTGRES_HOST: postgres
+services:
+  backend:
+    environment:
+      <<: [*vault-env, *internal-env]
 ```
 
-Naming convention:
+Classification rule: a variable goes in `x-vault-env` if its value references *any* vault-sourced variable, even mixed with `${APP_NAME}` or literal text (e.g. `https://${APP_NAME}.${DOMAIN}` is vault-env, because it can't resolve to anything meaningful without `DOMAIN`). It goes in `x-internal-env` if its value is a hardcoded literal or derived only from `${APP_NAME}` - it would be exactly the same regardless of which vault fed the deploy.
 
-- `{APPNAME}_{VAR}` — app-specific variable where `{APPNAME}` is the uppercased app directory with hyphens replaced by underscores (e.g. `JELLYFIN_SHOWS_PATH`, `BESZEL_AGENT_PUBLIC_KEY`, `TWOFAUTH_APPS_DOMAIN`)
-- `APPS_{VAR}` — server-wide variable shared across apps (e.g. `APPS_DOMAIN`, `APPS_TIMEZONE`)
+If an app's env is entirely one kind, use a single anchor named for that kind (`x-vault-env` or `x-internal-env`) instead of the generic `x-environment` - don't split into two just to leave one empty. No section comments above the anchors - the names are meant to be self-explanatory.
 
-The compose file is the source of truth for which overrides are allowed. Not every variable needs an app-specific override — only declare one when you actually want to allow it.
+`docker compose`'s multi-anchor merge key (`<<: [*a, *b]`) is what makes this work; verified it resolves identically to a single flat block via `docker compose config`.
 
-Common `APPS_*` variables a target's vaults map into one or more apps' `.env`:
-
-- `APPS_DOMAIN` - Base domain for all services
-- `APPS_CERTIFICATE_RESOLVER` - SSL resolver (Cloudflare DNS or HTTP challenge)
-- `APPS_DATABASE_PASSWORD` - Shared database password
-- `APPS_KEY_HEX_{16,32,64}` - Encryption keys for various apps
-- `APPS_TIMEZONE` - System timezone
+The same split applies to non-`environment` fields too, whenever an app has vault-configurable values there - e.g. `apps/beszel-agent/docker-compose.yml`'s `devices:` list is vault-sourced (`DISK_1_DEVICE`/`DISK_2_DEVICE`, each defaulting to `/dev/null` when unset), so it's declared as `x-vault-devices: &vault-devices` and referenced with `devices: *vault-devices`. A YAML anchor isn't limited to a map - it can hold a list just as well. Name the anchor for the compose field it targets (`x-vault-{field}`) so it's still obvious at a glance which fields the app's vault interface actually touches.
 
 ### Traefik Integration
 
@@ -145,12 +163,12 @@ All apps use Traefik labels pattern:
 
 ```yaml
 traefik.enable=true
-traefik.http.routers.${APP_NAME}.rule=Host(`${APP_NAME}.${APPS_DOMAIN}`)
-traefik.http.routers.${APP_NAME}.tls.certresolver=${APPS_CERTIFICATE_RESOLVER}
+traefik.http.routers.${APP_NAME}.rule=Host(`${APP_NAME}.${DOMAIN}`)
+traefik.http.routers.${APP_NAME}.tls.certresolver=${CERTIFICATE_RESOLVER}
 traefik.http.services.${APP_NAME}.loadbalancer.server.port=8080
 ```
 
-Apps are accessible at `{app-name}.{APPS_DOMAIN}` with automatic SSL.
+Apps are accessible at `{app-name}.{DOMAIN}` with automatic SSL.
 
 ## Operations
 
@@ -230,7 +248,7 @@ x-image: &image
 # 3. X-ENVIRONMENT (only if environment variables exist)
 x-environment: &environment
   VAR1: ${VALUE1}
-  DATABASE_URL: postgresql://postgres:${APPS_DATABASE_PASSWORD}@postgres:5432/${APP_NAME}
+  DATABASE_URL: postgresql://postgres:${DATABASE_PASSWORD}@postgres:5432/${APP_NAME}
 
 # 4. X-VOLUMES (if multiple services share volumes)
 x-volumes: &volumes
@@ -258,7 +276,7 @@ services:
     command: ["start", "--config", "/config.yml"]
 
     # 4. USER (if required)
-    user: "${APPS_UID}:${APPS_GID}"
+    user: "${PUID}:${PGID}"  # not UID/GID - those are shell-reserved
 
     # 5. ENVIRONMENT (mandatory, via anchor)
     environment: *environment
@@ -293,11 +311,11 @@ services:
 ### Key ordering principles:
 
 1. **Include order**: networks.yml → database/cache templates (postgres/redis/mongodb/etc., pick a version) → others
-2. **X-fields order**: x-image → x-environment → x-volumes (only if needed)
+2. **X-fields order**: x-image → all `x-vault-*` anchors together → all `x-internal-*` anchors together → x-volumes (only if needed). Vault-sourced anchors are grouped first regardless of which compose field they target (e.g. `x-vault-env` then `x-vault-devices`, both before `x-internal-env`) - see "Vault-Sourced vs. Internal Environment" above
 3. **X-image for shared images** - if multiple services use the same image, use `x-image: &image`
 4. **X-volumes for shared volumes** - if 2+ volumes repeat across services, extract them to `x-volumes: &volumes` and merge with unique ones
 5. **Image before extends** - declare what image is used, then extend common config
-6. **Environment via anchor** - always use `x-environment: &environment` pattern
+6. **Environment via anchor** - always declare env vars in an anchor, referenced with `environment: *name` (or merged via `<<: [*vault-env, *internal-env]` when split) - never inline a service's `environment:` map directly
 7. **Networks from extends** - `main`, `main-http`, and `api` profiles include `traefik` and `internal`; never add `databases` (it's only for DB admin tools)
 8. **Depends_on as simple list** - use array format without `condition:`, healthchecks are in common.yml
 9. **Depends_on order**: postgres → redis → mongo → app services
@@ -324,7 +342,7 @@ include:
   - ../networks.yml
   - ../postgres-18.yml
 x-environment: &environment
-  DATABASE_URL: postgresql://postgres:${APPS_DATABASE_PASSWORD}@postgres:5432/${APP_NAME}
+  DATABASE_URL: postgresql://postgres:${DATABASE_PASSWORD}@postgres:5432/${APP_NAME}
   ENABLE_FEATURE: true
   PORT: 8080
 services:
@@ -334,7 +352,7 @@ services:
       file: ../common.yml
       service: main
     command: ["worker", "--concurrency", "10"]
-    user: "${APPS_UID}:${APPS_GID}"
+    user: "${PUID}:${PGID}"  # not UID/GID - those are shell-reserved
     environment: *environment
     volumes:
       - ../../apps-data/${APP_NAME}/data:/data

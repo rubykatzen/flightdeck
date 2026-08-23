@@ -1,13 +1,19 @@
 include:
   - ../networks.yml
-x-environment: &environment
+x-vault-env: &vault-env
+  SITE_OWNER: ${ADMIN_MAIL}
+  APP_KEY: ${ENCRYPTION_KEY}
+  APP_URL: https://${APP_NAME}.${DOMAIN}
+  MAIL_HOST: ${SMTP_HOSTNAME}
+  MAIL_PORT: ${SMTP_PORT}
+  MAIL_USERNAME: ${SMTP_USERNAME}
+  MAIL_PASSWORD: ${SMTP_PASSWORD}
+  MAIL_FROM_ADDRESS: ${SMTP_FROM}
+x-internal-env: &internal-env
   APP_NAME: 2FAuth
   APP_ENV: local
   APP_TIMEZONE: UTC
   APP_DEBUG: false
-  SITE_OWNER: ${APPS_ADMIN_MAIL}
-  APP_KEY: ${APPS_KEY_HEX_16}
-  APP_URL: https://${APP_NAME}.${TWOFAUTH_APPS_DOMAIN:-${APPS_DOMAIN}}
   IS_DEMO_APP: false
   LOG_CHANNEL: daily
   LOG_LEVEL: error
@@ -15,13 +21,8 @@ x-environment: &environment
   CACHE_DRIVER: file
   SESSION_DRIVER: file
   MAIL_MAILER: smtp
-  MAIL_HOST: ${APPS_SMTP_HOSTNAME}
-  MAIL_PORT: ${APPS_SMTP_PORT}
-  MAIL_USERNAME: ${APPS_SMTP_USERNAME}
-  MAIL_PASSWORD: ${APPS_SMTP_PASSWORD}
   MAIL_ENCRYPTION: true
   MAIL_FROM_NAME: ${APP_NAME}
-  MAIL_FROM_ADDRESS: ${APPS_SMTP_FROM}
   MAIL_VERIFY_SSL_PEER: false
   THROTTLE_API: 60
   LOGIN_THROTTLE: 5
@@ -45,7 +46,8 @@ services:
       - 8000
     labels:
       - "traefik.http.services.${APP_NAME}.loadbalancer.server.port=8000"
-      - "traefik.http.routers.${APP_NAME}.rule=Host(`${APP_NAME}.${TWOFAUTH_APPS_DOMAIN:-${APPS_DOMAIN}}`)"
-    environment: *environment
+      - "traefik.http.routers.${APP_NAME}.rule=Host(`${APP_NAME}.${DOMAIN}`)"
+    environment:
+      <<: [*vault-env, *internal-env]
     volumes:
       - ../../apps-data/${APP_NAME}/2fauth:/2fauth

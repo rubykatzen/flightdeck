@@ -30,13 +30,13 @@ providers:
 certificatesResolvers:
   acmeHttpChallengeResolver:
     acme:
-      email: ${APPS_ADMIN_MAIL}
+      email: ${ADMIN_MAIL}
       storage: acme.json
       httpChallenge:
         entryPoint: http
   acmeCloudflareDnsChallengeResolver:
     acme:
-      email: ${APPS_ADMIN_MAIL}
+      email: ${ADMIN_MAIL}
       storage: acme.json
       dnsChallenge:
         provider: cloudflare
