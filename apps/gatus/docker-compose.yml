@@ -24,7 +24,7 @@ services:
       <<: [*vault-env, *internal-env]
     volumes:
       - ../../apps-data/${APP_NAME}/config:/config
-      - ./config/global.yml:/config/yml/global.yml
+      - ./global.yml:/config/yml/global.yml
     depends_on:
       - postgres
     healthcheck:
