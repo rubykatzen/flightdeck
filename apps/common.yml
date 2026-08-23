@@ -8,13 +8,13 @@ x-labels: &labels
   - "traefik.http.routers.${APP_NAME}-http.middlewares=redirect-to-https"
   - "traefik.http.routers.${APP_NAME}.rule=Host(`${APP_NAME}.${DOMAIN}`)"
   - "traefik.http.routers.${APP_NAME}.entrypoints=https"
-  - "traefik.http.routers.${APP_NAME}.tls.certresolver=${CERTIFICATE_RESOLVER}"
+  - "traefik.http.routers.${APP_NAME}.tls.certresolver=acmeresolver"
 x-labels-http: &labels-http
   - "traefik.enable=true"
   - "traefik.docker.network=traefik"
   - "traefik.http.routers.${APP_NAME}.rule=Host(`${APP_NAME}.${DOMAIN}`)"
   - "traefik.http.routers.${APP_NAME}.entrypoints=https"
-  - "traefik.http.routers.${APP_NAME}.tls.certresolver=${CERTIFICATE_RESOLVER}"
+  - "traefik.http.routers.${APP_NAME}.tls.certresolver=acmeresolver"
   - "traefik.http.routers.${APP_NAME}-plain.rule=Host(`${APP_NAME}.${DOMAIN}`)"
   - "traefik.http.routers.${APP_NAME}-plain.entrypoints=http"
 x-labels-api: &labels-api
@@ -22,7 +22,7 @@ x-labels-api: &labels-api
   - traefik.docker.network=traefik
   - traefik.http.routers.${APP_NAME}-api.rule=Host(`${APP_NAME}.${DOMAIN}`) && PathPrefix(`/api`)
   - traefik.http.routers.${APP_NAME}-api.entrypoints=https
-  - traefik.http.routers.${APP_NAME}-api.tls.certresolver=${CERTIFICATE_RESOLVER}
+  - traefik.http.routers.${APP_NAME}-api.tls.certresolver=acmeresolver
 x-env-file: &env-file
   - ./${APP_NAME}/.env
 x-restart: &restart unless-stopped

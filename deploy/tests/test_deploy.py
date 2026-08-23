@@ -148,13 +148,13 @@ class RenderAppConfigsTest(unittest.TestCase):
     def test_renders_templates_found_for_app_next_to_the_template(self):
         with tempfile.TemporaryDirectory() as directory:
             release_dir = Path(directory)
-            app_dir = release_dir / "apps" / "traefik"
+            app_dir = release_dir / "apps" / "codecov"
             app_dir.mkdir(parents=True)
-            (app_dir / "traefik.yml.tpl").write_text("email: ${ADMIN_MAIL}\n")
+            (app_dir / "codecov.yml.tpl").write_text("email: ${ADMIN_MAIL}\n")
 
-            deploy.render_app_configs(release_dir, "traefik", {"ADMIN_MAIL": "a@example.com"})
+            deploy.render_app_configs(release_dir, "codecov", {"ADMIN_MAIL": "a@example.com"})
 
-            rendered_path = app_dir / "traefik.yml"
+            rendered_path = app_dir / "codecov.yml"
             self.assertEqual(rendered_path.read_text(), "email: a@example.com\n")
             self.assertEqual(oct(rendered_path.stat().st_mode)[-3:], "600")
 
@@ -179,11 +179,11 @@ class ResolveAppEnvsTest(unittest.TestCase):
     def test_writes_decrypted_env_and_renders_configs(self):
         with tempfile.TemporaryDirectory() as directory:
             work_dir = Path(directory)
-            release_dir = self._release_dir_with_app(work_dir, "traefik", template="email: ${ADMIN_MAIL}\n")
+            release_dir = self._release_dir_with_app(work_dir, "codecov", template="email: ${ADMIN_MAIL}\n")
             ciphertext = work_dir / "a.sops.env"
             ciphertext.write_text("ADMIN_MAIL=ENC[...]\n")
 
-            config = {"apps": {"traefik": {"env_refs": ["owner/repo@latest:a.sops.env"]}}}
+            config = {"apps": {"codecov": {"env_refs": ["owner/repo@latest:a.sops.env"]}}}
 
             with (
                 patch.object(deploy, "download_ref", return_value=ciphertext),
@@ -191,11 +191,11 @@ class ResolveAppEnvsTest(unittest.TestCase):
             ):
                 deploy.resolve_app_envs(config, work_dir / "work", release_dir, work_dir / "key.txt")
 
-            env_path = release_dir / "apps" / "traefik" / ".env"
+            env_path = release_dir / "apps" / "codecov" / ".env"
             self.assertEqual(env_path.read_text(), "ADMIN_MAIL=a@example.com\n")
             self.assertEqual(oct(env_path.stat().st_mode)[-3:], "600")
 
-            rendered_path = release_dir / "apps" / "traefik" / "traefik.yml"
+            rendered_path = release_dir / "apps" / "codecov" / "codecov.yml"
             self.assertEqual(rendered_path.read_text(), "email: a@example.com\n")
 
     def test_raises_on_collision_within_one_apps_own_env_refs(self):
@@ -333,7 +333,6 @@ class DeployToHostTest(unittest.TestCase):
             self.assertIn("docker network create traefik", joined)
             self.assertIn("docker network create databases", joined)
             self.assertIn("docker network create mcp", joined)
-            self.assertIn("acme.json", joined)
             self.assertIn("tar -xzf", joined)
             self.assertIn("mkdir -p /home/deploy/flightdeck/apps-data/traefik", joined)
             self.assertIn("mkdir -p /home/deploy/flightdeck/apps-data/rybbit", joined)

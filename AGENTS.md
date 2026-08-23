@@ -99,15 +99,15 @@ A vault declares the exact final variable name an app receives directly (e.g. `H
 
 ### Config Templates
 
-`docker compose`'s own `${VAR}` interpolation only reaches into `environment:`/`command:` fields inside the compose file itself - it can't populate a mounted config file some image insists on reading from disk (e.g. Traefik's static config, Codecov Enterprise's settings YAML). Config templates exist for exactly that gap: a plain file with `${VAR}`/`$VAR` placeholders, rendered with the app's own decrypted env values before the app ever starts.
+`docker compose`'s own `${VAR}` interpolation only reaches into `environment:`/`command:` fields inside the compose file itself - it can't populate a mounted config file some image insists on reading from disk (e.g. Codecov Enterprise's settings YAML, which has no env-var-driven config path at all). Config templates exist for exactly that gap: a plain file with `${VAR}`/`$VAR` placeholders, rendered with the app's own decrypted env values before the app ever starts.
 
-The mechanism is pure naming convention, no manifest or registration needed - the same `.tpl` marker Terraform's `templatefile()` uses, as a terminal suffix (`traefik.yml.tpl`, same placement as Terraform's `user_data.tpl`). Note this means editors and GitHub's diff view won't apply YAML syntax highlighting to the template out of the box (they pick a language by the last extension, and `.tpl` isn't a registered one anywhere by default) - the rendered output (`traefik.yml`) isn't affected, only the template source. Configure a file association per editor if that matters to you (e.g. Zed's `file_types` setting).
+The mechanism is pure naming convention, no manifest or registration needed - the same `.tpl` marker Terraform's `templatefile()` uses, as a terminal suffix (`codecov.yml.tpl`, same placement as Terraform's `user_data.tpl`). Note this means editors and GitHub's diff view won't apply YAML syntax highlighting to the template out of the box (they pick a language by the last extension, and `.tpl` isn't a registered one anywhere by default) - the rendered output (`codecov.yml`) isn't affected, only the template source. Configure a file association per editor if that matters to you (e.g. Zed's `file_types` setting).
 
-Any file directly inside `apps/{app}/` (next to `docker-compose.yml`, no special subdirectory) matching `*.tpl` is a template. `deploy/deploy.py`'s `render_app_configs` finds them with a plain glob, substitutes with `deploy/render.py` (an `envsubst`-equivalent - `$VAR`/`${VAR}` only, no bash `${VAR:-default}` fallback syntax, missing variable becomes an empty string), and writes the result as a sibling file in the same directory with `.tpl` stripped (`traefik.yml.tpl` → `traefik.yml`), `chmod 600` since rendered output can carry secrets. This happens on the runner, before the release is archived, so the rendered file rides inside the release tar next to `.env` and is versioned with that release like everything else - never written directly onto the target host outside the atomic release/symlink-switch step.
+Any file directly inside `apps/{app}/` (next to `docker-compose.yml`, no special subdirectory) matching `*.tpl` is a template. `deploy/deploy.py`'s `render_app_configs` finds them with a plain glob, substitutes with `deploy/render.py` (an `envsubst`-equivalent - `$VAR`/`${VAR}` only, no bash `${VAR:-default}` fallback syntax, missing variable becomes an empty string), and writes the result as a sibling file in the same directory with `.tpl` stripped (`codecov.yml.tpl` → `codecov.yml`), `chmod 600` since rendered output can carry secrets. This happens on the runner, before the release is archived, so the rendered file rides inside the release tar next to `.env` and is versioned with that release like everything else - never written directly onto the target host outside the atomic release/symlink-switch step.
 
-Compose files mount the rendered file by its plain relative path (`./traefik.yml:/traefik.yml:ro`), one line per file - not a whole-directory mount - so it's obvious from the compose file alone which container path each config file lands at. `apps-data/{app}/` stays reserved for the opposite case: state a deploy must never regenerate (`acme.json`, database data directories) - never templated output.
+Compose files mount the rendered file by its plain relative path (`./codecov.yml:/config/codecov.yml`), one line per file - not a whole-directory mount - so it's obvious from the compose file alone which container path each config file lands at. `apps-data/{app}/` stays reserved for the opposite case: state a deploy must never regenerate (`acme.json`, database data directories) - never templated output.
 
-When adding config for a new app: only reach for a template if the image has no env-var-driven config path at all. If it does (most well-behaved images do), prefer plain `environment:` entries over a template - fewer moving parts, and the value never touches disk as a separate file.
+When adding config for a new app: only reach for a template if the image has no env-var-driven config path at all - most well-behaved images do, and Traefik itself is a good example: its entire static configuration (entryPoints, providers, ACME resolvers, everything) is settable through `TRAEFIK_*` environment variables (see "Traefik Integration" below), so it needs no config template at all despite once having one.
 
 ### App-specific vs. shared variables
 
@@ -124,7 +124,7 @@ Name a variable by what it *is*, never by its format (`SESSION_KEY`, not `KEY_HE
 Common shared variables a target's vaults map into one or more apps' `.env`:
 
 - `DOMAIN` - Base domain for all services
-- `CERTIFICATE_RESOLVER` - SSL resolver (Cloudflare DNS or HTTP challenge)
+- `DNS_CHALLENGE_PROVIDER`, `DNS_CHALLENGE_TOKEN` - Optional DNS-01 ACME challenge, traefik-only (see "Traefik Integration" below)
 - `DATABASE_PASSWORD` - Shared database password
 - `SESSION_KEY` - Shared session-signing key (safe to share - see above)
 - `TIMEZONE` - System timezone
@@ -164,15 +164,19 @@ All apps use Traefik labels pattern:
 ```yaml
 traefik.enable=true
 traefik.http.routers.${APP_NAME}.rule=Host(`${APP_NAME}.${DOMAIN}`)
-traefik.http.routers.${APP_NAME}.tls.certresolver=${CERTIFICATE_RESOLVER}
+traefik.http.routers.${APP_NAME}.tls.certresolver=acmeresolver
 traefik.http.services.${APP_NAME}.loadbalancer.server.port=8080
 ```
 
-Apps are accessible at `{app-name}.{DOMAIN}` with automatic SSL.
+Apps are accessible at `{app-name}.{DOMAIN}` with automatic SSL. `acmeresolver` is a fixed name - there's only ever one resolver, so unlike `apps/common.yml`'s other `${VAR}` placeholders it's hardcoded rather than vault-sourced.
+
+`apps/traefik/docker-compose.yml` has no config template at all - Traefik's entire static configuration (entryPoints, the docker provider, logging, and the ACME resolver) is expressed directly as `TRAEFIK_*` environment variables, split across `x-vault-env`/`x-internal-env` like any other app. This isn't a style choice: Traefik's static config sources (file, env vars, CLI flags) are mutually exclusive, not merged - if a config file is present, environment variables for static config are silently ignored entirely, verified empirically while building this. Keeping traefik file-free sidesteps that trap.
+
+HTTP-01 (`httpChallenge`) is always configured and needs nothing from the vault - it's the zero-config default. DNS-01 is an optional, additive enhancement: if a target's vault provides `DNS_CHALLENGE_PROVIDER` (a lego provider name, e.g. `cloudflare`) and `DNS_CHALLENGE_TOKEN` (a single credential value), that provider's DNS challenge also activates - confirmed empirically that Traefik tolerates both challenge types being configured on the same resolver simultaneously, and that an empty/unset `dnsChallenge.provider` is silently treated as absent rather than erroring. `DNS_CHALLENGE_TOKEN` is mapped into every supported provider's own expected variable name at once (`CF_DNS_API_TOKEN`, `DO_AUTH_TOKEN`, `NJALLA_TOKEN`, `DUCKDNS_TOKEN`) - lego only ever reads the one belonging to whichever provider was actually selected, so the others sit unused and harmless. This only works for providers needing a single token; add a provider by adding one more `x-vault-env` line mapping `${DNS_CHALLENGE_TOKEN:-}` into that provider's lego variable name (see [go-acme.github.io/lego/dns](https://go-acme.github.io/lego/dns/) for the full ~200-provider list and each one's required variable(s) - multi-variable providers like Route53 or Namecheap don't fit this single-token pattern and would need their own explicit vault variables instead).
 
 ## Operations
 
-There are no wrapper scripts and nothing runs them - starting, stopping, and restarting apps all happen by deploying (`deploy/deploy.py`, see "CI/CD" below). `apps-data/traefik/acme.json` and the external Docker networks `traefik`, `databases`, and `mcp` are created idempotently by `deploy/deploy.py` on every deploy (derived from `apps/networks.yml`'s `external: true` entries), not by a separate first-run step.
+There are no wrapper scripts and nothing runs them - starting, stopping, and restarting apps all happen by deploying (`deploy/deploy.py`, see "CI/CD" below). The external Docker networks `traefik`, `databases`, and `mcp` are created idempotently by `deploy/deploy.py` on every deploy (derived from `apps/networks.yml`'s `external: true` entries), not by a separate first-run step. `apps-data/traefik/acme.json` isn't created by `deploy/deploy.py` at all - traefik's `docker-compose.yml` mounts `apps-data/{app}/` as a directory (not the file directly, which would make Docker create a directory in its place if the file doesn't exist yet), and Traefik creates `acme.json` inside it itself on first start, with the permissions it requires.
 
 Debugging an already-deployed app means SSHing into the target host directly and using Docker Compose itself - no wrapper needed, since each app's directory is already a complete, ready-to-run Compose project (real `.env` sitting next to the compose file):
 
@@ -381,7 +385,7 @@ Each app in a target's `apps` mapping lists its own `env_refs` — release refs 
 
 ## Notable App Configurations
 
-- **traefik**: Entry point, uses external network.
+- **traefik**: Entry point, uses external network. Configured entirely via `TRAEFIK_*` env vars, no config file - see "Traefik Integration" above.
 - Apps with databases include a versioned template (e.g. `postgres-18.yml`) and create app-specific database named `${APP_NAME}`
 - Config templates use `envsubst`-equivalent substitution (`deploy/render.py`) - variables must be shell-compatible (`${VAR}` syntax)
 

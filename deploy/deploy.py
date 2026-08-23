@@ -110,19 +110,9 @@ def expand_home(path, home):
 
 
 def bootstrap_host(connection, base_path, networks):
-    apps_data = f"{base_path}/apps-data"
-    traefik_dir = f"{apps_data}/traefik"
-    connection.run(
-        f"mkdir -p {shlex.quote(base_path)}/releases {shlex.quote(traefik_dir)}",
-        hide=True,
-    )
+    connection.run(f"mkdir -p {shlex.quote(base_path)}/releases", hide=True)
     for network in networks:
         connection.run(f"docker network create {shlex.quote(network)} >/dev/null 2>&1 || true", hide=True)
-    acme_path = f"{traefik_dir}/acme.json"
-    connection.run(
-        f"[ -f {shlex.quote(acme_path)} ] || {{ touch {shlex.quote(acme_path)} && chmod 600 {shlex.quote(acme_path)}; }}",
-        hide=True,
-    )
 
 
 def push_release(connection, archive_path, release_path):

@@ -5,7 +5,7 @@ A Docker-based deployment system for containerized services, with optional extra
 ## Key Features
 
 - **Core Application Set** - Essential services for routing, auth, monitoring, automation, database access, error tracking, and analytics
-- **Automatic SSL Certificates** - Cloudflare DNS and Let's Encrypt HTTP challenge support, routed through Traefik
+- **Automatic SSL Certificates** - Let's Encrypt via HTTP challenge by default, or DNS-01 through a small set of supported providers, routed through Traefik
 - **Modular Architecture** - Reusable docker-compose components for easy maintenance
 - **Vault-based Configuration** - Each app's env is declared, encrypted, decrypted, and rendered per app - no server-side secrets handling
 - **Persistent Data Management** - Organized storage with automatic backup-friendly structure
@@ -163,7 +163,7 @@ docker ps | grep app-name       # confirm it's running
 A few things that don't fit that one-liner:
 
 - **Networking**: `docker network ls` / `docker network inspect traefik` to check connectivity; `docker exec -it traefik wget -q --spider http://app-name` to test an app's reachability from inside the `traefik` network.
-- **SSL**: `apps-data/traefik/acme.json` must exist and be `chmod 600`, or Traefik won't issue certificates.
+- **SSL**: Traefik creates `apps-data/traefik/acme.json` itself on first start, with the right permissions - check its logs if certificates aren't being issued.
 - **DNS**: `nslookup app-name.domain.com` if the app resolves but isn't reachable.
 
 ## Additional Resources
