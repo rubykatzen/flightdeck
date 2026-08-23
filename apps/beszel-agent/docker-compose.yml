@@ -2,7 +2,6 @@ x-vault-env: &vault-env
   KEY: ${BESZEL_AGENT_PUBLIC_KEY}
 x-internal-env: &internal-env
   PORT: 45876
-  HEALTHCHECK_CMD: "nc -z 127.0.0.1 $${PORT} || exit 1"
 services:
   beszel-agent:
     image: "henrygd/beszel-agent:alpine"
