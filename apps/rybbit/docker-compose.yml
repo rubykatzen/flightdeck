@@ -11,6 +11,7 @@ x-vault-env: &vault-env
   MAPBOX_TOKEN: ${MAPBOX_TOKEN:-}
   POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
   CLICKHOUSE_PASSWORD: ${DATABASE_PASSWORD}
+  REDIS_PASSWORD: ${DATABASE_PASSWORD}
 x-internal-env: &internal-env
   NODE_ENV: production
   POSTGRES_HOST: postgres
