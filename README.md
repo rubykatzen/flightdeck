@@ -291,12 +291,12 @@ Builds a zip archive from caller-selected paths, rejects runtime state and env f
 steps:
   - uses: actions/checkout@v7
     with:
-      ref: v0.8.0
-  - uses: rubykatzen/flightdeck/.github/actions/build-bundle@v0.8.0
+      ref: v0.9.0
+  - uses: rubykatzen/flightdeck/.github/actions/build-bundle@v0.9.0
     with:
       paths: apps
       bundle-name: flightdeck-apps.zip
-      release-tag: v0.8.0
+      release-tag: v0.9.0
       token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
@@ -316,10 +316,10 @@ A thin defaults wrapper around `build-bundle`: `paths` defaults to `apps`, `bund
 steps:
   - uses: actions/checkout@v7
     with:
-      ref: v0.8.0
-  - uses: rubykatzen/flightdeck/.github/actions/build-apps-bundle@v0.8.0
+      ref: v0.9.0
+  - uses: rubykatzen/flightdeck/.github/actions/build-apps-bundle@v0.9.0
     with:
-      release-tag: v0.8.0
+      release-tag: v0.9.0
       token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
@@ -342,7 +342,7 @@ Tailscale is optional, not a dependency of this workflow: set `tailscale-oauth-c
 ```yaml
 jobs:
   deploy:
-    uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@v0.8.0
+    uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@v0.9.0
     with:
       hosts: '["deploy@app1.example.com", "deploy@app2.example.com"]'  # required JSON array
       app-refs: '["rubykatzen/flightdeck@latest"]'                   # required non-empty JSON array
@@ -359,7 +359,7 @@ jobs:
 
 <!-- x-release-please-end -->
 
-The `@v0.8.0` pin on the `uses:` line only controls which ref runs `deploy/deploy.py` itself. `app-refs` entries are separate and don't have to match the workflow pin. <!-- x-release-please-version -->
+The `@v0.9.0` pin on the `uses:` line only controls which ref runs `deploy/deploy.py` itself. `app-refs` entries are separate and don't have to match the workflow pin. <!-- x-release-please-version -->
 
 ## License
 
