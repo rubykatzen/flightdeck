@@ -24,9 +24,9 @@ github:
     id: ${GITHUB_APP_ID}
     pem: /config/key.pem
 services:
-  redis_url: "redis://redis:6379"
+  redis_url: "redis://:${DATABASE_PASSWORD}@redis:6379"
   database_url: "postgres://${APP_NAME}:${DATABASE_PASSWORD}@postgres:5432/${APP_NAME}"
-  timeseries_database_url: "postgres://${APP_NAME}:${DATABASE_PASSWORD}@timescale:5432/${APP_NAME}"
+  timeseries_database_url: "postgres://postgres:${DATABASE_PASSWORD}@timescale:5432/${APP_NAME}"
   minio:
     host: ${S3_HOST}
     bucket: ${S3_BUCKET}

@@ -1,16 +1,15 @@
-# connect as user ${APP_NAME}, password ${DATABASE_PASSWORD}, database ${APP_NAME}, port 5432
+# connect as user postgres, password ${DATABASE_PASSWORD}, database ${APP_NAME}, port 5432
 services:
   timescale:
     image: timescale/timescaledb:latest-pg17
     restart: unless-stopped
     environment:
       POSTGRES_DB: ${APP_NAME}
-      POSTGRES_USER: ${APP_NAME}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
     volumes:
       - ${DATA_DIR}/timescale:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-d", "${APP_NAME}", "-U", "${APP_NAME}"]
+      test: ["CMD", "pg_isready", "-d", "${APP_NAME}", "-U", "postgres"]
       start_period: 30s
       interval: 30s
       timeout: 5s
