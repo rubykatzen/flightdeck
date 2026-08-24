@@ -1,8 +1,8 @@
+# connect as user ${APP_NAME}, password ${DATABASE_PASSWORD}, database ${APP_NAME}
 services:
   timescale:
     image: timescale/timescaledb:latest-pg17
     restart: unless-stopped
-    # connect as user ${APP_NAME}, password ${DATABASE_PASSWORD}, database ${APP_NAME}
     environment:
       POSTGRES_DB: ${APP_NAME}
       POSTGRES_USER: ${APP_NAME}

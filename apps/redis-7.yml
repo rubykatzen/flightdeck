@@ -1,8 +1,8 @@
+# no auth configured - reachable at redis:6379 from any service on the internal network
 services:
   redis:
     image: redis:7
     restart: unless-stopped
-    # no auth configured - reachable at redis:6379 from any service on the internal network
     volumes:
       - ${DATA_DIR}/redis:/data
     healthcheck:

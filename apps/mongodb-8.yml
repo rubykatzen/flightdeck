@@ -1,8 +1,8 @@
+# connect as user ${APP_NAME}, password ${DATABASE_PASSWORD}, database ${APP_NAME} (root password is also ${DATABASE_PASSWORD})
 services:
   mongodb:
     image: bitnami/mongodb
     restart: unless-stopped
-    # connect as user ${APP_NAME}, password ${DATABASE_PASSWORD}, database ${APP_NAME} (root password is also ${DATABASE_PASSWORD})
     environment:
       MONGODB_ROOT_PASSWORD: ${DATABASE_PASSWORD}
       MONGODB_USERNAME: ${APP_NAME}

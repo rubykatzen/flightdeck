@@ -1,9 +1,9 @@
+# connect as user ${APP_NAME}, password ${DATABASE_PASSWORD}, database ${APP_NAME}
 services:
   paradedb:
     image: paradedb/paradedb:latest-pg17
     restart: unless-stopped
     command: ["postgres", "-c", "log_min_messages=ERROR", "-c", "client_min_messages=ERROR"]
-    # connect as user ${APP_NAME}, password ${DATABASE_PASSWORD}, database ${APP_NAME}
     environment:
       POSTGRES_DB: ${APP_NAME}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
