@@ -1,0 +1,10 @@
+name: Notify Telegram release
+on:
+  release:
+    types: [published]
+jobs:
+  notify:
+    uses: rubykatzen/baseline/.github/workflows/notify-telegram-release-shared.yml@v0.16.1
+    secrets:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
