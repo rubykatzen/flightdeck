@@ -1,0 +1,5 @@
+asset: hawkeye-cloudflared.sops.env
+keys:
+  - hawkeye
+env:
+  TUNNEL_TOKEN: CLOUDFLARE_TUNNEL_TOKEN

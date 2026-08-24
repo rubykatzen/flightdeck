@@ -7,6 +7,9 @@ apps:
   rybbit:
     env_refs:
       - rubykatzen/flightdeck@latest:hawkeye-rybbit.sops.env
+  cloudflared:
+    env_refs:
+      - rubykatzen/flightdeck@latest:hawkeye-cloudflared.sops.env
 hosts:
   - rubykatzen-com@100.75.50.2
 credentials:

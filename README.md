@@ -82,6 +82,7 @@ flightdeck/
 | Name | Purpose |
 |------|---------|
 | **traefik** | Reverse proxy & SSL |
+| **cloudflared** | Optional Cloudflare Tunnel into traefik |
 | **semaphore** | Ansible UI & task runner |
 | **twofauth** | Two-factor auth manager |
 | **gatus** | Status page & health checks |
