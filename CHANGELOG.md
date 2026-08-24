@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/rubykatzen/flightdeck/compare/v0.6.0...v0.6.1) (2026-08-24)
+
+
+### Bug Fixes
+
+* pass GH_TOKEN to deploy-shared.yml's deploy step ([#141](https://github.com/rubykatzen/flightdeck/issues/141)) ([4619a8d](https://github.com/rubykatzen/flightdeck/commit/4619a8d42ee5e55529ab64b588e36794d46f2478))
+
 ## [0.6.0](https://github.com/rubykatzen/flightdeck/compare/v0.5.0...v0.6.0) (2026-08-24)
 
 
