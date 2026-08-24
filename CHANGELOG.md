@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/rubykatzen/flightdeck/compare/v0.7.0...v0.8.0) (2026-08-24)
+
+
+### Features
+
+* support literal values in vault manifests, use for DISABLE_SIGNUP ([#150](https://github.com/rubykatzen/flightdeck/issues/150)) ([c6e7d26](https://github.com/rubykatzen/flightdeck/commit/c6e7d2646f354ea150ec6941c8960560d3e0f0af))
+
 ## [0.7.0](https://github.com/rubykatzen/flightdeck/compare/v0.6.3...v0.7.0) (2026-08-24)
 
 
