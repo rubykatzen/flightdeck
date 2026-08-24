@@ -10,7 +10,7 @@ from pathlib import Path
 import yaml
 
 ENV_NAME_RE = re.compile(r"^[A-Z_][A-Z0-9_]*$")
-SOURCE_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]*(?:__[A-Z0-9_]+)*$")
+SOURCE_REF_RE = re.compile(r"^\$\{([A-Z][A-Z0-9_]*(?:__[A-Z0-9_]+)*)\}$")
 KEY_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 ASSET_RE = re.compile(r"^[A-Za-z0-9_.-]+\.sops\.env$")
 
@@ -75,12 +75,17 @@ def load_manifest(path):
     for output_name, source_name in env.items():
         if not isinstance(output_name, str) or not ENV_NAME_RE.fullmatch(output_name):
             raise ManifestError(f"invalid output env name: {output_name!r}")
-        if not isinstance(source_name, str) or not SOURCE_NAME_RE.fullmatch(source_name):
-            raise ManifestError(f"invalid source key for {output_name}: {source_name!r}")
+        if isinstance(source_name, str) and source_name.startswith("${"):
+            if not SOURCE_REF_RE.fullmatch(source_name):
+                raise ManifestError(f"invalid source reference for {output_name}: {source_name!r}")
+        elif isinstance(source_name, (dict, list)) or source_name is None:
+            raise ManifestError(f"invalid literal value for {output_name}: {source_name!r}")
     return manifest
 
 
 def dotenv_value(value):
+    if isinstance(value, bool):
+        value = "true" if value else "false"
     value = str(value)
     if "\x00" in value:
         raise ManifestError("env values cannot contain NUL bytes")
@@ -103,9 +108,13 @@ def render_env(manifest, secrets, variables):
     lines = []
     missing = []
     for output_name, source_name in manifest["env"].items():
-        value = resolve_value(source_name, secrets, variables)
+        ref = SOURCE_REF_RE.fullmatch(source_name) if isinstance(source_name, str) else None
+        if ref is None:
+            lines.append(f"{output_name}={dotenv_value(source_name)}")
+            continue
+        value = resolve_value(ref.group(1), secrets, variables)
         if value is None:
-            missing.append(source_name)
+            missing.append(ref.group(1))
             continue
         lines.append(f"{output_name}={dotenv_value(value)}")
     if missing:

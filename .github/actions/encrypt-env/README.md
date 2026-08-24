@@ -33,8 +33,9 @@ asset: mainframe.sops.env
 keys:
   - mainframe
 env:
-  DOMAIN: DOMAIN         # output name: GitHub Secret/Variable name
-  TIMEZONE: TIMEZONE
+  DOMAIN: ${DOMAIN}      # output name: ${GitHub Secret/Variable name}
+  TIMEZONE: ${TIMEZONE}
+  DISABLE_SIGNUP: true   # output name: literal value, no lookup at all
 ```
 
-For each name in `keys`, it loads `<keys-directory>/<name>.pub`. Secrets take precedence over Variables when both contain the same source key. Every source key must resolve or the action fails. The manifest has no `apps` field — app selection lives on the deploy target, not the vault; see the main README's "Vaults And Targets" section.
+For each name in `keys`, it loads `<keys-directory>/<name>.pub`. An `env:` value wrapped as `${NAME}` is a reference - looked up in Secrets first, then Variables, and the action fails if it resolves to neither. Any other value (a bare string, number, or boolean) is a literal, used as-is with no lookup and no way to fail on "missing." The manifest has no `apps` field — app selection lives on the deploy target, not the vault; see the main README's "Vaults And Targets" section.
