@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/rubykatzen/flightdeck/compare/v0.6.3...v0.7.0) (2026-08-24)
+
+
+### Features
+
+* add healthchecks to cloudflared and rybbit's client ([#147](https://github.com/rubykatzen/flightdeck/issues/147)) ([e11981c](https://github.com/rubykatzen/flightdeck/commit/e11981cbbe90adc424e603eef927e0d6dc16cf37))
+
 ## [0.6.3](https://github.com/rubykatzen/flightdeck/compare/v0.6.2...v0.6.3) (2026-08-24)
 
 
