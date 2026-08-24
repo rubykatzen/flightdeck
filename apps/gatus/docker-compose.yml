@@ -8,7 +8,7 @@ x-vault-env: &vault-env
   TELEGRAM_ID: ${TELEGRAM_CHAT}
 x-internal-env: &internal-env
   GATUS_CONFIG_PATH: /config/yml
-  POSTGRES_USER: ${APP_NAME}
+  POSTGRES_USER: postgres
   POSTGRES_DB: ${APP_NAME}
 services:
   gatus:

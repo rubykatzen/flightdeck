@@ -1,12 +1,11 @@
+# connect as user default, password ${DATABASE_PASSWORD}, database ${APP_NAME}, port 8123 (HTTP; native protocol is 9000)
 services:
   clickhouse:
     image: clickhouse/clickhouse-server:26.5
     restart: unless-stopped
     environment:
       CLICKHOUSE_DB: ${APP_NAME}
-      CLICKHOUSE_USER: ${APP_NAME}
       CLICKHOUSE_PASSWORD: ${DATABASE_PASSWORD}
-      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     volumes:
       - ${DATA_DIR}/clickhouse/data:/var/lib/clickhouse
       - ${DATA_DIR}/clickhouse/logs:/var/log/clickhouse-server
