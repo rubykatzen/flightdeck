@@ -11,7 +11,7 @@ services:
     labels:
       - "traefik.http.services.${APP_NAME}.loadbalancer.server.port=4005"
     volumes:
-      - ../../apps-data/${APP_NAME}/data:/databasus-data
+      - ${DATA_DIR}/data:/databasus-data
     networks:
       - internal
       - traefik

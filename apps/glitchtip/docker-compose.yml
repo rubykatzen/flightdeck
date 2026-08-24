@@ -27,7 +27,7 @@ services:
     environment:
       <<: [*vault-env, *internal-env]
     volumes:
-      - ../../apps-data/${APP_NAME}/uploads:/code/uploads
+      - ${DATA_DIR}/uploads:/code/uploads
     depends_on:
       - postgres
       - redis
@@ -40,7 +40,7 @@ services:
     environment:
       <<: [*vault-env, *internal-env]
     volumes:
-      - ../../apps-data/${APP_NAME}/uploads:/code/uploads
+      - ${DATA_DIR}/uploads:/code/uploads
     depends_on:
       - postgres
       - redis

@@ -97,6 +97,13 @@ There is no root `.env` anywhere - not on a target host, not locally. Each app's
 
 A vault declares the exact final variable name an app receives directly (e.g. `HTTP_PORT`, not `TRAEFIK_HTTP_PORT`) - there is no automatic prefix-stripping or filtering step anywhere. Variables for one app are never visible to another app, since each app's `.env` is built from that app's own vault(s) only. This allows running docker compose directly from the app folder without any `--env-file` flags while keeping app secrets scoped.
 
+Two variables in every app's `.env` are never vault-sourced - `deploy/deploy.py` computes and writes them itself:
+
+- `APP_NAME` - just the app's own directory name (`traefik`, `rybbit`, ...). Written by `resolve_app_envs` on the runner, identical for every host a target deploys to, so it lives in the release tree's static `.env` like anything else.
+- `DATA_DIR` - the absolute, persistent data path for that app on the *target host* (`{base_path}/apps-data/{app}`). This can't be computed on the runner: `base_path` comes from a target's `path` (default `~/flightdeck`), and `~` only resolves once connected to a specific host (`deploy_to_host` reads `$HOME` over SSH) - and a target's `hosts:` can list more than one, potentially with different home directories. So `DATA_DIR` is appended to each app's already-pushed `.env` on the host itself, inside `deploy_to_host`'s per-app loop, after the release is extracted but before `docker compose` ever runs - never baked into the release tree the way `APP_NAME` is.
+
+Compose files reference `${DATA_DIR}` directly (`${DATA_DIR}/postgres:/var/lib/postgresql`, or bare `${DATA_DIR}:/letsencrypt` when the whole directory is the mount) - never a relative path like `../../apps-data/${APP_NAME}`. A relative path only resolves correctly when the compose file's distance from the repo root matches its distance from the deployed base path, and those distances *don't* match: on the host, `docker compose` runs from `{base_path}/current/apps/{app}/`, where `current` is a symlink into `releases/{timestamp}/` - one directory hop `..`/`../..` can't see past, since path resolution follows the symlink lexically rather than landing back at `base_path`. Concretely this meant `../../apps-data/${APP_NAME}` from traefik's compose file resolved to `current/apps-data/${APP_NAME}` - physically inside that one release's own directory, not the persistent `apps-data/` sibling of `releases/` - so it would have been silently deleted by the next `keep_releases` rotation. `${DATA_DIR}` sidesteps the whole class of bug by never being a relative path in the first place.
+
 ### Config Templates
 
 `docker compose`'s own `${VAR}` interpolation only reaches into `environment:`/`command:` fields inside the compose file itself - it can't populate a mounted config file some image insists on reading from disk (e.g. Codecov Enterprise's settings YAML, which has no env-var-driven config path at all). Config templates exist for exactly that gap: a plain file with `${VAR}`/`$VAR` placeholders, rendered with the app's own decrypted env values before the app ever starts.
@@ -198,7 +205,7 @@ Backups are a separate, not-yet-decided piece of tooling (the old `backup.sh` as
    - Include `../networks.yml` for network definitions
    - Extend `../common.yml` service definitions (usually `main`)
    - Include a versioned database/service template if needed, e.g. `../postgres-18.yml`, `../redis-8.yml`, `../mongodb-8.yml` (see "Shared Infrastructure" above for the full list)
-   - Reference data path: `../../apps-data/${APP_NAME}/`
+   - Reference data path: `${DATA_DIR}/`
    - Set the service port explicitly with `expose` and `traefik.http.services.${APP_NAME}.loadbalancer.server.port`
 3. Wire it into a target's `apps` mapping and give it a vault declaring the env it needs (see README's "Vaults And Targets")
 4. If the app needs a mounted config file with no env-var equivalent, create `{name}.yml.tpl` next to its `docker-compose.yml` (see "Config Templates" above)
@@ -223,7 +230,7 @@ services:
     labels:
       - "traefik.http.services.${APP_NAME}.loadbalancer.server.port=8080"
     volumes:
-      - ../../apps-data/${APP_NAME}/data:/data
+      - ${DATA_DIR}/data:/data
 ```
 
 **IMPORTANT: Always use x-environment anchor pattern for environment variables:**
@@ -258,7 +265,7 @@ x-environment: &environment
 
 # 4. X-VOLUMES (if multiple services share volumes)
 x-volumes: &volumes
-  - ../../apps-data/${APP_NAME}/data:/data
+  - ${DATA_DIR}/data:/data
 
 # 5. SERVICES
 services:
@@ -299,7 +306,7 @@ services:
 
     # 8. VOLUMES (order: persistent data directories → rendered config files)
     volumes:
-      - ../../apps-data/${APP_NAME}/data:/data
+      - ${DATA_DIR}/data:/data
       - ./app.yml:/app/config.yml:ro
 
     # 9. NETWORKS (inherited from extends, omit this section)
@@ -339,7 +346,7 @@ services:
 7. **No empty lines in .yml files** - remove all blank lines, keep file compact without any empty line breaks
 8. **No trailing spaces** - remove all trailing whitespace
 9. **Restart policy** - if used, always `restart: unless-stopped` (not `always`)
-10. **Volume paths consistency** - host folder name must match container mount point: `../../apps-data/${APP_NAME}/data:/data` (both are `data`), not `../../apps-data/${APP_NAME}/app-data:/data` or `../../apps-data/${APP_NAME}/library:/data`
+10. **Volume paths consistency** - host folder name must match container mount point: `${DATA_DIR}/data:/data` (both are `data`), not `${DATA_DIR}/app-data:/data` or `${DATA_DIR}/library:/data`
 
 Example:
 
@@ -361,7 +368,7 @@ services:
     user: "${PUID}:${PGID}"  # not UID/GID - those are shell-reserved
     environment: *environment
     volumes:
-      - ../../apps-data/${APP_NAME}/data:/data
+      - ${DATA_DIR}/data:/data
 ```
 
 ## CI/CD

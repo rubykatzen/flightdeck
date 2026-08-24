@@ -8,7 +8,7 @@ services:
       MONGODB_PASSWORD: ${DATABASE_PASSWORD}
       MONGODB_DATABASE: ${APP_NAME}
     volumes:
-      - ../apps-data/${APP_NAME}/mongodb:/bitnami/mongodb
+      - ${DATA_DIR}/mongodb:/bitnami/mongodb
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       start_period: 30s

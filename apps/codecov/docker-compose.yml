@@ -60,4 +60,4 @@ services:
       <<: [*vault-env, *internal-env]
     volumes:
       - ./codecov.yml:/config/codecov.yml
-      - ../../apps-data/${APP_NAME}/archive:/archive
+      - ${DATA_DIR}/archive:/archive

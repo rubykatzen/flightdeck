@@ -5,8 +5,8 @@ services:
     environment:
       CLICKHOUSE_DB: ${APP_NAME}
     volumes:
-      - ../apps-data/${APP_NAME}/clickhouse/data:/var/lib/clickhouse
-      - ../apps-data/${APP_NAME}/clickhouse/logs:/var/log/clickhouse-server
+      - ${DATA_DIR}/clickhouse/data:/var/lib/clickhouse
+      - ${DATA_DIR}/clickhouse/logs:/var/log/clickhouse-server
     configs:
       - source: clickhouse_network
         target: /etc/clickhouse-server/config.d/network.xml

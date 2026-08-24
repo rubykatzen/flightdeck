@@ -141,7 +141,7 @@ services:
       - "traefik.http.services.${APP_NAME}.loadbalancer.server.port=8080"
     environment: *environment
     volumes:
-      - ../../apps-data/${APP_NAME}/data:/data
+      - ${DATA_DIR}/data:/data
 ```
 
 **Important**: Always use the `x-environment` anchor pattern for environment variables. This ensures consistency and reduces duplication.
