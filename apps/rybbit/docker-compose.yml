@@ -17,7 +17,7 @@ x-internal-env: &internal-env
   POSTGRES_HOST: postgres
   POSTGRES_PORT: 5432
   POSTGRES_DB: ${APP_NAME}
-  POSTGRES_USER: ${APP_NAME}
+  POSTGRES_USER: postgres
   CLICKHOUSE_HOST: http://clickhouse:8123
   CLICKHOUSE_DB: ${APP_NAME}
   REDIS_HOST: redis

@@ -1,12 +1,10 @@
-# connect as user ${APP_NAME}, password ${DATABASE_PASSWORD}, database ${APP_NAME}, port 27017 (root password is also ${DATABASE_PASSWORD})
+# connect as user root, password ${DATABASE_PASSWORD}, database ${APP_NAME}, port 27017
 services:
   mongodb:
     image: bitnami/mongodb
     restart: unless-stopped
     environment:
       MONGODB_ROOT_PASSWORD: ${DATABASE_PASSWORD}
-      MONGODB_USERNAME: ${APP_NAME}
-      MONGODB_PASSWORD: ${DATABASE_PASSWORD}
       MONGODB_DATABASE: ${APP_NAME}
     volumes:
       - ${DATA_DIR}/mongodb:/bitnami/mongodb

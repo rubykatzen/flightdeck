@@ -1,12 +1,10 @@
-# connect as user ${APP_NAME}, password ${DATABASE_PASSWORD}, database ${APP_NAME}, port 3306 (root password is also ${DATABASE_PASSWORD})
+# connect as user root, password ${DATABASE_PASSWORD}, database ${APP_NAME}, port 3306
 services:
   mysql:
     image: mysql:8
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${APP_NAME}
-      MYSQL_USER: ${APP_NAME}
-      MYSQL_PASSWORD: ${DATABASE_PASSWORD}
       MYSQL_ROOT_PASSWORD: ${DATABASE_PASSWORD}
     volumes:
       - ${DATA_DIR}/mysql:/var/lib/mysql
