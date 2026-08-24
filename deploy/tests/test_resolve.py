@@ -87,9 +87,10 @@ class DownloadRefTest(unittest.TestCase):
                     asset.write_text("data")
                 return ok()
 
-            path = resolve.download_ref("owner/repo@v1.2.3:thing.zip", out, run=run)
+            path, resolved_ref = resolve.download_ref("owner/repo@v1.2.3:thing.zip", out, run=run)
             self.assertEqual(path, asset)
             self.assertTrue(path.is_file())
+            self.assertEqual(resolved_ref, "owner/repo@v1.2.3:thing.zip")
 
     def test_resolves_latest_before_download(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -104,9 +105,10 @@ class DownloadRefTest(unittest.TestCase):
                 asset.write_text("data")
                 return ok()
 
-            resolve.download_ref("owner/repo@latest", out, default_asset="flightdeck.zip", run=run)
+            _, resolved_ref = resolve.download_ref("owner/repo@latest", out, default_asset="flightdeck.zip", run=run)
             download_call = [c for c in calls if "download" in c][0]
             self.assertIn("v9.9.9", download_call)
+            self.assertEqual(resolved_ref, "owner/repo@v9.9.9:flightdeck.zip")
 
     def test_raises_when_asset_missing_after_download(self):
         with tempfile.TemporaryDirectory() as directory:

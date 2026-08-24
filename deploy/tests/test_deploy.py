@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import sys
 import tarfile
 import tempfile
@@ -92,12 +93,13 @@ class BuildReleaseTest(unittest.TestCase):
             )
 
             def fake_download_ref(ref, out_dir, default_asset=None, run=None):
-                return apps_zip
+                return apps_zip, "owner/repo@v1.0.0:apps.zip"
 
             config = {"app_refs": ["owner/repo@latest:apps.zip"]}
             with patch.object(deploy, "download_ref", side_effect=fake_download_ref):
-                release_dir = deploy.build_release(config, work_dir / "work")
+                release_dir, resolved_app_refs = deploy.build_release(config, work_dir / "work")
 
+            self.assertEqual(resolved_app_refs, ["owner/repo@v1.0.0:apps.zip"])
             self.assertTrue((release_dir / "apps" / "common.yml").is_file())
             self.assertTrue((release_dir / "apps" / "networks.yml").is_file())
             self.assertTrue((release_dir / "apps" / "traefik" / "docker-compose.yml").is_file())
@@ -111,7 +113,7 @@ class BuildReleaseTest(unittest.TestCase):
             zips = {"a.zip": first_zip, "b.zip": second_zip}
 
             def fake_download_ref(ref, out_dir, default_asset=None, run=None):
-                return zips["a.zip"] if "a.zip" in ref else zips["b.zip"]
+                return (zips["a.zip"], "owner/repo@v1.0.0:a.zip") if "a.zip" in ref else (zips["b.zip"], "owner/repo@v1.0.0:b.zip")
 
             config = {"app_refs": ["owner/repo@latest:a.zip", "owner/repo@latest:b.zip"]}
             with patch.object(deploy, "download_ref", side_effect=fake_download_ref), self.assertRaises(deploy.DeployError):
@@ -125,7 +127,7 @@ class BuildReleaseTest(unittest.TestCase):
             zips = {"a.zip": first_zip, "b.zip": second_zip}
 
             def fake_download_ref(ref, out_dir, default_asset=None, run=None):
-                return zips["a.zip"] if "a.zip" in ref else zips["b.zip"]
+                return (zips["a.zip"], "owner/repo@v1.0.0:a.zip") if "a.zip" in ref else (zips["b.zip"], "owner/repo@v1.0.0:b.zip")
 
             config = {"app_refs": ["owner/repo@latest:a.zip", "owner/repo@latest:b.zip"]}
             with patch.object(deploy, "download_ref", side_effect=fake_download_ref), self.assertRaises(deploy.DeployError):
@@ -137,7 +139,7 @@ class BuildReleaseTest(unittest.TestCase):
             empty_zip = make_zip(work_dir / "src" / "empty.zip", {"README.md": "n/a\n"})
 
             def fake_download_ref(ref, out_dir, default_asset=None, run=None):
-                return empty_zip
+                return empty_zip, "owner/repo@v1.0.0:empty.zip"
 
             config = {"app_refs": ["owner/repo@latest:empty.zip"]}
             with patch.object(deploy, "download_ref", side_effect=fake_download_ref), self.assertRaises(deploy.DeployError):
@@ -186,10 +188,12 @@ class ResolveAppEnvsTest(unittest.TestCase):
             config = {"apps": {"codecov": {"env_refs": ["owner/repo@latest:a.sops.env"]}}}
 
             with (
-                patch.object(deploy, "download_ref", return_value=ciphertext),
+                patch.object(deploy, "download_ref", return_value=(ciphertext, "owner/repo@v1.0.0:a.sops.env")),
                 patch.object(deploy, "decrypt_env", return_value="ADMIN_MAIL=a@example.com\n"),
             ):
-                deploy.resolve_app_envs(config, work_dir / "work", release_dir, work_dir / "key.txt")
+                resolved_env_refs = deploy.resolve_app_envs(config, work_dir / "work", release_dir, work_dir / "key.txt")
+
+            self.assertEqual(resolved_env_refs, {"codecov": ["owner/repo@v1.0.0:a.sops.env"]})
 
             env_path = release_dir / "apps" / "codecov" / ".env"
             self.assertEqual(env_path.read_text(), "APP_NAME=codecov\nADMIN_MAIL=a@example.com\n")
@@ -208,7 +212,8 @@ class ResolveAppEnvsTest(unittest.TestCase):
             second_env.write_text("DOMAIN=ENC[AES256_GCM,data:Cd==,iv:xx==,tag:yy==,type:str]\n")
 
             def fake_download_ref(ref, out_dir, default_asset=None, run=None):
-                return first_env if ref.endswith(":a.sops.env") else second_env
+                path = first_env if ref.endswith(":a.sops.env") else second_env
+                return path, ref
 
             config = {
                 "apps": {
@@ -234,7 +239,8 @@ class ResolveAppEnvsTest(unittest.TestCase):
             rybbit_env.write_text("DOMAIN=ENC[AES256_GCM,data:Cd==,iv:xx==,tag:yy==,type:str]\n")
 
             def fake_download_ref(ref, out_dir, default_asset=None, run=None):
-                return traefik_env if "traefik" in ref else rybbit_env
+                path = traefik_env if "traefik" in ref else rybbit_env
+                return path, ref
 
             def fake_decrypt_env(path, age_key_file, run=None):
                 return "DOMAIN=example.com\n"
@@ -283,16 +289,47 @@ class ArchiveReleaseTest(unittest.TestCase):
             self.assertIn("apps/traefik/docker-compose.yml", names)
 
 
+class WriteReleaseManifestTest(unittest.TestCase):
+    def test_writes_manifest_with_sorted_apps(self):
+        with tempfile.TemporaryDirectory() as directory:
+            release_dir = Path(directory)
+
+            deploy.write_release_manifest(
+                release_dir,
+                "20260824T211714Z",
+                ["owner/repo@v0.8.0"],
+                {
+                    "traefik": ["owner/repo@v0.8.0:traefik.sops.env"],
+                    "cloudflared": ["owner/repo@v0.8.0:cloudflared.sops.env"],
+                },
+            )
+
+            manifest = json.loads((release_dir / "manifest.json").read_text())
+            self.assertEqual(manifest["schema_version"], 1)
+            self.assertEqual(manifest["release"], "20260824T211714Z")
+            self.assertEqual(manifest["app_refs"], ["owner/repo@v0.8.0"])
+            self.assertEqual(manifest["apps"], ["cloudflared", "traefik"])
+            self.assertEqual(
+                manifest["env_refs"],
+                {
+                    "traefik": ["owner/repo@v0.8.0:traefik.sops.env"],
+                    "cloudflared": ["owner/repo@v0.8.0:cloudflared.sops.env"],
+                },
+            )
+            self.assertNotIn("target", manifest)
+
+
 class FakeConnection:
     """Stand-in for fabric.Connection - records commands/uploads instead of
     opening a real SSH session, so deploy_to_host's command sequence can be
     verified without a local sshd."""
 
-    def __init__(self, host):
+    def __init__(self, host, previous_manifest=""):
         self.host = host
         self.client = SimpleNamespace(set_missing_host_key_policy=lambda policy: None)
         self.commands = []
         self.uploads = []
+        self.previous_manifest = previous_manifest
 
     def run(self, command, hide=False):
         self.commands.append(command)
@@ -301,6 +338,8 @@ class FakeConnection:
         if command.startswith("ls -1dt"):
             releases = "\n".join(f"/home/deploy/flightdeck/releases/rel{i}/" for i in range(7))
             return SimpleNamespace(stdout=releases + "\n")
+        if "manifest.json" in command and command.startswith("cat "):
+            return SimpleNamespace(stdout=self.previous_manifest)
         return SimpleNamespace(stdout="")
 
     def put(self, local, remote):
@@ -323,6 +362,7 @@ class DeployToHostTest(unittest.TestCase):
                     apps=["traefik", "rybbit"],
                     networks=["traefik", "databases", "mcp"],
                     config=config,
+                    release_name="20260824T211714Z",
                 )
 
             self.assertEqual(fake.uploads[0], (str(archive_path), fake.uploads[0][1]))
@@ -334,6 +374,7 @@ class DeployToHostTest(unittest.TestCase):
             self.assertIn("docker network create databases", joined)
             self.assertIn("docker network create mcp", joined)
             self.assertIn("tar -xzf", joined)
+            self.assertIn("/home/deploy/flightdeck/releases/20260824T211714Z", joined)
             self.assertIn("mkdir -p /home/deploy/flightdeck/apps-data/traefik", joined)
             self.assertIn("mkdir -p /home/deploy/flightdeck/apps-data/rybbit", joined)
             self.assertIn("DATA_DIR=/home/deploy/flightdeck/apps-data/traefik", joined)
@@ -349,6 +390,50 @@ class DeployToHostTest(unittest.TestCase):
                 self.assertIn(stale, prune_command)
             for kept in ("rel0", "rel1", "rel2", "rel3", "rel4"):
                 self.assertNotIn(kept, prune_command)
+
+    def test_stops_apps_removed_from_the_desired_set(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work_dir = Path(directory)
+            archive_path = work_dir / "release.tar.gz"
+            archive_path.write_text("fake archive\n")
+            config = {"hosts": ["deploy@host"], "keep_releases": 5}
+
+            previous_manifest = json.dumps({"apps": ["traefik", "gatus"]})
+            fake = FakeConnection("deploy@host", previous_manifest=previous_manifest)
+            with patch.object(deploy, "Connection", return_value=fake):
+                deploy.deploy_to_host(
+                    "deploy@host",
+                    archive_path,
+                    apps=["traefik"],
+                    networks=["traefik"],
+                    config=config,
+                    release_name="20260824T211714Z",
+                )
+
+            joined = "\n".join(fake.commands)
+            self.assertIn("cd /home/deploy/flightdeck/current/apps/gatus 2>/dev/null && docker compose down || true", joined)
+            self.assertNotIn("apps/traefik 2>/dev/null && docker compose down", joined)
+
+    def test_no_previous_manifest_stops_nothing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work_dir = Path(directory)
+            archive_path = work_dir / "release.tar.gz"
+            archive_path.write_text("fake archive\n")
+            config = {"hosts": ["deploy@host"], "keep_releases": 5}
+
+            fake = FakeConnection("deploy@host")
+            with patch.object(deploy, "Connection", return_value=fake):
+                deploy.deploy_to_host(
+                    "deploy@host",
+                    archive_path,
+                    apps=["traefik"],
+                    networks=["traefik"],
+                    config=config,
+                    release_name="20260824T211714Z",
+                )
+
+            joined = "\n".join(fake.commands)
+            self.assertNotIn("docker compose down", joined)
 
 
 if __name__ == "__main__":

@@ -40,9 +40,11 @@ def build_release(config, work_dir):
     apps_dir = release_dir / "apps"
     apps_dir.mkdir(parents=True)
 
+    resolved_app_refs = []
     for index, ref in enumerate(config["app_refs"], start=1):
         package_dir = pull_dir / f"apps-{index}"
-        bundle = download_ref(ref, package_dir / "pull", default_asset=APPS_BUNDLE_ASSET)
+        bundle, resolved_ref = download_ref(ref, package_dir / "pull", default_asset=APPS_BUNDLE_ASSET)
+        resolved_app_refs.append(resolved_ref)
         extract_dir = package_dir / "extract"
         with ZipFile(bundle) as archive:
             archive.extractall(extract_dir)
@@ -60,7 +62,7 @@ def build_release(config, work_dir):
             else:
                 shutil.copy2(entry, target)
 
-    return release_dir
+    return release_dir, resolved_app_refs
 
 
 def render_app_configs(release_dir, app, values):
@@ -73,11 +75,14 @@ def render_app_configs(release_dir, app, values):
 
 def resolve_app_envs(config, work_dir, release_dir, age_key_file):
     pull_dir = work_dir / "envs"
+    resolved_env_refs = {}
     for app, app_config in config["apps"].items():
-        paths = [
+        downloaded = [
             download_ref(ref, pull_dir / app / str(index))
             for index, ref in enumerate(app_config["env_refs"], start=1)
         ]
+        paths = [path for path, _ in downloaded]
+        resolved_env_refs[app] = [resolved_ref for _, resolved_ref in downloaded]
         check_env_collisions(paths)
 
         plaintext = f"APP_NAME={app}\n" + "".join(decrypt_env(path, age_key_file) for path in paths)
@@ -86,6 +91,20 @@ def resolve_app_envs(config, work_dir, release_dir, age_key_file):
         app_env_path.chmod(0o600)
 
         render_app_configs(release_dir, app, parse_dotenv(plaintext))
+    return resolved_env_refs
+
+
+def write_release_manifest(release_dir, release_name, resolved_app_refs, resolved_env_refs):
+    manifest = {
+        "schema_version": 1,
+        "release": release_name,
+        "app_refs": resolved_app_refs,
+        "apps": sorted(resolved_env_refs),
+        "env_refs": resolved_env_refs,
+    }
+    manifest_path = release_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+    manifest_path.chmod(0o644)
 
 
 def list_required_networks(release_dir):
@@ -123,6 +142,17 @@ def push_release(connection, archive_path, release_path):
     connection.run(f"chmod 600 {shlex.quote(release_path)}/apps/*/.env", hide=True)
 
 
+def stop_removed_apps(connection, current_path, apps):
+    result = connection.run(f"cat {shlex.quote(current_path)}/manifest.json 2>/dev/null || true", hide=True)
+    if not result.stdout.strip():
+        return
+    previous = json.loads(result.stdout)
+    removed = sorted(set(previous.get("apps", [])) - set(apps))
+    for app in removed:
+        compose_dir = f"{current_path}/apps/{app}"
+        connection.run(f"cd {shlex.quote(compose_dir)} 2>/dev/null && docker compose down || true", hide=True)
+
+
 def prune_releases(connection, releases_path, keep_releases):
     result = connection.run(f"ls -1dt {shlex.quote(releases_path)}/*/ 2>/dev/null || true", hide=True)
     releases = [line.strip().rstrip("/") for line in result.stdout.splitlines() if line.strip()]
@@ -131,7 +161,7 @@ def prune_releases(connection, releases_path, keep_releases):
         connection.run("rm -rf " + " ".join(shlex.quote(release) for release in stale), hide=True)
 
 
-def deploy_to_host(host, archive_path, apps, networks, config):
+def deploy_to_host(host, archive_path, apps, networks, config, release_name):
     connection = Connection(host)
     connection.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
@@ -141,7 +171,6 @@ def deploy_to_host(host, archive_path, apps, networks, config):
 
     releases_path = f"{base_path}/releases"
     current_path = f"{base_path}/current"
-    release_name = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     release_path = f"{releases_path}/{release_name}"
 
     bootstrap_host(connection, base_path, networks)
@@ -152,6 +181,7 @@ def deploy_to_host(host, archive_path, apps, networks, config):
         env_path = f"{release_path}/apps/{app}/.env"
         connection.run(f"echo {shlex.quote(f'DATA_DIR={data_dir}')} >> {shlex.quote(env_path)}", hide=True)
 
+    stop_removed_apps(connection, current_path, apps)
     connection.run(f"ln -sfn {shlex.quote(release_path)} {shlex.quote(current_path)}", hide=True)
 
     for app in apps:
@@ -183,8 +213,10 @@ def main():
         age_key_file.write_text(config["sops_age_key"])
         age_key_file.chmod(0o600)
 
-        release_dir = build_release(config, work_dir)
-        resolve_app_envs(config, work_dir, release_dir, age_key_file)
+        release_dir, resolved_app_refs = build_release(config, work_dir)
+        resolved_env_refs = resolve_app_envs(config, work_dir, release_dir, age_key_file)
+        release_name = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        write_release_manifest(release_dir, release_name, resolved_app_refs, resolved_env_refs)
         archive_path = archive_release(release_dir, work_dir)
         networks = list_required_networks(release_dir)
 
@@ -192,7 +224,7 @@ def main():
 
         for host in config["hosts"]:
             print(f"Deploying to {host}")
-            deploy_to_host(host, archive_path, apps, networks, config)
+            deploy_to_host(host, archive_path, apps, networks, config, release_name)
 
 
 if __name__ == "__main__":
