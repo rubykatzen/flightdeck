@@ -73,7 +73,7 @@ The repository uses a modular docker-compose structure with reusable components:
    - No shared healthcheck anchor - each service declares its own `healthcheck:` directly, since the right check (and the tool to run it with) is different per image; see "Healthchecks" below
 
 2. **Shared Infrastructure** (`apps/networks.yml` plus versioned database/cache/service templates):
-   - `networks.yml`: Defines `internal`, `databases`, `mcp`, and `traefik` networks
+   - `networks.yml`: Defines `internal`, `databases`, and `traefik` networks
    - `postgres-17.yml`, `postgres-18.yml`: PostgreSQL service templates
    - `paradedb-17.yml`, `pgvector-17.yml`: Postgres-compatible variants (full-text search, vector search)
    - `redis-7.yml`, `redis-8.yml`: Redis service templates
@@ -197,7 +197,7 @@ HTTP-01 (`httpChallenge`) is always configured and needs nothing from the vault 
 
 ## Operations
 
-There are no wrapper scripts and nothing runs them - starting, stopping, and restarting apps all happen by deploying (`deploy/deploy.py`, see "CI/CD" below). The external Docker networks `traefik`, `databases`, and `mcp` are created idempotently by `deploy/deploy.py` on every deploy (derived from `apps/networks.yml`'s `external: true` entries), not by a separate first-run step. `apps-data/traefik/acme.json` isn't created by `deploy/deploy.py` at all - traefik's `docker-compose.yml` mounts `apps-data/{app}/` as a directory (not the file directly, which would make Docker create a directory in its place if the file doesn't exist yet), and Traefik creates `acme.json` inside it itself on first start, with the permissions it requires.
+There are no wrapper scripts and nothing runs them - starting, stopping, and restarting apps all happen by deploying (`deploy/deploy.py`, see "CI/CD" below). The external Docker networks `traefik` and `databases` are created idempotently by `deploy/deploy.py` on every deploy (derived from `apps/networks.yml`'s `external: true` entries), not by a separate first-run step. `apps-data/traefik/acme.json` isn't created by `deploy/deploy.py` at all - traefik's `docker-compose.yml` mounts `apps-data/{app}/` as a directory (not the file directly, which would make Docker create a directory in its place if the file doesn't exist yet), and Traefik creates `acme.json` inside it itself on first start, with the permissions it requires.
 
 Debugging an already-deployed app means SSHing into the target host directly and using Docker Compose itself - no wrapper needed, since each app's directory is already a complete, ready-to-run Compose project (real `.env` sitting next to the compose file):
 
