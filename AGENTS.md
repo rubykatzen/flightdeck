@@ -67,10 +67,10 @@ This is a Docker-based deployment system (flightdeck) that manages core services
 The repository uses a modular docker-compose structure with reusable components:
 
 1. **Common Service Definitions** (`apps/common.yml`):
-   - `x-healthcheck`: Universal health check logic supporting multiple tools (curl, wget, nc, etc.)
    - `x-labels`: Traefik labels for routing and SSL
    - `x-restart`: Restart policy (unless-stopped)
    - Pre-defined service profiles: `main`, `main-http`, `api`, `host`, `side`
+   - No shared healthcheck anchor - each service declares its own `healthcheck:` directly, since the right check (and the tool to run it with) is different per image; see "Healthchecks" below
 
 2. **Shared Infrastructure** (`apps/networks.yml` plus versioned database/cache/service templates):
    - `networks.yml`: Defines `internal`, `databases`, `mcp`, and `traefik` networks
@@ -84,12 +84,24 @@ The repository uses a modular docker-compose structure with reusable components:
    - `gotenberg-8.yml`: Gotenberg (document conversion) service template
    - Templates are versioned by filename (e.g. `postgres-17.yml` vs `postgres-18.yml`) so an app picks its version explicitly via which file it includes, not a shared default
    - Apps include these via `include:` directive to get database/cache/service dependencies
+   - Every one of these connects as the engine's own built-in default account - `postgres` for Postgres-flavored images, `root` for MySQL/MongoDB, `default` for ClickHouse/Redis - with a required password (`DATABASE_PASSWORD`), never a separate `${APP_NAME}`-scoped user. This isn't arbitrary: several of these images' own "create a custom user" env var (`CLICKHOUSE_USER`, `POSTGRES_USER`) actually *renames* the built-in account rather than adding a second one alongside it, and some third-party apps hardcode which username they connect as with no way to override it (confirmed from source: rybbit's ClickHouse client always authenticates as `default`, no env var for it at all). Renaming the account out from under an app that only knows how to connect as the original name breaks it outright - discovered this deploying rybbit. Each template documents its actual connection user/password/database/port in a one-line header comment.
 
 3. **App Structure Pattern**:
    Each app in `apps/` has:
    - `docker-compose.yml` extending common services
    - Optional `*.tpl` config files sitting directly next to `docker-compose.yml` (see "Config Templates" below)
    - A `.env` on the target host only, decrypted and placed there by `deploy/deploy.py` (never checked into this repo, never present until a real deploy runs)
+
+### Healthchecks
+
+Give every service an explicit `healthcheck:` - there's no shared anchor for this, since the right check (and the tool to run it with) depends entirely on the image. Before writing one, check the image's own docs first: most well-behaved images document a health endpoint or a purpose-built CLI subcommand made for exactly this, and using it beats guessing.
+
+Two real examples from this catalog, both confirmed by testing against a running container before committing rather than assumed from docs alone:
+
+- `cloudflared`'s image ships no shell (`sh` isn't on `$PATH`), so a `wget`/`curl`-via-shell check is a non-starter - but it has its own `cloudflared tunnel ready` subcommand built for exactly this (calls the local `/ready` endpoint, exits accordingly), gated behind `--metrics` actually being enabled on the run command (off by default).
+- `rybbit`'s client image has `wget` and serves 200 on `/` - a plain `wget --no-verbose --tries=1 --spider http://127.0.0.1:<port>/` is enough.
+
+Standard shape used throughout the catalog: `start_period: 30s`, `interval: 30s`, `timeout: 5s`, `retries: 5`.
 
 ### Environment Variable System
 
@@ -122,7 +134,7 @@ Inside a `docker-compose.yml`/`*.tpl` file, variable names are always bare - nev
 
 What makes a variable "shared" vs. "app-specific" is a fact about the *vault*, not the compose file: whether multiple apps' vaults map the same variable name to the same GitHub Secret/Variable, or only one app's vault ever references it at all.
 
-App-name prefixing happens on the *other* side of a vault manifest's `env:` mapping - the GitHub Secret/Variable name - and only as a judgment call when it helps a human scanning a flat list of a target's Secrets/Variables tell which app a value belongs to (e.g. `TRAEFIK_HTTP_PORT` keeps its prefix because a bare `HTTP_PORT` wouldn't self-document; `ADMIN_MAIL` doesn't need one because it doesn't need explaining). See "Vaults And Targets" in README for the manifest format.
+App-name prefixing happens on the *other* side of a vault manifest's `env:` mapping - when that side is a `${NAME}` reference to a GitHub Secret/Variable - and only as a judgment call when it helps a human scanning a flat list of a target's Secrets/Variables tell which app a value belongs to (e.g. `TRAEFIK_HTTP_PORT` keeps its prefix because a bare `HTTP_PORT` wouldn't self-document; `ADMIN_MAIL` doesn't need one because it doesn't need explaining). A vault `env:` value can also be a bare literal instead of a `${NAME}` reference, for a value that's fixed for that target but isn't a secret and doesn't need a GitHub Secret/Variable to exist just to hold it - see "Vaults And Targets" in README for the manifest format.
 
 There's no per-app override mechanism (a bash-fallback `${APPNAME_VAR:-${VAR}}` pattern existed here before and was removed - nothing in the catalog ever used it). If an app genuinely needs a value another app also uses but with a different value, give it its own distinctly-named variable instead - not a namespaced variant of the same name.
 
@@ -330,7 +342,7 @@ services:
 5. **Image before extends** - declare what image is used, then extend common config
 6. **Environment via anchor** - always declare env vars in an anchor, referenced with `environment: *name` (or merged via `<<: [*vault-env, *internal-env]` when split) - never inline a service's `environment:` map directly
 7. **Networks from extends** - `main`, `main-http`, and `api` profiles include `traefik` and `internal`; never add `databases` (it's only for DB admin tools)
-8. **Depends_on as simple list** - use array format without `condition:`, healthchecks are in common.yml
+8. **Depends_on** - plain array format (`- postgres`) when only startup order matters; add `condition: service_healthy` per dependency when the app would actually break running against a not-yet-ready dependency (e.g. running migrations before the database accepts connections) - see "Healthchecks" below for how each dependency gets a healthcheck to gate on in the first place
 9. **Depends_on order**: postgres → redis → mongo → app services
 10. **Volumes order**: persistent data directories (from `apps-data/`) → rendered config files (relative path, with :ro)
 11. **Paths use ${APP_NAME}** - for reusability across apps
