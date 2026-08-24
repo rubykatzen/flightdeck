@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/rubykatzen/flightdeck/compare/v0.4.0...v0.5.0) (2026-08-24)
+
+
+### Features
+
+* add optional cloudflared app for Cloudflare Tunnel ingress ([#135](https://github.com/rubykatzen/flightdeck/issues/135)) ([0327336](https://github.com/rubykatzen/flightdeck/commit/0327336355c358612455dbb1bb95f8b9cd9f3bbe))
+
 ## [0.4.0](https://github.com/rubykatzen/flightdeck/compare/v0.3.0...v0.4.0) (2026-08-21)
 
 
