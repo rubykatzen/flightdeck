@@ -2,7 +2,5 @@ networks:
   internal:
   databases:
     external: true
-  mcp:
-    external: true
   traefik:
     external: true
