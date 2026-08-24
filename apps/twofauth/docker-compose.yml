@@ -50,4 +50,4 @@ services:
     environment:
       <<: [*vault-env, *internal-env]
     volumes:
-      - ../../apps-data/${APP_NAME}/2fauth:/2fauth
+      - ${DATA_DIR}/2fauth:/2fauth

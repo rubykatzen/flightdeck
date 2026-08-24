@@ -11,7 +11,7 @@ services:
     labels:
       - "traefik.http.services.${APP_NAME}.loadbalancer.server.port=8090"
     volumes:
-      - ../../apps-data/${APP_NAME}/beszel_data:/beszel_data
+      - ${DATA_DIR}/beszel_data:/beszel_data
     healthcheck:
       test: ["CMD", "/beszel", "health", "--url", "http://localhost:8090"]
       start_period: 30s

@@ -14,4 +14,4 @@ services:
       - "traefik.http.services.${APP_NAME}.loadbalancer.server.port=3000"
     environment: *vault-env
     volumes:
-      - ../../apps-data/${APP_NAME}/config:/app/config
+      - ${DATA_DIR}/config:/app/config

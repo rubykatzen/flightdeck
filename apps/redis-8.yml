@@ -3,7 +3,7 @@ services:
     image: redis:8
     restart: unless-stopped
     volumes:
-      - ../apps-data/${APP_NAME}/redis:/data
+      - ${DATA_DIR}/redis:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       start_period: 30s

@@ -32,7 +32,7 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ../../apps-data/${APP_NAME}:/letsencrypt
+      - ${DATA_DIR}:/letsencrypt
     networks:
       - traefik
     security_opt:

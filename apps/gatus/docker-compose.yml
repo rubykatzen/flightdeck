@@ -23,7 +23,7 @@ services:
     environment:
       <<: [*vault-env, *internal-env]
     volumes:
-      - ../../apps-data/${APP_NAME}/config:/config
+      - ${DATA_DIR}/config:/config
       - ./global.yml:/config/yml/global.yml
     depends_on:
       - postgres

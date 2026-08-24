@@ -192,7 +192,7 @@ class ResolveAppEnvsTest(unittest.TestCase):
                 deploy.resolve_app_envs(config, work_dir / "work", release_dir, work_dir / "key.txt")
 
             env_path = release_dir / "apps" / "codecov" / ".env"
-            self.assertEqual(env_path.read_text(), "ADMIN_MAIL=a@example.com\n")
+            self.assertEqual(env_path.read_text(), "APP_NAME=codecov\nADMIN_MAIL=a@example.com\n")
             self.assertEqual(oct(env_path.stat().st_mode)[-3:], "600")
 
             rendered_path = release_dir / "apps" / "codecov" / "codecov.yml"
@@ -336,6 +336,10 @@ class DeployToHostTest(unittest.TestCase):
             self.assertIn("tar -xzf", joined)
             self.assertIn("mkdir -p /home/deploy/flightdeck/apps-data/traefik", joined)
             self.assertIn("mkdir -p /home/deploy/flightdeck/apps-data/rybbit", joined)
+            self.assertIn("DATA_DIR=/home/deploy/flightdeck/apps-data/traefik", joined)
+            self.assertIn("DATA_DIR=/home/deploy/flightdeck/apps-data/rybbit", joined)
+            self.assertIn("apps/traefik/.env", joined)
+            self.assertIn("apps/rybbit/.env", joined)
             self.assertIn("ln -sfn", joined)
             self.assertIn("apps/rybbit && docker compose pull && docker compose up -d --remove-orphans", joined)
             self.assertIn("apps/traefik && docker compose pull && docker compose up -d --remove-orphans", joined)

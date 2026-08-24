@@ -80,7 +80,7 @@ def resolve_app_envs(config, work_dir, release_dir, age_key_file):
         ]
         check_env_collisions(paths)
 
-        plaintext = "".join(decrypt_env(path, age_key_file) for path in paths)
+        plaintext = f"APP_NAME={app}\n" + "".join(decrypt_env(path, age_key_file) for path in paths)
         app_env_path = release_dir / "apps" / app / ".env"
         app_env_path.write_text(plaintext)
         app_env_path.chmod(0o600)
@@ -147,7 +147,10 @@ def deploy_to_host(host, archive_path, apps, networks, config):
     bootstrap_host(connection, base_path, networks)
     push_release(connection, archive_path, release_path)
     for app in apps:
-        connection.run(f"mkdir -p {shlex.quote(f'{base_path}/apps-data/{app}')}", hide=True)
+        data_dir = f"{base_path}/apps-data/{app}"
+        connection.run(f"mkdir -p {shlex.quote(data_dir)}", hide=True)
+        env_path = f"{release_path}/apps/{app}/.env"
+        connection.run(f"echo {shlex.quote(f'DATA_DIR={data_dir}')} >> {shlex.quote(env_path)}", hide=True)
 
     connection.run(f"ln -sfn {shlex.quote(release_path)} {shlex.quote(current_path)}", hide=True)
 

@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: ${APP_NAME}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
     volumes:
-      - ../apps-data/${APP_NAME}/timescale:/var/lib/postgresql/data
+      - ${DATA_DIR}/timescale:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD", "pg_isready", "-d", "${APP_NAME}", "-U", "${APP_NAME}"]
       start_period: 30s
