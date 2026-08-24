@@ -31,7 +31,8 @@ The deploy is push-based and runs entirely on the GitHub Actions runner:
 3. Check each app's env sources for key collisions from the still-encrypted ciphertext (SOPS's dotenv output only encrypts values, so key names are readable without decryption) — scoped to that app's own sources, not across apps.
 4. Decrypt each app's env with the target's private SOPS age key (a GitHub Secret) and write it straight into that app's `.env` in the release tree.
 5. Render that app's `*.tpl` config files in place, next to its `docker-compose.yml`, using the decrypted values — the same substitution `envsubst` does, run here instead of on the host.
-6. Push the finished release (real `.env`, already-rendered config, one tarball) to each host over SSH, switch the `current` symlink, and run `docker compose pull && docker compose up -d` per app.
+6. Write a `manifest.json` into the release tree — resolved `app_refs`/`env_refs` (the actual tag pulled, not `@latest`) and the desired app set, no secrets.
+7. Push the finished release (real `.env`, already-rendered config, the manifest, one tarball) to each host over SSH. Before switching `current`, compare the new desired app set against the previous release's `manifest.json` and `docker compose down` anything no longer desired, then switch the `current` symlink and run `docker compose pull && docker compose up -d` per app.
 
 What gets deployed — which app bundles, which apps actually run, and which encrypted env sources feed each one — is configured declaratively per target; see "Vaults And Targets" below for the manifest format.
 

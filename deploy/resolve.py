@@ -79,4 +79,4 @@ def download_ref(ref, out_dir, default_asset=None, run=subprocess.run):
     path = out_dir / resolved.asset
     if not path.is_file():
         raise RefError(f"{resolved.asset} was not found in {resolved.repo}@{tag}")
-    return path
+    return path, f"{resolved.repo}@{tag}:{resolved.asset}"
