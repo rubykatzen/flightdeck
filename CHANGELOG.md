@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/rubykatzen/flightdeck/compare/v0.6.1...v0.6.2) (2026-08-24)
+
+
+### Bug Fixes
+
+* correct APP_NAME and persistent data paths for deployed apps ([#143](https://github.com/rubykatzen/flightdeck/issues/143)) ([46b4050](https://github.com/rubykatzen/flightdeck/commit/46b4050a0726255bfaad837f0468b310f7444847))
+
 ## [0.6.1](https://github.com/rubykatzen/flightdeck/compare/v0.6.0...v0.6.1) (2026-08-24)
 
 
