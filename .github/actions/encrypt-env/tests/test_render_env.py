@@ -13,7 +13,7 @@ SPEC.loader.exec_module(render_env)
 
 class RenderEnvTest(unittest.TestCase):
     def test_render_prefers_secrets_over_variables(self):
-        manifest = {"env": {"DOMAIN": "DOMAIN", "TIMEZONE": "TIMEZONE"}}
+        manifest = {"env": {"DOMAIN": "${DOMAIN}", "TIMEZONE": "${TIMEZONE}"}}
         output = render_env.render_env(
             manifest,
             {"DOMAIN": "secret.example"},
@@ -23,7 +23,7 @@ class RenderEnvTest(unittest.TestCase):
         self.assertIn("TIMEZONE=Europe/Berlin\n", output)
 
     def test_quotes_shell_sensitive_values(self):
-        output = render_env.render_env({"env": {"TOKEN": "TOKEN"}}, {"TOKEN": "hello world"}, {})
+        output = render_env.render_env({"env": {"TOKEN": "${TOKEN}"}}, {"TOKEN": "hello world"}, {})
         self.assertIn("TOKEN='hello world'\n", output)
 
     def test_rejects_raw_env(self):
@@ -32,7 +32,26 @@ class RenderEnvTest(unittest.TestCase):
 
     def test_missing_source_fails(self):
         with self.assertRaises(render_env.ManifestError):
-            render_env.render_env({"env": {"TOKEN": "TOKEN"}}, {}, {})
+            render_env.render_env({"env": {"TOKEN": "${TOKEN}"}}, {}, {})
+
+    def test_literal_values_pass_through_without_lookup(self):
+        manifest = {"env": {"DISABLE_SIGNUP": True, "MAX_RETRIES": 5, "LABEL": "internal-only"}}
+        output = render_env.render_env(manifest, {}, {})
+        self.assertIn("DISABLE_SIGNUP=true\n", output)
+        self.assertIn("MAX_RETRIES=5\n", output)
+        self.assertIn("LABEL=internal-only\n", output)
+
+    def test_literal_false_renders_lowercase(self):
+        output = render_env.render_env({"env": {"FLAG": False}}, {}, {})
+        self.assertIn("FLAG=false\n", output)
+
+    def test_rejects_malformed_reference(self):
+        with self.assertRaises(render_env.ManifestError):
+            render_env.load_manifest(self.write_manifest("asset: test.sops.env\nkeys: [k]\nenv:\n  TOKEN: ${lowercase}\n"))
+
+    def test_rejects_dict_or_list_literal(self):
+        with self.assertRaises(render_env.ManifestError):
+            render_env.load_manifest(self.write_manifest("asset: test.sops.env\nkeys: [k]\nenv:\n  TOKEN: [a, b]\n"))
 
     def test_duplicate_yaml_keys_fail(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -64,7 +83,7 @@ class RenderEnvTest(unittest.TestCase):
                 "asset: mainframe.sops.env\n"
                 "keys: [master, server]\n"
                 "env:\n"
-                "  TOKEN: TOKEN\n"
+                "  TOKEN: ${TOKEN}\n"
             )
             old_env = os.environ.copy()
             os.environ.update(

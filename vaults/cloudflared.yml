@@ -2,4 +2,4 @@ asset: cloudflared.sops.env
 keys:
   - heimdall
 env:
-  TUNNEL_TOKEN: CLOUDFLARE_TUNNEL_TOKEN
+  TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}

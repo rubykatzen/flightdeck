@@ -198,7 +198,7 @@ asset: mainframe-traefik.sops.env
 keys:
   - mainframe
 env:
-  HTTP_PORT: MAINFRAME_TRAEFIK_HTTP_PORT
+  HTTP_PORT: ${MAINFRAME_TRAEFIK_HTTP_PORT}
 ```
 
 `vaults/mainframe-rybbit.yml`:
@@ -208,7 +208,8 @@ asset: mainframe-rybbit.sops.env
 keys:
   - mainframe
 env:
-  DOMAIN: MAINFRAME_DOMAIN
+  DOMAIN: ${MAINFRAME_DOMAIN}
+  DISABLE_SIGNUP: true
 ```
 
 `targets/mainframe.yml`:
@@ -238,6 +239,8 @@ credentials:
 ```
 
 Credential fields contain GitHub Variable/Secret names, never credential values. `app_refs` and `hosts` are YAML arrays; `apps` is a mapping from app name to that app's own `env_refs` array. Each host uses the SSH `user@host` format. `app_refs` must list at least one app bundle — flightdeck's own `apps/` catalog is just another entry, not implicit. Each app in `apps` must list at least one `env_refs` entry; `deploy/deploy.py` decrypts and concatenates all of an app's sources into that app's own `.env` on the runner, failing loud on any key collision — but only within that one app's own sources. Two different apps' vaults sharing a key (e.g. both declaring `DOMAIN`) is expected, since each app gets a separate `.env`. `credentials.secrets.sops_age_key` names the GitHub Secret holding this target's *private* age key — the one used to decrypt its vaults, matching the public key in `keys/<target>.pub` used to encrypt them.
+
+A vault manifest's `env:` value is either `${NAME}` (a reference — look up the GitHub Secret/Variable named `NAME`) or a bare literal (any other value, used as-is with no lookup at all — see `DISABLE_SIGNUP: true` above). Use a literal for a value that's fixed for this target but isn't a secret and doesn't need a GitHub Secret/Variable to exist just to hold it.
 
 `load-yaml-matrix` reads every file in `vaults/` or `targets/` into a matrix — it does not validate the manifest shape. Each manifest's fields are the responsibility of whatever consumes them: `encrypt-env` re-parses and validates its own manifest from `manifest`, and the workflows calling `deploy-shared.yml` apply `path`/`keep-releases` defaults and pull `credentials.secrets`/`credentials.variables` values directly from the matrix item.
 
@@ -269,10 +272,11 @@ asset: mainframe-traefik.sops.env
 keys:
   - mainframe
 env:
-  HTTP_PORT: MAINFRAME_TRAEFIK_HTTP_PORT   # output name: GitHub Secret/Variable name
+  HTTP_PORT: ${MAINFRAME_TRAEFIK_HTTP_PORT}   # output name: ${GitHub Secret/Variable name}
+  DISABLE_SIGNUP: true                        # output name: literal value, no lookup
 ```
 
-Secrets take precedence over Variables when both contain the same source key. Every source key must exist or the action fails.
+Secrets take precedence over Variables when both contain the same `${...}` reference. Every reference must resolve to an existing Secret or Variable, or the action fails; literals never fail this way since there's nothing to look up.
 
 ---
 
