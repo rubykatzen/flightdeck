@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/rubykatzen/flightdeck/compare/v0.5.0...v0.6.0) (2026-08-24)
+
+
+### Features
+
+* retire hawkeye target, deploy to heimdall instead ([#138](https://github.com/rubykatzen/flightdeck/issues/138)) ([7be54a2](https://github.com/rubykatzen/flightdeck/commit/7be54a2c84c127c9842724363e464e3727ac60ee))
+
 ## [0.5.0](https://github.com/rubykatzen/flightdeck/compare/v0.4.0...v0.5.0) (2026-08-24)
 
 
