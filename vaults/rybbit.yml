@@ -1,6 +1,6 @@
-asset: hawkeye-rybbit.sops.env
+asset: rybbit.sops.env
 keys:
-  - hawkeye
+  - heimdall
 env:
   DOMAIN: DOMAIN
   DATABASE_PASSWORD: DATABASE_PASSWORD

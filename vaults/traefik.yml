@@ -1,6 +1,6 @@
-asset: hawkeye-traefik.sops.env
+asset: traefik.sops.env
 keys:
-  - hawkeye
+  - heimdall
 env:
   ADMIN_MAIL: ADMIN_MAIL
   DNS_CHALLENGE_PROVIDER: DNS_CHALLENGE_PROVIDER

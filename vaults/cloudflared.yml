@@ -1,5 +1,5 @@
-asset: hawkeye-cloudflared.sops.env
+asset: cloudflared.sops.env
 keys:
-  - hawkeye
+  - heimdall
 env:
   TUNNEL_TOKEN: CLOUDFLARE_TUNNEL_TOKEN

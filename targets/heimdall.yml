@@ -3,19 +3,19 @@ app_refs:
 apps:
   traefik:
     env_refs:
-      - rubykatzen/flightdeck@latest:hawkeye-traefik.sops.env
+      - rubykatzen/flightdeck@latest:traefik.sops.env
   rybbit:
     env_refs:
-      - rubykatzen/flightdeck@latest:hawkeye-rybbit.sops.env
+      - rubykatzen/flightdeck@latest:rybbit.sops.env
   cloudflared:
     env_refs:
-      - rubykatzen/flightdeck@latest:hawkeye-cloudflared.sops.env
+      - rubykatzen/flightdeck@latest:cloudflared.sops.env
 hosts:
-  - rubykatzen-com@100.75.50.2
+  - root@100.75.53.13
 credentials:
   variables:
     tailscale_oauth_client_id: TAILSCALE_OAUTH_CLIENT_ID
   secrets:
     ssh_private_key: DEPLOY_SSH_PRIVATE_KEY
     tailscale_oauth_secret: TAILSCALE_OAUTH_SECRET
-    sops_age_key: HAWKEYE_AGE_PRIVATE_KEY
+    sops_age_key: HEIMDALL_AGE_PRIVATE_KEY
