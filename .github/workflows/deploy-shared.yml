@@ -82,6 +82,7 @@ jobs:
           DEPLOY_PATH: ${{ inputs.path }}
           KEEP_RELEASES: ${{ inputs.keep-releases }}
           SOPS_AGE_KEY: ${{ secrets.sops-age-key }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           jq -n \
             --argjson hosts "$HOSTS" \
