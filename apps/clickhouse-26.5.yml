@@ -4,9 +4,7 @@ services:
     restart: unless-stopped
     environment:
       CLICKHOUSE_DB: ${APP_NAME}
-      CLICKHOUSE_USER: ${APP_NAME}
       CLICKHOUSE_PASSWORD: ${DATABASE_PASSWORD}
-      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     volumes:
       - ${DATA_DIR}/clickhouse/data:/var/lib/clickhouse
       - ${DATA_DIR}/clickhouse/logs:/var/log/clickhouse-server
