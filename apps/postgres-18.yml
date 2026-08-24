@@ -1,4 +1,4 @@
-# connect as user ${APP_NAME}, password ${DATABASE_PASSWORD}, database ${APP_NAME}
+# connect as user ${APP_NAME}, password ${DATABASE_PASSWORD}, database ${APP_NAME}, port 5432
 services:
   postgres:
     image: postgres:18

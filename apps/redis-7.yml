@@ -1,4 +1,4 @@
-# connect as user default, password ${DATABASE_PASSWORD}
+# connect as user default, password ${DATABASE_PASSWORD}, port 6379
 services:
   redis:
     image: redis:7

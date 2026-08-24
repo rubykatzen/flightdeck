@@ -1,6 +1,7 @@
 # connect as user default (not ${APP_NAME} - CLICKHOUSE_USER renames the
 # built-in default user rather than adding one, and some clients hardcode
-# "default" with no way to override it), password ${DATABASE_PASSWORD}, database ${APP_NAME}
+# "default" with no way to override it), password ${DATABASE_PASSWORD},
+# database ${APP_NAME}, port 8123 (HTTP; native protocol is 9000)
 services:
   clickhouse:
     image: clickhouse/clickhouse-server:25.4
