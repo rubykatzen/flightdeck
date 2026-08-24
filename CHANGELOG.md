@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.3](https://github.com/rubykatzen/flightdeck/compare/v0.6.2...v0.6.3) (2026-08-24)
+
+
+### Bug Fixes
+
+* add rybbit's missing redis dependency, stop renaming clickhouse's default user ([#145](https://github.com/rubykatzen/flightdeck/issues/145)) ([dfeb5dd](https://github.com/rubykatzen/flightdeck/commit/dfeb5dddcb2071d473cb2210b26b032e806a3402))
+
 ## [0.6.2](https://github.com/rubykatzen/flightdeck/compare/v0.6.1...v0.6.2) (2026-08-24)
 
 
