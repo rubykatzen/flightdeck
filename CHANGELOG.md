@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/rubykatzen/flightdeck/compare/v0.8.0...v0.9.0) (2026-08-24)
+
+
+### Features
+
+* write a release manifest, stop apps removed from the desired set ([#154](https://github.com/rubykatzen/flightdeck/issues/154)) ([4b75d1d](https://github.com/rubykatzen/flightdeck/commit/4b75d1d2871ae373fafc859959ca3fa8461c6bd7))
+
 ## [0.8.0](https://github.com/rubykatzen/flightdeck/compare/v0.7.0...v0.8.0) (2026-08-24)
 
 
