@@ -2,6 +2,7 @@ services:
   mysql:
     image: mysql:8
     restart: unless-stopped
+    # connect as user ${APP_NAME}, password ${DATABASE_PASSWORD}, database ${APP_NAME} (root password is also ${DATABASE_PASSWORD})
     environment:
       MYSQL_DATABASE: ${APP_NAME}
       MYSQL_USER: ${APP_NAME}
