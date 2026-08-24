@@ -3,13 +3,19 @@ x-vault-env: &vault-env
 services:
   cloudflared:
     image: cloudflare/cloudflared
-    command: tunnel --no-autoupdate run
+    command: tunnel --no-autoupdate --metrics 0.0.0.0:20241 run
     environment: *vault-env
     networks:
       - traefik
     security_opt:
       - no-new-privileges:true
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "--metrics", "0.0.0.0:20241", "ready"]
+      start_period: 30s
+      interval: 30s
+      timeout: 5s
+      retries: 5
 networks:
   traefik:
     external: true
