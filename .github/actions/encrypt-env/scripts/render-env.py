@@ -62,13 +62,14 @@ def load_manifest(path):
         raise ManifestError("manifest contains unknown keys: " + ", ".join(unknown))
     asset = manifest.get("asset")
     keys = manifest.get("keys")
-    env = manifest.get("env")
+    env = manifest.get("env") or {}
+    manifest["env"] = env
     if not isinstance(asset, str) or not ASSET_RE.fullmatch(asset):
         raise ManifestError("asset must be named like server.sops.env")
     if not isinstance(keys, list) or not keys:
         raise ManifestError("keys must be a non-empty list")
-    if not isinstance(env, dict) or not env:
-        raise ManifestError("env must be a non-empty mapping")
+    if not isinstance(env, dict):
+        raise ManifestError("env must be a mapping")
     for key in keys:
         if not isinstance(key, str) or not KEY_NAME_RE.fullmatch(key):
             raise ManifestError(f"invalid key name: {key!r}")
@@ -119,6 +120,8 @@ def render_env(manifest, secrets, variables):
         lines.append(f"{output_name}={dotenv_value(value)}")
     if missing:
         raise ManifestError("missing GitHub Secrets/Variables: " + ", ".join(sorted(missing)))
+    if not lines:
+        return ""
     return "\n".join(lines) + "\n"
 
 

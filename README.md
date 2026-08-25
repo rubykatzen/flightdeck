@@ -279,6 +279,8 @@ env:
 
 Secrets take precedence over Variables when both contain the same `${...}` reference. Every reference must resolve to an existing Secret or Variable, or the action fails; literals never fail this way since there's nothing to look up.
 
+`env:` can be empty or omitted entirely for an app that genuinely needs zero vault-sourced values (e.g. its `docker-compose.yml` references no `${VAR}` placeholders at all - config lives in a mounted volume, or first-run setup happens through the app's own UI). The vault manifest is still required (`app.<name>.env_refs` must reference at least one), it just renders an empty `.env`.
+
 ---
 
 ### `build-bundle`
