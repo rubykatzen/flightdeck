@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/rubykatzen/flightdeck/compare/v0.10.0...v0.11.0) (2026-08-25)
+
+
+### Features
+
+* let an app skip vaults entirely instead of using an empty one ([#160](https://github.com/rubykatzen/flightdeck/issues/160)) ([3940976](https://github.com/rubykatzen/flightdeck/commit/39409768f6f8ddcc6e104b8f5b13ffe28ccac4f6))
+
 ## [0.10.0](https://github.com/rubykatzen/flightdeck/compare/v0.9.0...v0.10.0) (2026-08-25)
 
 
