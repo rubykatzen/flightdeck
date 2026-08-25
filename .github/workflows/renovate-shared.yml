@@ -50,6 +50,7 @@ jobs:
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
           ssh-add - <<< "${{ secrets[matrix.credentials.secrets.ssh_private_key] }}"
       - name: Run renovate
+        id: run
         shell: bash
         env:
           APP: ${{ inputs.app }}
@@ -60,3 +61,10 @@ jobs:
           jq -n --arg app "$APP" --argjson hosts "$HOSTS" --arg path "$TARGET_PATH" --argjson apps "$TARGET_APPS" \
             '{app: $app, hosts: $hosts, path: $path, apps: $apps}' \
             | python3 deploy/renovate.py
+      - name: Notify Telegram
+        if: steps.run.outputs.updated == 'true'
+        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.1
+        with:
+          message: "Renovate: ${{ inputs.app }} updated on ${{ matrix.name }} (${{ steps.run.outputs.updated_hosts }})"
+          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}

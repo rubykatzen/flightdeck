@@ -17,8 +17,13 @@ declared in its targets/*.yml manifest - since the matrix fans out to
 every target regardless of whether it actually runs the requested app,
 `app` not being a key in it just means this target is a clean no-op, not
 an error.
+
+Writes `updated`/`updated_hosts` to $GITHUB_OUTPUT so the calling
+workflow can notify only when a host's image actually changed, rather
+than on every run.
 """
 import json
+import os
 import shlex
 import sys
 
@@ -34,8 +39,21 @@ def renovate_host(host, base_path, app):
     connection = Connection(host)
     connection.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     home = connection.run("echo $HOME", hide=True).stdout.strip()
-    compose_dir = f"{expand_home(base_path, home)}/current/apps/{app}"
-    connection.run(f"cd {shlex.quote(compose_dir)} && docker compose pull && docker compose up -d --remove-orphans")
+    compose_dir = shlex.quote(f"{expand_home(base_path, home)}/current/apps/{app}")
+    command = (
+        f"cd {compose_dir} && before=$(docker compose images -q) && docker compose pull "
+        f'&& after=$(docker compose images -q) && docker compose up -d --remove-orphans '
+        f'&& if [ "$before" != "$after" ]; then echo RENOVATE_UPDATED; fi'
+    )
+    result = connection.run(command)
+    return "RENOVATE_UPDATED" in result.stdout
+
+
+def write_github_output(name, value):
+    output_path = os.environ.get("GITHUB_OUTPUT")
+    if output_path:
+        with open(output_path, "a", encoding="utf-8") as output:
+            output.write(f"{name}={value}\n")
 
 
 def main():
@@ -44,12 +62,18 @@ def main():
     apps = config.get("apps") or {}
     if app not in apps:
         print(f"{app!r} is not deployed on this target, skipping")
+        write_github_output("updated", "false")
         return
 
     base_path = config.get("path", "~/flightdeck")
+    updated_hosts = []
     for host in config["hosts"]:
         print(f"Renovating {app} on {host}")
-        renovate_host(host, base_path, app)
+        if renovate_host(host, base_path, app):
+            updated_hosts.append(host)
+
+    write_github_output("updated", "true" if updated_hosts else "false")
+    write_github_output("updated_hosts", ",".join(updated_hosts))
 
 
 if __name__ == "__main__":
