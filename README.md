@@ -60,6 +60,7 @@ flightdeck/
 │
 ├── deploy/
 │   ├── deploy.py       # Push-based deploy entrypoint (runs on the CI runner)
+│   ├── renovate.py     # Prototype: re-pull/recreate one app's containers across every matching target
 │   ├── resolve.py      # owner/repo@tag[:asset] release ref resolution/download
 │   ├── collisions.py   # Ciphertext-based env key collision detection
 │   ├── vault.py        # SOPS decryption
@@ -72,6 +73,7 @@ flightdeck/
 │   │   └── load-yaml-matrix/            # Read a directory of YAML manifests into a workflow matrix
 │   └── workflows/
 │       ├── deploy-shared.yml           # Reusable deployment workflow
+│       ├── renovate.yml                # Prototype: folder-driven, non-matrix app renovation
 │       └── release.yml                 # Release Please + publish Flightdeck assets
 │
 ├── vaults/                        # Encrypted env asset configurations, one per app
@@ -361,6 +363,24 @@ jobs:
 <!-- x-release-please-end -->
 
 The `@v0.11.1` pin on the `uses:` line only controls which ref runs `deploy/deploy.py` itself. `app-refs` entries are separate and don't have to match the workflow pin. <!-- x-release-please-version -->
+
+---
+
+### `renovate.yml` (prototype)
+
+**Experimental — a deliberately different contract shape from `deploy-shared.yml`, kept around to compare against before settling on one approach for #120/#121.** Not a reusable `workflow_call` yet; it's a repo-local `workflow_dispatch` in this repository, since `targets/` already lives here.
+
+`deploy-shared.yml` is invoked once per target by the *caller's* own matrix (see `deploy.yml`) — the caller resolves each target's secrets before the reusable workflow ever runs. `renovate.yml` inverts that: it takes an `app` name and a `targets-directory` (default `targets`), and [`deploy/renovate.py`](deploy/renovate.py) itself reads every manifest in that directory, finds which targets currently run that app, and renovates each match — no matrix, no per-target `workflow_call`. This is the only way to express "find this app on every target that runs it" as an input, since a GitHub Actions matrix has to be resolved by the caller before the job starts, and the whole point here is that the caller doesn't know which targets match ahead of time.
+
+Renovating means `docker compose pull && docker compose up -d` against that app's already-current release directory on the host — nothing else. It never touches `app_refs`/`env_refs`, never re-decrypts a vault, never rebuilds the release tree; it just picks up a new image behind an existing tag. Because the job resolves secrets for potentially several matched targets itself (not per-matrix-cell), it reads the whole `GITHUB_SECRETS_JSON` blob (same pattern `encrypt-env` uses) and looks up each matched target's `credentials.secrets.ssh_private_key` by name at runtime, loading it into the job's SSH agent per target.
+
+**Known gap:** unlike `deploy-shared.yml`, this has no Tailscale support yet — a matched target only reachable over a tailnet can't be renovated by this workflow today. Solving that per-target, inside one job, needs either multiple sequential `tailscale up`/`tailscale down` cycles or driving Tailscale's OAuth-to-authkey exchange directly instead of the marketplace action (which only runs once per job at the YAML level). Deferred until this contract shape is the chosen one.
+
+```yaml
+# workflow_dispatch inputs:
+#   app: beszel                 # required
+#   targets-directory: targets  # optional, default shown
+```
 
 ## License
 
