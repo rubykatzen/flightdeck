@@ -60,7 +60,7 @@ flightdeck/
 │
 ├── deploy/
 │   ├── deploy.py       # Push-based deploy entrypoint (runs on the CI runner)
-│   ├── renovate.py     # Prototype: re-pull/recreate one app's containers across every matching target
+│   ├── renovate.py     # Prototype: re-pull/recreate one app's containers on one already-resolved target
 │   ├── resolve.py      # owner/repo@tag[:asset] release ref resolution/download
 │   ├── collisions.py   # Ciphertext-based env key collision detection
 │   ├── vault.py        # SOPS decryption
@@ -74,7 +74,7 @@ flightdeck/
 │   └── workflows/
 │       ├── deploy-shared.yml           # Reusable deployment workflow
 │       ├── renovate.yml                # Prototype: thin workflow_dispatch trigger for renovate-shared.yml
-│       ├── renovate-shared.yml         # Prototype: folder-driven, non-matrix reusable renovation workflow
+│       ├── renovate-shared.yml         # Prototype: computes its own target matrix, then fans out like deploy-shared.yml
 │       └── release.yml                 # Release Please + publish Flightdeck assets
 │
 ├── vaults/                        # Encrypted env asset configurations, one per app
@@ -369,18 +369,18 @@ The `@v0.11.1` pin on the `uses:` line only controls which ref runs `deploy/depl
 
 ### `renovate.yml` / `renovate-shared.yml` (prototype)
 
-**Experimental — kept around to compare against `deploy.yml`/`deploy-shared.yml`'s matrix approach before settling on one contract for #120/#121.** Mirrors that same two-file split — a thin `workflow_dispatch` trigger (`renovate.yml`) calling a reusable `workflow_call` workflow (`renovate-shared.yml`) that holds all the actual logic — but the *contract* between the two files is deliberately different, because the problem shape is different.
+**Experimental — kept around to compare against `deploy.yml`/`deploy-shared.yml`'s approach before settling on one contract for #120/#121.** Same two-file split as deploy (a thin `workflow_dispatch` trigger calling a reusable `workflow_call` workflow), and now the *same* matrix mechanics too — the difference that's actually being compared is narrower than it first looks: where the target matrix gets computed.
 
-`deploy.yml` resolves a matrix from `targets/` itself (via `load-yaml-matrix`) and calls `deploy-shared.yml` once per target, with that target's secrets already picked out by name (`secrets[matrix.credentials.secrets.ssh_private_key]`, etc.) — `deploy-shared.yml` never reads `targets/` itself, it only ever sees one already-resolved target. `renovate.yml` can't do that: "find every target currently running this app" can't be answered by the caller before the job starts, since a GitHub Actions matrix has to be fully resolved ahead of time and that's exactly the thing we don't know yet. So `renovate.yml` just passes `app`/`targets-directory` straight through with `secrets: inherit`, and [`deploy/renovate.py`](deploy/renovate.py) — running inside `renovate-shared.yml` — reads every manifest in that directory itself, finds the matches, and renovates each one in a single job.
+`deploy.yml` computes its matrix from `targets/` itself and calls `deploy-shared.yml` once per already-known target. `renovate.yml` can't do that — "find every target currently running this app" isn't answerable by the outer trigger before the job starts, since a matrix has to be fully resolved ahead of time and that's exactly the thing we don't know yet. So `renovate.yml` just passes `app`/`targets-directory` straight through with `secrets: inherit`, and `renovate-shared.yml` computes the matrix *itself*, in its own first job (`find-targets`, plain `load-yaml-matrix` over every manifest — deliberately not filtered by app, so that utility stays exactly as dumb and generic as it already is). Its second job (`renovate`) then fans out over that matrix exactly like `deploy-shared.yml` does — one job per target, with native per-matrix-cell secret/Tailscale resolution (`secrets[matrix.credentials.secrets.ssh_private_key]`, etc.) — except every target gets dispatched unconditionally, whether or not it actually runs the requested app. [`deploy/renovate.py`](deploy/renovate.py) itself makes that call: if `app` isn't a key in the target's own `apps` mapping, it just logs and no-ops instead of erroring, since a target-matrix fan-out has no other way to say "skip me."
 
-Renovating means `docker compose pull && docker compose up -d` against that app's already-current release directory on the host — nothing else. It never touches `app_refs`/`env_refs`, never re-decrypts a vault, never rebuilds the release tree; it just picks up a new image behind an existing tag. Because one job may act on several matched targets (not one per matrix cell), `renovate-shared.yml` needs `secrets: inherit` from its caller and reads the whole `GITHUB_SECRETS_JSON` blob (same pattern `encrypt-env` uses) so `deploy/renovate.py` can look up each matched target's `credentials.secrets.ssh_private_key` by name at runtime, loading it into the job's SSH agent per target.
+Renovating means `docker compose pull && docker compose up -d` against that app's already-current release directory on the host — nothing else. It never touches `app_refs`/`env_refs`, never re-decrypts a vault, never rebuilds the release tree; it just picks up a new image behind an existing tag.
 
 **Known gaps:**
 
-- No Tailscale support yet — a matched target only reachable over a tailnet can't be renovated by this workflow today. Solving that per-target, inside one job, needs either multiple sequential `tailscale up`/`tailscale down` cycles or driving Tailscale's OAuth-to-authkey exchange directly instead of the marketplace action (which only runs once per job at the YAML level).
-- `renovate-shared.yml` only checks out its caller's own repository, so it currently only works when the caller's repo *is* this one (as it is here, since `targets/heimdall.yml` lives in this repo). Genuine cross-repo reuse - a private consumer repo calling `rubykatzen/flightdeck/.github/workflows/renovate-shared.yml@vX` for its own `targets/` - would need a second checkout of flightdeck's own ref (like `deploy-shared.yml` does) to get `deploy/renovate.py` alongside the caller's `targets/`, into separate paths.
+- If `app` matches no target at all (a typo, say), every matrix job just no-ops and the whole run still reports success — there's no cheap way to fail loudly on "zero matches across the board" without a job that waits on the whole matrix and inspects its results.
+- `find-targets` checks out its caller's own repository (to read `targets/`), while `renovate` checks out flightdeck's own ref (to get `deploy/renovate.py`, like `deploy-shared.yml` does) — so genuine cross-repo reuse (a private consumer repo calling `rubykatzen/flightdeck/.github/workflows/renovate-shared.yml@vX` for its own `targets/`) should already work, but hasn't been exercised outside this repo yet.
 
-Both deferred until this contract shape is the chosen one.
+Deferred until this contract shape is the chosen one.
 
 ```yaml
 jobs:

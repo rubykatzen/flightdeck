@@ -1,9 +1,7 @@
 import importlib.util
 import io
 import json
-import os
 import sys
-import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -16,12 +14,6 @@ MODULE_PATH = DEPLOY_DIR / "renovate.py"
 SPEC = importlib.util.spec_from_file_location("renovate_entrypoint", MODULE_PATH)
 renovate = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(renovate)
-
-
-def write_target(directory, name, content):
-    path = Path(directory) / f"{name}.yml"
-    path.write_text(content)
-    return path
 
 
 class FakeConnection:
@@ -40,128 +32,60 @@ class FakeConnection:
         return SimpleNamespace(stdout="")
 
 
-class LoadTargetsTest(unittest.TestCase):
-    def test_reads_every_manifest_in_directory(self):
-        with tempfile.TemporaryDirectory() as directory:
-            write_target(directory, "heimdall", "apps:\n  traefik: {}\n")
-            write_target(directory, "mainframe", "apps:\n  rybbit: {}\n")
+class ExpandHomeTest(unittest.TestCase):
+    def test_expands_tilde_prefix(self):
+        self.assertEqual(renovate.expand_home("~/flightdeck", "/home/deploy"), "/home/deploy/flightdeck")
 
-            targets = renovate.load_targets(directory)
-
-            self.assertEqual(
-                sorted(targets),
-                [("heimdall", {"apps": {"traefik": {}}}), ("mainframe", {"apps": {"rybbit": {}}})],
-            )
-
-    def test_raises_when_directory_has_no_manifests(self):
-        with tempfile.TemporaryDirectory() as directory, self.assertRaises(renovate.RenovateError):
-            renovate.load_targets(directory)
+    def test_leaves_absolute_path_untouched(self):
+        self.assertEqual(renovate.expand_home("/opt/flightdeck", "/home/deploy"), "/opt/flightdeck")
 
 
-class FindMatchingTargetsTest(unittest.TestCase):
-    def test_matches_targets_running_the_app(self):
-        targets = [
-            ("heimdall", {"apps": {"traefik": {}, "beszel": {}}}),
-            ("mainframe", {"apps": {"rybbit": {}}}),
-        ]
+class RenovateHostTest(unittest.TestCase):
+    def test_pulls_and_recreates_without_touching_the_release(self):
+        fake = FakeConnection("deploy@host")
+        with patch.object(renovate, "Connection", return_value=fake):
+            renovate.renovate_host("deploy@host", "~/flightdeck", "beszel")
 
-        matches = renovate.find_matching_targets(targets, "beszel")
-
-        self.assertEqual(matches, [("heimdall", {"apps": {"traefik": {}, "beszel": {}}})])
-
-    def test_ignores_targets_without_an_apps_mapping(self):
-        targets = [("empty", {})]
-
-        self.assertEqual(renovate.find_matching_targets(targets, "beszel"), [])
-
-
-class LoadSshKeyTest(unittest.TestCase):
-    def test_adds_resolved_secret_to_the_agent(self):
-        calls = []
-
-        def fake_run(args, input=None, capture_output=None, text=None):
-            calls.append((args, input))
-            return SimpleNamespace(returncode=0, stderr="")
-
-        renovate.load_ssh_key({"HEIMDALL_SSH_KEY": "-----KEY-----"}, "HEIMDALL_SSH_KEY", run=fake_run)
-
-        self.assertEqual(calls, [(["ssh-add", "-"], "-----KEY-----")])
-
-    def test_raises_on_missing_secret(self):
-        with self.assertRaises(renovate.RenovateError):
-            renovate.load_ssh_key({}, "MISSING_SECRET")
-
-    def test_raises_when_ssh_add_fails(self):
-        def fake_run(args, input=None, capture_output=None, text=None):
-            return SimpleNamespace(returncode=1, stderr="bad key")
-
-        with self.assertRaises(renovate.RenovateError):
-            renovate.load_ssh_key({"KEY": "text"}, "KEY", run=fake_run)
-
-
-class RenovateTargetTest(unittest.TestCase):
-    def test_renovates_every_host_without_touching_versions(self):
-        manifest = {
-            "hosts": ["deploy@app1.example.com", "deploy@app2.example.com"],
-            "path": "~/flightdeck",
-            "credentials": {"secrets": {"ssh_private_key": "DEPLOY_SSH_PRIVATE_KEY"}},
-        }
-        secrets = {"DEPLOY_SSH_PRIVATE_KEY": "-----KEY-----"}
-        fakes = {}
-
-        def fake_connection(host):
-            fakes[host] = FakeConnection(host)
-            return fakes[host]
-
-        ssh_calls = []
-
-        def fake_run(args, input=None, capture_output=None, text=None):
-            ssh_calls.append(input)
-            return SimpleNamespace(returncode=0, stderr="")
-
-        with patch.object(renovate, "Connection", side_effect=fake_connection):
-            renovate.renovate_target("mainframe", manifest, "beszel", secrets, run=fake_run)
-
-        self.assertEqual(ssh_calls, ["-----KEY-----"])
-        for host in manifest["hosts"]:
-            joined = "\n".join(fakes[host].commands)
-            self.assertIn("cd /home/deploy/flightdeck/current/apps/beszel", joined)
-            self.assertIn("docker compose pull && docker compose up -d --remove-orphans", joined)
+        joined = "\n".join(fake.commands)
+        self.assertIn("cd /home/deploy/flightdeck/current/apps/beszel", joined)
+        self.assertIn("docker compose pull && docker compose up -d --remove-orphans", joined)
 
 
 class MainTest(unittest.TestCase):
-    def _run_main(self, directory, app, secrets):
-        stdin = io.StringIO(json.dumps({"app": app, "targets_directory": str(directory)}))
-        with (
-            patch.object(sys, "stdin", stdin),
-            patch.dict(os.environ, {"GITHUB_SECRETS_JSON": json.dumps(secrets)}),
-        ):
+    def _run_main(self, config):
+        with patch.object(sys, "stdin", io.StringIO(json.dumps(config))):
             renovate.main()
 
-    def test_raises_when_app_matches_no_target(self):
-        with tempfile.TemporaryDirectory() as directory:
-            write_target(directory, "heimdall", "apps:\n  traefik: {}\n")
+    def test_skips_a_target_that_does_not_run_the_app(self):
+        with patch.object(renovate, "renovate_host") as fake_renovate_host:
+            self._run_main({"app": "beszel", "hosts": ["deploy@host"], "apps": {"traefik": {}}})
 
-            with self.assertRaises(renovate.RenovateError):
-                self._run_main(directory, "beszel", {})
+        fake_renovate_host.assert_not_called()
 
-    def test_renovates_every_matching_target(self):
-        with tempfile.TemporaryDirectory() as directory:
-            write_target(
-                directory,
-                "heimdall",
-                "apps:\n  beszel: {}\nhosts: [deploy@host]\ncredentials:\n  secrets:\n    ssh_private_key: KEY\n",
+    def test_renovates_every_host_when_the_target_runs_the_app(self):
+        with patch.object(renovate, "renovate_host") as fake_renovate_host:
+            self._run_main(
+                {
+                    "app": "beszel",
+                    "hosts": ["deploy@app1.example.com", "deploy@app2.example.com"],
+                    "path": "~/flightdeck",
+                    "apps": {"beszel": {}},
+                }
             )
-            write_target(directory, "mainframe", "apps:\n  rybbit: {}\nhosts: [deploy@other]\n")
 
-            with (
-                patch.object(renovate, "renovate_target") as fake_renovate_target,
-            ):
-                self._run_main(directory, "beszel", {"KEY": "-----KEY-----"})
+        self.assertEqual(
+            fake_renovate_host.call_args_list,
+            [
+                unittest.mock.call("deploy@app1.example.com", "~/flightdeck", "beszel"),
+                unittest.mock.call("deploy@app2.example.com", "~/flightdeck", "beszel"),
+            ],
+        )
 
-            fake_renovate_target.assert_called_once()
-            name, manifest, app, secrets = fake_renovate_target.call_args[0]
-            self.assertEqual((name, app), ("heimdall", "beszel"))
+    def test_defaults_path_when_omitted(self):
+        with patch.object(renovate, "renovate_host") as fake_renovate_host:
+            self._run_main({"app": "beszel", "hosts": ["deploy@host"], "apps": {"beszel": {}}})
+
+        fake_renovate_host.assert_called_once_with("deploy@host", "~/flightdeck", "beszel")
 
 
 if __name__ == "__main__":

@@ -11,26 +11,52 @@ on:
         type: string
         default: targets
 jobs:
+  find-targets:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      count: ${{ steps.matrix.outputs.count }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: $/.github/actions/load-yaml-matrix
+        id: matrix
+        with:
+          directory: ${{ inputs.targets-directory }}
   renovate:
+    needs: find-targets
+    if: needs.find-targets.outputs.count != '0'
+    strategy:
+      matrix: ${{ fromJson(needs.find-targets.outputs.matrix) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
       - name: Install deploy dependencies
         shell: bash
         run: pip install --user --break-system-packages -r deploy/requirements.txt
-      - name: Start SSH agent
+      - uses: tailscale/github-action@v4
+        if: matrix.credentials.variables.tailscale_oauth_client_id
+        with:
+          oauth-client-id: ${{ vars[matrix.credentials.variables.tailscale_oauth_client_id] }}
+          oauth-secret: ${{ secrets[matrix.credentials.secrets.tailscale_oauth_secret] }}
+          tags: tag:ci
+      - name: Load SSH key
         shell: bash
         run: |
           eval "$(ssh-agent -s)"
           echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
+          ssh-add - <<< "${{ secrets[matrix.credentials.secrets.ssh_private_key] }}"
       - name: Run renovate
         shell: bash
         env:
           APP: ${{ inputs.app }}
-          TARGETS_DIRECTORY: ${{ inputs.targets-directory }}
-          GITHUB_SECRETS_JSON: ${{ toJson(secrets) }}
+          HOSTS: ${{ toJson(matrix.hosts) }}
+          TARGET_PATH: ${{ matrix.path || '~/flightdeck' }}
+          TARGET_APPS: ${{ toJson(matrix.apps) }}
         run: |
-          jq -n --arg app "$APP" --arg targets_directory "$TARGETS_DIRECTORY" \
-            '{app: $app, targets_directory: $targets_directory}' \
+          jq -n --arg app "$APP" --argjson hosts "$HOSTS" --arg path "$TARGET_PATH" --argjson apps "$TARGET_APPS" \
+            '{app: $app, hosts: $hosts, path: $path, apps: $apps}' \
             | python3 deploy/renovate.py
