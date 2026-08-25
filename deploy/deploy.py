@@ -79,7 +79,7 @@ def resolve_app_envs(config, work_dir, release_dir, age_key_file):
     for app, app_config in config["apps"].items():
         downloaded = [
             download_ref(ref, pull_dir / app / str(index))
-            for index, ref in enumerate(app_config["env_refs"], start=1)
+            for index, ref in enumerate(app_config.get("env_refs") or [], start=1)
         ]
         paths = [path for path, _ in downloaded]
         resolved_env_refs[app] = [resolved_ref for _, resolved_ref in downloaded]

@@ -202,6 +202,26 @@ class ResolveAppEnvsTest(unittest.TestCase):
             rendered_path = release_dir / "apps" / "codecov" / "codecov.yml"
             self.assertEqual(rendered_path.read_text(), "email: a@example.com\n")
 
+    def test_app_without_env_refs_gets_no_vault_decrypted(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work_dir = Path(directory)
+            release_dir = self._release_dir_with_app(work_dir, "beszel")
+
+            config = {"apps": {"beszel": {}}}
+
+            with (
+                patch.object(deploy, "download_ref") as fake_download_ref,
+                patch.object(deploy, "decrypt_env") as fake_decrypt_env,
+            ):
+                resolved_env_refs = deploy.resolve_app_envs(config, work_dir / "work", release_dir, work_dir / "key.txt")
+
+            fake_download_ref.assert_not_called()
+            fake_decrypt_env.assert_not_called()
+            self.assertEqual(resolved_env_refs, {"beszel": []})
+
+            env_path = release_dir / "apps" / "beszel" / ".env"
+            self.assertEqual(env_path.read_text(), "APP_NAME=beszel\n")
+
     def test_raises_on_collision_within_one_apps_own_env_refs(self):
         with tempfile.TemporaryDirectory() as directory:
             work_dir = Path(directory)
