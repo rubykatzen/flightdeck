@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/rubykatzen/flightdeck/compare/v0.9.0...v0.10.0) (2026-08-25)
+
+
+### Features
+
+* make a vault manifest's env: optional ([#158](https://github.com/rubykatzen/flightdeck/issues/158)) ([04b33ff](https://github.com/rubykatzen/flightdeck/commit/04b33ff12d1cfb228bf5481360b97cbc246d1815))
+
 ## [0.9.0](https://github.com/rubykatzen/flightdeck/compare/v0.8.0...v0.9.0) (2026-08-24)
 
 
