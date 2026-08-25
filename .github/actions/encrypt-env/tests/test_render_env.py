@@ -53,6 +53,20 @@ class RenderEnvTest(unittest.TestCase):
         with self.assertRaises(render_env.ManifestError):
             render_env.load_manifest(self.write_manifest("asset: test.sops.env\nkeys: [k]\nenv:\n  TOKEN: [a, b]\n"))
 
+    def test_allows_omitted_env(self):
+        manifest = render_env.load_manifest(self.write_manifest("asset: test.sops.env\nkeys: [k]\n"))
+        self.assertEqual(manifest["env"], {})
+        self.assertEqual(render_env.render_env(manifest, {}, {}), "")
+
+    def test_allows_empty_env_mapping(self):
+        manifest = render_env.load_manifest(self.write_manifest("asset: test.sops.env\nkeys: [k]\nenv: {}\n"))
+        self.assertEqual(manifest["env"], {})
+        self.assertEqual(render_env.render_env(manifest, {}, {}), "")
+
+    def test_rejects_non_mapping_env(self):
+        with self.assertRaises(render_env.ManifestError):
+            render_env.load_manifest(self.write_manifest("asset: test.sops.env\nkeys: [k]\nenv: [a, b]\n"))
+
     def test_duplicate_yaml_keys_fail(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "manifest.yml"
@@ -102,6 +116,31 @@ class RenderEnvTest(unittest.TestCase):
             self.assertIn("TOKEN=secret\n", env_path.read_text())
             self.assertIn("asset=mainframe.sops.env\n", outputs_path.read_text())
             self.assertIn("keys=master,server\n", outputs_path.read_text())
+
+
+    def test_main_writes_empty_env_for_vault_less_app(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            manifest_path = root / "manifest.yml"
+            env_path = root / ".env"
+            outputs_path = root / "outputs"
+            manifest_path.write_text("asset: beszel.sops.env\nkeys: [heimdall]\n")
+            old_env = os.environ.copy()
+            os.environ.update(
+                {
+                    "GITHUB_SECRETS_JSON": "{}",
+                    "GITHUB_VARS_JSON": "{}",
+                    "GITHUB_OUTPUT": str(outputs_path),
+                }
+            )
+            try:
+                result = render_env.main(["--manifest", str(manifest_path), "--output", str(env_path)])
+            finally:
+                os.environ.clear()
+                os.environ.update(old_env)
+            self.assertEqual(result, 0)
+            self.assertEqual(env_path.read_text(), "")
+            self.assertIn("asset=beszel.sops.env\n", outputs_path.read_text())
 
 
 if __name__ == "__main__":
