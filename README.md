@@ -73,7 +73,8 @@ flightdeck/
 │   │   └── load-yaml-matrix/            # Read a directory of YAML manifests into a workflow matrix
 │   └── workflows/
 │       ├── deploy-shared.yml           # Reusable deployment workflow
-│       ├── renovate.yml                # Prototype: folder-driven, non-matrix app renovation
+│       ├── renovate.yml                # Prototype: thin workflow_dispatch trigger for renovate-shared.yml
+│       ├── renovate-shared.yml         # Prototype: folder-driven, non-matrix reusable renovation workflow
 │       └── release.yml                 # Release Please + publish Flightdeck assets
 │
 ├── vaults/                        # Encrypted env asset configurations, one per app
@@ -366,20 +367,29 @@ The `@v0.11.1` pin on the `uses:` line only controls which ref runs `deploy/depl
 
 ---
 
-### `renovate.yml` (prototype)
+### `renovate.yml` / `renovate-shared.yml` (prototype)
 
-**Experimental — a deliberately different contract shape from `deploy-shared.yml`, kept around to compare against before settling on one approach for #120/#121.** Not a reusable `workflow_call` yet; it's a repo-local `workflow_dispatch` in this repository, since `targets/` already lives here.
+**Experimental — kept around to compare against `deploy.yml`/`deploy-shared.yml`'s matrix approach before settling on one contract for #120/#121.** Mirrors that same two-file split — a thin `workflow_dispatch` trigger (`renovate.yml`) calling a reusable `workflow_call` workflow (`renovate-shared.yml`) that holds all the actual logic — but the *contract* between the two files is deliberately different, because the problem shape is different.
 
-`deploy-shared.yml` is invoked once per target by the *caller's* own matrix (see `deploy.yml`) — the caller resolves each target's secrets before the reusable workflow ever runs. `renovate.yml` inverts that: it takes an `app` name and a `targets-directory` (default `targets`), and [`deploy/renovate.py`](deploy/renovate.py) itself reads every manifest in that directory, finds which targets currently run that app, and renovates each match — no matrix, no per-target `workflow_call`. This is the only way to express "find this app on every target that runs it" as an input, since a GitHub Actions matrix has to be resolved by the caller before the job starts, and the whole point here is that the caller doesn't know which targets match ahead of time.
+`deploy.yml` resolves a matrix from `targets/` itself (via `load-yaml-matrix`) and calls `deploy-shared.yml` once per target, with that target's secrets already picked out by name (`secrets[matrix.credentials.secrets.ssh_private_key]`, etc.) — `deploy-shared.yml` never reads `targets/` itself, it only ever sees one already-resolved target. `renovate.yml` can't do that: "find every target currently running this app" can't be answered by the caller before the job starts, since a GitHub Actions matrix has to be fully resolved ahead of time and that's exactly the thing we don't know yet. So `renovate.yml` just passes `app`/`targets-directory` straight through with `secrets: inherit`, and [`deploy/renovate.py`](deploy/renovate.py) — running inside `renovate-shared.yml` — reads every manifest in that directory itself, finds the matches, and renovates each one in a single job.
 
-Renovating means `docker compose pull && docker compose up -d` against that app's already-current release directory on the host — nothing else. It never touches `app_refs`/`env_refs`, never re-decrypts a vault, never rebuilds the release tree; it just picks up a new image behind an existing tag. Because the job resolves secrets for potentially several matched targets itself (not per-matrix-cell), it reads the whole `GITHUB_SECRETS_JSON` blob (same pattern `encrypt-env` uses) and looks up each matched target's `credentials.secrets.ssh_private_key` by name at runtime, loading it into the job's SSH agent per target.
+Renovating means `docker compose pull && docker compose up -d` against that app's already-current release directory on the host — nothing else. It never touches `app_refs`/`env_refs`, never re-decrypts a vault, never rebuilds the release tree; it just picks up a new image behind an existing tag. Because one job may act on several matched targets (not one per matrix cell), `renovate-shared.yml` needs `secrets: inherit` from its caller and reads the whole `GITHUB_SECRETS_JSON` blob (same pattern `encrypt-env` uses) so `deploy/renovate.py` can look up each matched target's `credentials.secrets.ssh_private_key` by name at runtime, loading it into the job's SSH agent per target.
 
-**Known gap:** unlike `deploy-shared.yml`, this has no Tailscale support yet — a matched target only reachable over a tailnet can't be renovated by this workflow today. Solving that per-target, inside one job, needs either multiple sequential `tailscale up`/`tailscale down` cycles or driving Tailscale's OAuth-to-authkey exchange directly instead of the marketplace action (which only runs once per job at the YAML level). Deferred until this contract shape is the chosen one.
+**Known gaps:**
+
+- No Tailscale support yet — a matched target only reachable over a tailnet can't be renovated by this workflow today. Solving that per-target, inside one job, needs either multiple sequential `tailscale up`/`tailscale down` cycles or driving Tailscale's OAuth-to-authkey exchange directly instead of the marketplace action (which only runs once per job at the YAML level).
+- `renovate-shared.yml` only checks out its caller's own repository, so it currently only works when the caller's repo *is* this one (as it is here, since `targets/heimdall.yml` lives in this repo). Genuine cross-repo reuse - a private consumer repo calling `rubykatzen/flightdeck/.github/workflows/renovate-shared.yml@vX` for its own `targets/` - would need a second checkout of flightdeck's own ref (like `deploy-shared.yml` does) to get `deploy/renovate.py` alongside the caller's `targets/`, into separate paths.
+
+Both deferred until this contract shape is the chosen one.
 
 ```yaml
-# workflow_dispatch inputs:
-#   app: beszel                 # required
-#   targets-directory: targets  # optional, default shown
+jobs:
+  renovate:
+    uses: $/.github/workflows/renovate-shared.yml
+    with:
+      app: beszel                 # required
+      targets-directory: targets  # optional, default shown
+    secrets: inherit
 ```
 
 ## License

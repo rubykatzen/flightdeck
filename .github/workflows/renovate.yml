@@ -12,25 +12,8 @@ on:
         default: targets
 jobs:
   renovate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - name: Install deploy dependencies
-        shell: bash
-        run: pip install --user --break-system-packages -r deploy/requirements.txt
-      - name: Start SSH agent
-        shell: bash
-        run: |
-          eval "$(ssh-agent -s)"
-          echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
-          echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
-      - name: Run renovate
-        shell: bash
-        env:
-          APP: ${{ inputs.app }}
-          TARGETS_DIRECTORY: ${{ inputs.targets-directory }}
-          GITHUB_SECRETS_JSON: ${{ toJson(secrets) }}
-        run: |
-          jq -n --arg app "$APP" --arg targets_directory "$TARGETS_DIRECTORY" \
-            '{app: $app, targets_directory: $targets_directory}' \
-            | python3 deploy/renovate.py
+    uses: $/.github/workflows/renovate-shared.yml
+    with:
+      app: ${{ inputs.app }}
+      targets-directory: ${{ inputs.targets-directory }}
+    secrets: inherit
