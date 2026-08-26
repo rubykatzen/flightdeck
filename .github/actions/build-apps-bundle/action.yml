@@ -22,7 +22,7 @@ outputs:
 runs:
   using: composite
   steps:
-    - uses: ./.github/actions/build-bundle
+    - uses: $/.github/actions/build-bundle
       id: build
       with:
         paths: ${{ inputs.paths }}
