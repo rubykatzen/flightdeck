@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/rubykatzen/flightdeck/compare/v0.11.0...v0.11.1) (2026-08-26)
+
+
+### Bug Fixes
+
+* resolve build-apps-bundle's local action ref for external callers ([#165](https://github.com/rubykatzen/flightdeck/issues/165)) ([90a5333](https://github.com/rubykatzen/flightdeck/commit/90a5333abd6c38b15fbee62323d7ad65e490c03c))
+
 ## [0.11.0](https://github.com/rubykatzen/flightdeck/compare/v0.10.0...v0.11.0) (2026-08-25)
 
 
