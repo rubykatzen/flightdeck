@@ -11,9 +11,32 @@ on:
         type: string
         default: targets
 jobs:
+  find-targets:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      count: ${{ steps.matrix.outputs.count }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: $/.github/actions/load-yaml-matrix
+        id: matrix
+        with:
+          directory: ${{ inputs.targets-directory }}
   renovate:
+    needs: find-targets
+    if: needs.find-targets.outputs.count != '0'
+    strategy:
+      matrix: ${{ fromJson(needs.find-targets.outputs.matrix) }}
     uses: $/.github/workflows/renovate-shared.yml
     with:
       app: ${{ inputs.app }}
-      targets-directory: ${{ inputs.targets-directory }}
-    secrets: inherit
+      target-name: ${{ matrix.name }}
+      hosts: ${{ toJson(matrix.hosts) }}
+      apps: ${{ toJson(matrix.apps) }}
+      path: ${{ matrix.path || '~/flightdeck' }}
+      tailscale-oauth-client-id: ${{ vars[matrix.credentials.variables.tailscale_oauth_client_id] }}
+    secrets:
+      ssh-private-key: ${{ secrets[matrix.credentials.secrets.ssh_private_key] }}
+      tailscale-oauth-secret: ${{ secrets[matrix.credentials.secrets.tailscale_oauth_secret] }}
+      telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}

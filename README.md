@@ -73,8 +73,8 @@ flightdeck/
 │   │   └── load-yaml-matrix/            # Read a directory of YAML manifests into a workflow matrix
 │   └── workflows/
 │       ├── deploy-shared.yml           # Reusable deployment workflow
-│       ├── renovate.yml                # Prototype: thin workflow_dispatch trigger for renovate-shared.yml
-│       ├── renovate-shared.yml         # Prototype: computes its own target matrix, then fans out like deploy-shared.yml
+│       ├── renovate.yml                # Prototype: computes a target matrix and calls renovate-shared.yml per target, like deploy.yml
+│       ├── renovate-shared.yml         # Prototype: reusable single-target renovation workflow, like deploy-shared.yml
 │       └── release.yml                 # Release Please + publish Flightdeck assets
 │
 ├── vaults/                        # Encrypted env asset configurations, one per app
@@ -369,27 +369,34 @@ The `@v0.11.1` pin on the `uses:` line only controls which ref runs `deploy/depl
 
 ### `renovate.yml` / `renovate-shared.yml` (prototype)
 
-**Experimental — kept around to compare against `deploy.yml`/`deploy-shared.yml`'s approach before settling on one contract for #120/#121.** Same two-file split as deploy (a thin `workflow_dispatch` trigger calling a reusable `workflow_call` workflow), and now the *same* matrix mechanics too — the difference that's actually being compared is narrower than it first looks: where the target matrix gets computed.
+**Experimental — kept around to compare against `deploy.yml`/`deploy-shared.yml`'s approach before settling on one contract for #120/#121.** At this point the two have converged onto the same shape: `renovate.yml` computes a matrix from `targets/` itself (plain `load-yaml-matrix`, unfiltered — deliberately not taught to filter by app, so that utility stays exactly as dumb and generic as it already is) and calls `renovate-shared.yml` once per target, with that target's secrets already picked out by name (`secrets[matrix.credentials.secrets.ssh_private_key]`, etc.) — exactly like `deploy.yml`/`deploy-shared.yml` already do. No `secrets: inherit`: resolving each matrix cell's secret *value* by name happens in `renovate.yml` itself (a plain triggered workflow, not a `workflow_call` boundary, so it has native access to `secrets.*`/`vars.*`), and only that one resolved value ever crosses into `renovate-shared.yml`, via its own explicitly declared `on.workflow_call.secrets`.
 
-`deploy.yml` computes its matrix from `targets/` itself and calls `deploy-shared.yml` once per already-known target. `renovate.yml` can't do that — "find every target currently running this app" isn't answerable by the outer trigger before the job starts, since a matrix has to be fully resolved ahead of time and that's exactly the thing we don't know yet. So `renovate.yml` just passes `app`/`targets-directory` straight through with `secrets: inherit`, and `renovate-shared.yml` computes the matrix *itself*, in its own first job (`find-targets`, plain `load-yaml-matrix` over every manifest — deliberately not filtered by app, so that utility stays exactly as dumb and generic as it already is). Its second job (`renovate`) then fans out over that matrix exactly like `deploy-shared.yml` does — one job per target, with native per-matrix-cell secret/Tailscale resolution (`secrets[matrix.credentials.secrets.ssh_private_key]`, etc.) — except every target gets dispatched unconditionally, whether or not it actually runs the requested app. [`deploy/renovate.py`](deploy/renovate.py) itself makes that call: if `app` isn't a key in the target's own `apps` mapping, it just logs and no-ops instead of erroring, since a target-matrix fan-out has no other way to say "skip me."
+The one real difference from deploy: not every target runs every app, so every target's job still gets dispatched (a matrix job calling a reusable workflow via `uses:` can't condition its `if:` on `matrix.*` - only `github`, `inputs`, `needs`, and `vars` are available there), each with that target's own resolved SSH key loaded. [`deploy/renovate.py`](deploy/renovate.py) is what actually decides: if `app` isn't a key in the target's own `apps` mapping, it exits before ever opening an SSH connection to a host - the "wasted" work per non-matching target is just a checkout, a pip install, and loading a key into the runner's local SSH agent, never an actual connection anywhere.
 
-Renovating means `docker compose pull && docker compose up -d` against that app's already-current release directory on the host — nothing else. It never touches `app_refs`/`env_refs`, never re-decrypts a vault, never rebuilds the release tree; it just picks up a new image behind an existing tag. To tell whether a host's image actually changed (rather than the pull being a no-op), [`deploy/renovate.py`](deploy/renovate.py) compares `docker compose images -q` output before and after the pull, and reports `updated`/`updated_hosts` via `$GITHUB_OUTPUT`. When `updated` is `true`, the job's last step sends a Telegram message via `rubykatzen/baseline`'s generic `send-telegram-message` action (the same one `notify-telegram-release.yml`/`notify-telegram-pr.yml` use under the hood) — silent when nothing actually changed, including every target-matrix cell that no-ops because it doesn't run the app at all.
+Renovating means `docker compose pull && docker compose up -d` against that app's already-current release directory on the host — nothing else. It never touches `app_refs`/`env_refs`, never re-decrypts a vault, never rebuilds the release tree; it just picks up a new image behind an existing tag. To tell whether a host's image actually changed (rather than the pull being a no-op), `deploy/renovate.py` compares `docker compose images -q` output before and after the pull, and reports `updated`/`updated_hosts` via `$GITHUB_OUTPUT`. When `updated` is `true`, the job's last step sends a Telegram message via `rubykatzen/baseline`'s generic `send-telegram-message` action (the same one `notify-telegram-release.yml`/`notify-telegram-pr.yml` use under the hood) — silent when nothing actually changed.
 
-**Known gaps:**
-
-- If `app` matches no target at all (a typo, say), every matrix job just no-ops and the whole run still reports success — there's no cheap way to fail loudly on "zero matches across the board" without a job that waits on the whole matrix and inspects its results.
-- `find-targets` checks out its caller's own repository (to read `targets/`), while `renovate` checks out flightdeck's own ref (to get `deploy/renovate.py`, like `deploy-shared.yml` does) — so genuine cross-repo reuse (a private consumer repo calling `rubykatzen/flightdeck/.github/workflows/renovate-shared.yml@vX` for its own `targets/`) should already work, but hasn't been exercised outside this repo yet.
-
-Deferred until this contract shape is the chosen one.
+**Known gap:** if `app` matches no target at all (a typo, say), every matrix job is just skipped and the whole run still reports success — there's no cheap way to fail loudly on "zero matches across the board" without a job that waits on the whole matrix and inspects its results. Deferred until this contract shape is the chosen one.
 
 ```yaml
 jobs:
   renovate:
+    needs: find-targets
+    if: needs.find-targets.outputs.count != '0'
+    strategy:
+      matrix: ${{ fromJson(needs.find-targets.outputs.matrix) }}
     uses: $/.github/workflows/renovate-shared.yml
     with:
-      app: beszel                 # required
-      targets-directory: targets  # optional, default shown
-    secrets: inherit
+      app: ${{ inputs.app }}
+      target-name: ${{ matrix.name }}
+      hosts: ${{ toJson(matrix.hosts) }}
+      apps: ${{ toJson(matrix.apps) }}
+      path: ${{ matrix.path || '~/flightdeck' }}
+      tailscale-oauth-client-id: ${{ vars[matrix.credentials.variables.tailscale_oauth_client_id] }}
+    secrets:
+      ssh-private-key: ${{ secrets[matrix.credentials.secrets.ssh_private_key] }}
+      tailscale-oauth-secret: ${{ secrets[matrix.credentials.secrets.tailscale_oauth_secret] }}
+      telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
 ```
 
 ## License

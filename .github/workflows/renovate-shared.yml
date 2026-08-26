@@ -3,30 +3,48 @@ on:
   workflow_call:
     inputs:
       app:
-        description: App name to renovate (re-pull its image and recreate its containers) wherever it's currently deployed.
+        description: App name to renovate (re-pull its image and recreate its containers).
         type: string
         required: true
-      targets-directory:
-        description: Directory of target manifests to search for the app.
+      target-name:
+        description: Target name, used only to label the Telegram notification.
         type: string
-        default: targets
+        required: true
+      hosts:
+        description: JSON array of user@host SSH destinations to renovate.
+        type: string
+        required: true
+      apps:
+        description: JSON object of this target's own apps mapping, as declared in its targets/*.yml manifest.
+        type: string
+        required: true
+      path:
+        description: Base path on the target host for the current symlink.
+        type: string
+        default: "~/flightdeck"
+      tailscale-oauth-client-id:
+        description: Tailscale OAuth client ID used to join the tailnet. Leave unset to skip joining a tailnet (e.g. when the runner already has network access to the hosts).
+        type: string
+        default: ""
+      tailscale-tags:
+        description: Comma-separated ACL tags for the ephemeral tailnet node.
+        type: string
+        default: tag:ci
+    secrets:
+      ssh-private-key:
+        description: SSH private key used to connect to the hosts.
+        required: true
+      tailscale-oauth-secret:
+        description: Tailscale OAuth client secret used to join the tailnet. Required only when tailscale-oauth-client-id is set.
+        required: false
+      telegram-bot-token:
+        description: Telegram bot token used to notify when an update is found.
+        required: true
+      telegram-chat-id:
+        description: Telegram chat ID used to notify when an update is found.
+        required: true
 jobs:
-  find-targets:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
-      count: ${{ steps.matrix.outputs.count }}
-    steps:
-      - uses: actions/checkout@v7
-      - uses: $/.github/actions/load-yaml-matrix
-        id: matrix
-        with:
-          directory: ${{ inputs.targets-directory }}
   renovate:
-    needs: find-targets
-    if: needs.find-targets.outputs.count != '0'
-    strategy:
-      matrix: ${{ fromJson(needs.find-targets.outputs.matrix) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -37,26 +55,26 @@ jobs:
         shell: bash
         run: pip install --user --break-system-packages -r deploy/requirements.txt
       - uses: tailscale/github-action@v4
-        if: matrix.credentials.variables.tailscale_oauth_client_id
+        if: inputs.tailscale-oauth-client-id != ''
         with:
-          oauth-client-id: ${{ vars[matrix.credentials.variables.tailscale_oauth_client_id] }}
-          oauth-secret: ${{ secrets[matrix.credentials.secrets.tailscale_oauth_secret] }}
-          tags: tag:ci
+          oauth-client-id: ${{ inputs.tailscale-oauth-client-id }}
+          oauth-secret: ${{ secrets.tailscale-oauth-secret }}
+          tags: ${{ inputs.tailscale-tags }}
       - name: Load SSH key
         shell: bash
         run: |
           eval "$(ssh-agent -s)"
           echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
           echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
-          ssh-add - <<< "${{ secrets[matrix.credentials.secrets.ssh_private_key] }}"
+          ssh-add - <<< "${{ secrets.ssh-private-key }}"
       - name: Run renovate
         id: run
         shell: bash
         env:
           APP: ${{ inputs.app }}
-          HOSTS: ${{ toJson(matrix.hosts) }}
-          TARGET_PATH: ${{ matrix.path || '~/flightdeck' }}
-          TARGET_APPS: ${{ toJson(matrix.apps) }}
+          HOSTS: ${{ inputs.hosts }}
+          TARGET_PATH: ${{ inputs.path }}
+          TARGET_APPS: ${{ inputs.apps }}
         run: |
           jq -n --arg app "$APP" --argjson hosts "$HOSTS" --arg path "$TARGET_PATH" --argjson apps "$TARGET_APPS" \
             '{app: $app, hosts: $hosts, path: $path, apps: $apps}' \
@@ -65,6 +83,6 @@ jobs:
         if: steps.run.outputs.updated == 'true'
         uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.1
         with:
-          message: "Renovate: ${{ inputs.app }} updated on ${{ matrix.name }} (${{ steps.run.outputs.updated_hosts }})"
-          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          message: "Renovate: ${{ inputs.app }} updated on ${{ inputs.target-name }} (${{ steps.run.outputs.updated_hosts }})"
+          telegram-bot-token: ${{ secrets.telegram-bot-token }}
+          telegram-chat-id: ${{ secrets.telegram-chat-id }}
