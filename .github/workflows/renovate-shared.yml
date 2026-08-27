@@ -6,22 +6,10 @@ on:
         description: App name to renovate (re-pull its image and recreate its containers).
         type: string
         required: true
-      target-name:
-        description: Target name, used only to label the Telegram notification.
+      target-manifest:
+        description: Path to this target's manifest file in the calling repository's own targets/ directory, e.g. targets/heimdall.yml.
         type: string
         required: true
-      hosts:
-        description: JSON array of user@host SSH destinations to renovate.
-        type: string
-        required: true
-      apps:
-        description: JSON object of this target's own apps mapping, as declared in its targets/*.yml manifest.
-        type: string
-        required: true
-      path:
-        description: Base path on the target host for the current symlink.
-        type: string
-        default: "~/flightdeck"
       tailscale-oauth-client-id:
         description: Tailscale OAuth client ID used to join the tailnet. Leave unset to skip joining a tailnet (e.g. when the runner already has network access to the hosts).
         type: string
@@ -48,12 +36,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
         with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
+          path: .flightdeck
       - name: Install deploy dependencies
         shell: bash
-        run: pip install --user --break-system-packages -r deploy/requirements.txt
+        run: pip install --user --break-system-packages -r .flightdeck/deploy/requirements.txt
       - uses: tailscale/github-action@v4
         if: inputs.tailscale-oauth-client-id != ''
         with:
@@ -72,17 +62,15 @@ jobs:
         shell: bash
         env:
           APP: ${{ inputs.app }}
-          HOSTS: ${{ inputs.hosts }}
-          TARGET_PATH: ${{ inputs.path }}
-          TARGET_APPS: ${{ inputs.apps }}
+          TARGET_MANIFEST: ${{ inputs.target-manifest }}
         run: |
-          jq -n --arg app "$APP" --argjson hosts "$HOSTS" --arg path "$TARGET_PATH" --argjson apps "$TARGET_APPS" \
-            '{app: $app, hosts: $hosts, path: $path, apps: $apps}' \
-            | python3 deploy/renovate.py
+          jq -n --arg app "$APP" --arg target_manifest "$TARGET_MANIFEST" \
+            '{app: $app, target_manifest: $target_manifest}' \
+            | python3 .flightdeck/deploy/renovate.py
       - name: Notify Telegram
         if: steps.run.outputs.updated == 'true'
         uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.1
         with:
-          message: "Renovate: ${{ inputs.app }} updated on ${{ inputs.target-name }} (${{ steps.run.outputs.updated_hosts }})"
+          message: "Renovate: ${{ inputs.app }} updated on ${{ steps.run.outputs.target_name }} (${{ steps.run.outputs.updated_hosts }})"
           telegram-bot-token: ${{ secrets.telegram-bot-token }}
           telegram-chat-id: ${{ secrets.telegram-chat-id }}

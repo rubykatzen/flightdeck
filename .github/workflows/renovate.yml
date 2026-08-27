@@ -6,22 +6,18 @@ on:
         description: App name to renovate (re-pull its image and recreate its containers) wherever it's currently deployed.
         type: string
         required: true
-      targets-directory:
-        description: Directory of target manifests to search for the app.
-        type: string
-        default: targets
 jobs:
   find-targets:
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
-      count: ${{ steps.matrix.outputs.count }}
+      matrix: ${{ steps.load-targets.outputs.matrix }}
+      count: ${{ steps.load-targets.outputs.count }}
     steps:
       - uses: actions/checkout@v7
       - uses: $/.github/actions/load-yaml-matrix
-        id: matrix
+        id: load-targets
         with:
-          directory: ${{ inputs.targets-directory }}
+          directory: targets
   renovate:
     needs: find-targets
     if: needs.find-targets.outputs.count != '0'
@@ -30,13 +26,12 @@ jobs:
     uses: $/.github/workflows/renovate-shared.yml
     with:
       app: ${{ inputs.app }}
-      target-name: ${{ matrix.name }}
-      hosts: ${{ toJson(matrix.hosts) }}
-      apps: ${{ toJson(matrix.apps) }}
-      path: ${{ matrix.path || '~/flightdeck' }}
+      target-manifest: ${{ matrix.manifest }}
       tailscale-oauth-client-id: ${{ vars[matrix.credentials.variables.tailscale_oauth_client_id] }}
     secrets:
+      # Per-target, resolved by name from this target's own manifest.
       ssh-private-key: ${{ secrets[matrix.credentials.secrets.ssh_private_key] }}
       tailscale-oauth-secret: ${{ secrets[matrix.credentials.secrets.tailscale_oauth_secret] }}
+      # Fixed - the same for every target, not resolved from the manifest.
       telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}

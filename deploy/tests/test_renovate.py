@@ -68,52 +68,73 @@ class RenovateHostTest(unittest.TestCase):
 
 
 class MainTest(unittest.TestCase):
-    def _run_main(self, config):
-        with tempfile.TemporaryDirectory() as directory:
-            output_path = Path(directory) / "outputs"
-            with (
-                patch.object(sys, "stdin", io.StringIO(json.dumps(config))),
-                patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_path)}),
-            ):
-                renovate.main()
-            return output_path.read_text() if output_path.exists() else ""
+    def _run_main(self, directory, app, manifest_text, manifest_name="heimdall"):
+        manifest_path = Path(directory) / f"{manifest_name}.yml"
+        manifest_path.write_text(manifest_text)
+        output_path = Path(directory) / "outputs"
+
+        config = {"app": app, "target_manifest": str(manifest_path)}
+        with (
+            patch.object(sys, "stdin", io.StringIO(json.dumps(config))),
+            patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_path)}),
+        ):
+            renovate.main()
+        return output_path.read_text() if output_path.exists() else ""
 
     def test_skips_a_target_that_does_not_run_the_app(self):
-        with patch.object(renovate, "renovate_host") as fake_renovate_host:
-            outputs = self._run_main({"app": "beszel", "hosts": ["deploy@host"], "apps": {"traefik": {}}})
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.object(renovate, "renovate_host") as fake_renovate_host,
+        ):
+            outputs = self._run_main(directory, "beszel", "apps:\n  traefik: {}\nhosts: [deploy@host]\n")
 
         fake_renovate_host.assert_not_called()
         self.assertIn("updated=false\n", outputs)
+        self.assertIn("target_name=heimdall\n", outputs)
 
     def test_reports_updated_hosts_when_the_image_changed(self):
         def fake_renovate_host(host, base_path, app):
             return host == "deploy@app1.example.com"
 
-        with patch.object(renovate, "renovate_host", side_effect=fake_renovate_host):
-            outputs = self._run_main(
-                {
-                    "app": "beszel",
-                    "hosts": ["deploy@app1.example.com", "deploy@app2.example.com"],
-                    "path": "~/flightdeck",
-                    "apps": {"beszel": {}},
-                }
-            )
+        manifest = "apps:\n  beszel: {}\nhosts: [deploy@app1.example.com, deploy@app2.example.com]\npath: ~/flightdeck\n"
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.object(renovate, "renovate_host", side_effect=fake_renovate_host),
+        ):
+            outputs = self._run_main(directory, "beszel", manifest)
 
         self.assertIn("updated=true\n", outputs)
         self.assertIn("updated_hosts=deploy@app1.example.com\n", outputs)
 
     def test_reports_not_updated_when_every_host_was_already_current(self):
-        with patch.object(renovate, "renovate_host", return_value=False):
-            outputs = self._run_main({"app": "beszel", "hosts": ["deploy@host"], "apps": {"beszel": {}}})
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.object(renovate, "renovate_host", return_value=False),
+        ):
+            outputs = self._run_main(directory, "beszel", "apps:\n  beszel: {}\nhosts: [deploy@host]\n")
 
         self.assertIn("updated=false\n", outputs)
         self.assertIn("updated_hosts=\n", outputs)
 
     def test_defaults_path_when_omitted(self):
-        with patch.object(renovate, "renovate_host", return_value=False) as fake_renovate_host:
-            self._run_main({"app": "beszel", "hosts": ["deploy@host"], "apps": {"beszel": {}}})
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.object(renovate, "renovate_host", return_value=False) as fake_renovate_host,
+        ):
+            self._run_main(directory, "beszel", "apps:\n  beszel: {}\nhosts: [deploy@host]\n")
 
         fake_renovate_host.assert_called_once_with("deploy@host", "~/flightdeck", "beszel")
+
+    def test_derives_target_name_from_manifest_filename(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.object(renovate, "renovate_host", return_value=False),
+        ):
+            outputs = self._run_main(
+                directory, "beszel", "apps:\n  beszel: {}\nhosts: [deploy@host]\n", manifest_name="mainframe"
+            )
+
+        self.assertIn("target_name=mainframe\n", outputs)
 
 
 if __name__ == "__main__":
