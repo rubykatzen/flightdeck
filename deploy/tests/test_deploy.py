@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 import sys
 import tarfile
@@ -40,6 +41,22 @@ def make_zip(path, files):
         for name, content in files.items():
             archive.writestr(name, content)
     return path
+
+
+class LoadTargetTest(unittest.TestCase):
+    def test_parses_a_target_manifest(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "heimdall.yml"
+            manifest_path.write_text(
+                "hosts: [user@host]\napp_refs: [owner/repo@latest]\n"
+                "apps:\n  traefik:\n    env_refs: [owner/repo@latest:a.sops.env]\n"
+            )
+
+            target = deploy.load_target(manifest_path)
+
+            self.assertEqual(target["hosts"], ["user@host"])
+            self.assertEqual(target["app_refs"], ["owner/repo@latest"])
+            self.assertEqual(target["apps"]["traefik"]["env_refs"], ["owner/repo@latest:a.sops.env"])
 
 
 class ValidateConfigTest(unittest.TestCase):
@@ -454,6 +471,58 @@ class DeployToHostTest(unittest.TestCase):
 
             joined = "\n".join(fake.commands)
             self.assertNotIn("docker compose down", joined)
+
+
+class MainTest(unittest.TestCase):
+    def test_reads_target_manifest_and_merges_sops_age_key(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "heimdall.yml"
+            manifest_path.write_text(
+                "hosts: [deploy@host]\n"
+                "app_refs: [owner/repo@latest]\n"
+                "apps:\n  traefik:\n    env_refs: [owner/repo@latest:a.sops.env]\n"
+            )
+            stdin_config = {"target_manifest": str(manifest_path), "sops_age_key": "AGE-SECRET-KEY-1..."}
+
+            with (
+                patch.object(sys, "stdin", io.StringIO(json.dumps(stdin_config))),
+                patch.object(
+                    deploy, "build_release", return_value=(Path(directory) / "release", ["owner/repo@v1.0.0"])
+                ) as fake_build_release,
+                patch.object(
+                    deploy,
+                    "resolve_app_envs",
+                    return_value={"traefik": ["owner/repo@v1.0.0:a.sops.env"]},
+                ) as fake_resolve_app_envs,
+                patch.object(deploy, "write_release_manifest"),
+                patch.object(deploy, "archive_release", return_value=Path(directory) / "release.tar.gz"),
+                patch.object(deploy, "list_required_networks", return_value=[]),
+                patch.object(deploy, "deploy_to_host") as fake_deploy_to_host,
+            ):
+                deploy.main()
+
+            config_arg = fake_build_release.call_args[0][0]
+            self.assertEqual(config_arg["hosts"], ["deploy@host"])
+            self.assertEqual(config_arg["app_refs"], ["owner/repo@latest"])
+            self.assertEqual(config_arg["sops_age_key"], "AGE-SECRET-KEY-1...")
+
+            fake_resolve_app_envs.assert_called_once()
+            fake_deploy_to_host.assert_called_once()
+            host, archive_path, apps, networks, deploy_config = fake_deploy_to_host.call_args[0][:5]
+            expected = ("deploy@host", Path(directory) / "release.tar.gz", ["traefik"], [], config_arg)
+            self.assertEqual((host, archive_path, apps, networks, deploy_config), expected)
+
+    def test_raises_when_sops_age_key_missing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest_path = Path(directory) / "heimdall.yml"
+            manifest_path.write_text("hosts: [deploy@host]\napp_refs: [owner/repo@latest]\napps:\n  traefik: {}\n")
+            stdin_config = {"target_manifest": str(manifest_path), "sops_age_key": ""}
+
+            with (
+                patch.object(sys, "stdin", io.StringIO(json.dumps(stdin_config))),
+                self.assertRaises(deploy.DeployError),
+            ):
+                deploy.main()
 
 
 if __name__ == "__main__":

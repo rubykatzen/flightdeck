@@ -22,7 +22,7 @@ A target server needs only:
 
 ## Automated Deploy
 
-Deployment goes through [`deploy-shared.yml`](.github/workflows/deploy-shared.yml) (documented in the GitHub Actions section below), a reusable workflow wrapping [`deploy/deploy.py`](deploy/deploy.py) behind plain deploy vocabulary — `hosts`, `app-refs`, `apps`.
+Deployment goes through [`deploy-shared.yml`](.github/workflows/deploy-shared.yml) (documented in the GitHub Actions section below), a reusable workflow wrapping [`deploy/deploy.py`](deploy/deploy.py) behind one input — `target-manifest`, a path to that target's own manifest file, which the workflow reads itself rather than receiving `hosts`/`app_refs`/`apps` already flattened.
 
 The deploy is push-based and runs entirely on the GitHub Actions runner:
 
@@ -247,7 +247,7 @@ Credential fields contain GitHub Variable/Secret names, never credential values.
 
 A vault manifest's `env:` value is either `${NAME}` (a reference — look up the GitHub Secret/Variable named `NAME`) or a bare literal (any other value, used as-is with no lookup at all — see `DISABLE_SIGNUP: true` above). Use a literal for a value that's fixed for this target but isn't a secret and doesn't need a GitHub Secret/Variable to exist just to hold it.
 
-`load-yaml-matrix` reads every file in `vaults/` or `targets/` into a matrix — it does not validate the manifest shape. Each manifest's fields are the responsibility of whatever consumes them: `encrypt-env` re-parses and validates its own manifest from `manifest`, and the workflows calling `deploy-shared.yml` apply `path`/`keep-releases` defaults and pull `credentials.secrets`/`credentials.variables` values directly from the matrix item.
+`load-yaml-matrix` reads every file in `vaults/` or `targets/` into a matrix — it does not validate the manifest shape. Each manifest's fields are the responsibility of whatever consumes them: `encrypt-env` re-parses and validates its own manifest from `manifest`, and `deploy/deploy.py` re-parses and validates the target manifest itself (applying `path`/`keep_releases` defaults there) from the `target-manifest` path a matrix item's own `manifest` field already points to; the workflows calling `deploy-shared.yml` only pull `credentials.secrets`/`credentials.variables` values directly from the matrix item, to resolve actual secret/variable values by name.
 
 ---
 
@@ -335,9 +335,11 @@ Requires `contents: write` permission on the calling job. `flightdeck-apps.zip` 
 
 ### `deploy-shared.yml`
 
-Runs [`deploy/deploy.py`](deploy/deploy.py) from this repository against the caller-supplied hosts. Intended to be called from a private consumer repository that owns both the config and secrets side (SSH key, encrypted `.sops.env` releases, the age private key, etc.) — this repository does not hold any deploy secrets itself. `apps.<name>.env_refs` entries typically reference that same calling repository via `${{ github.repository }}`, since it's both the config and secrets source.
+Runs [`deploy/deploy.py`](deploy/deploy.py) from this repository against a target manifest owned by the caller. Intended to be called from a private consumer repository that owns both the config and secrets side (a `targets/*.yml` manifest shaped like the one above, the SSH key, encrypted `.sops.env` releases, the age private key, etc.) — this repository does not hold any deploy secrets itself. That manifest's `apps.<name>.env_refs` entries typically reference that same calling repository via `${{ github.repository }}`, since it's both the config and secrets source.
 
-The interface is plain deploy vocabulary — callers never see `deploy.py`'s internals or hand-write its JSON config; the workflow builds that internally and pipes it to `python3 deploy/deploy.py` on stdin. The runner resolves and downloads every ref, decrypts and renders each app's env and config, merges the release, and pushes the finished result to each host over SSH — see "Automated Deploy" above for the full sequence.
+The interface is a single path, not flattened deploy vocabulary — the caller never re-serializes its target's `hosts`/`app_refs`/`apps`/`path` through `toJson(...)`, and `deploy.py` never receives them as separate fields. `target-manifest` just points at the file (`targets/mainframe.yml` in the example below); the workflow checks out the caller's own repository to read it, parses and validates it itself, and pipes the result to `python3 deploy/deploy.py` on stdin alongside the one thing that genuinely can't live in that file - the decrypted `sops-age-key` secret value. The runner then resolves and downloads every ref, decrypts and renders each app's env and config, merges the release, and pushes the finished result to each host over SSH — see "Automated Deploy" above for the full sequence.
+
+`target-manifest-ref` matters only when the caller itself checked out something other than its default branch before computing the matrix this is called from (e.g. `release.yml` pins to the just-published release tag) - set it to that same ref so both reads agree on the manifest's exact content, instead of silently reading whatever the default branch's tip happens to be by the time this job runs.
 
 Tailscale is optional, not a dependency of this workflow: set `tailscale-oauth-client-id` (and the matching `tailscale-oauth-secret`) to have the runner join a tailnet as an ephemeral node before deploying. Leave both unset to skip that step entirely — e.g. when the job already runs on a self-hosted runner with network access to the hosts, or reaches them some other way.
 
@@ -348,11 +350,8 @@ jobs:
   deploy:
     uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@v0.11.1
     with:
-      hosts: '["deploy@app1.example.com", "deploy@app2.example.com"]'  # required JSON array
-      app-refs: '["rubykatzen/flightdeck@latest"]'                   # required non-empty JSON array
-      apps: '{"traefik": {"env_refs": ["${{ github.repository }}@latest:mainframe-traefik.sops.env"]}}'  # required non-empty JSON object
-      # path: ~/flightdeck                 # optional, default shown
-      # keep-releases: 5                   # optional, default shown
+      target-manifest: targets/mainframe.yml                        # required, path in this repository
+      # target-manifest-ref: ${{ github.sha }}                      # optional, default: this repository's default branch
       tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}  # optional, default: unset (skip joining a tailnet)
       tailscale-tags: tag:ci                                         # default: tag:ci
     secrets:
@@ -363,7 +362,7 @@ jobs:
 
 <!-- x-release-please-end -->
 
-The `@v0.11.1` pin on the `uses:` line only controls which ref runs `deploy/deploy.py` itself. `app-refs` entries are separate and don't have to match the workflow pin. <!-- x-release-please-version -->
+The `@v0.11.1` pin on the `uses:` line only controls which ref runs `deploy/deploy.py` itself. `target-manifest`'s own `app_refs` entries are separate and don't have to match the workflow pin. <!-- x-release-please-version -->
 
 ---
 
@@ -371,7 +370,7 @@ The `@v0.11.1` pin on the `uses:` line only controls which ref runs `deploy/depl
 
 **Experimental — kept around to compare against `deploy.yml`/`deploy-shared.yml`'s approach before settling on one contract for #120/#121.** Same two-job matrix shape as deploy: `renovate.yml` computes a matrix from `targets/` itself (plain `load-yaml-matrix`, unfiltered — deliberately not taught to filter by app, so that utility stays exactly as dumb and generic as it already is) and calls `renovate-shared.yml` once per target, with that target's secrets already picked out by name (`secrets[matrix.credentials.secrets.ssh_private_key]`, etc.) — exactly like `deploy.yml`/`deploy-shared.yml` already do. No `secrets: inherit`, and deliberately so: it [only works within the same organization or enterprise as the reusable workflow](https://docs.github.com/en/actions/sharing-automations/reusing-workflows), which would silently break for exactly the external, unrelated callers this is meant to support (confirmed real case: `dupmachine/flightdeck`). Resolving each matrix cell's secret *value* by name instead happens in `renovate.yml` itself (a plain triggered workflow, not a `workflow_call` boundary, so it has native access to `secrets.*`), and only that one resolved value ever crosses into `renovate-shared.yml`, via its own explicitly declared `on.workflow_call.secrets`.
 
-Unlike `deploy-shared.yml`, which receives a target's `hosts`/`apps`/`path` already flattened into separate inputs, `renovate.yml` passes only `target-manifest: ${{ matrix.manifest }}` — the file path `load-yaml-matrix` already put in every matrix item — and `renovate-shared.yml` reads that file itself, the same way `encrypt-env` takes a vault manifest *path* and parses it rather than receiving flattened `env` fields. This keeps the wired interface down to `app` + one path + Tailscale wiring, instead of re-serializing a target's whole shape through `toJson(matrix.X)` on every field. The trade-off: `renovate-shared.yml` needs a second `checkout` (the caller's own repository, to actually read that manifest file - the existing override checkout only ever fetches flightdeck's own code, into `.flightdeck/`, since that's the repo `deploy/renovate.py` itself lives in).
+Like `deploy-shared.yml`, `renovate.yml` passes only `target-manifest: ${{ matrix.manifest }}` — the file path `load-yaml-matrix` already put in every matrix item — and `renovate-shared.yml` reads that file itself, the same way `encrypt-env` takes a vault manifest *path* and parses it rather than receiving flattened `env` fields, and `deploy-shared.yml` now does the same for `hosts`/`apps`/`path`. This keeps the wired interface down to `app` + one path + Tailscale wiring, instead of re-serializing a target's whole shape through `toJson(matrix.X)` on every field. The trade-off: `renovate-shared.yml` needs a second `checkout` (the caller's own repository, to actually read that manifest file - the existing override checkout only ever fetches flightdeck's own code, into `.flightdeck/`, since that's the repo `deploy/renovate.py` itself lives in) — same shape `deploy-shared.yml` uses.
 
 Not every target runs every app, so every target's job still gets dispatched (a matrix job calling a reusable workflow via `uses:` can't condition its `if:` on `matrix.*` - only `github`, `inputs`, `needs`, and `vars` are available there), each with that target's own resolved SSH key loaded. [`deploy/renovate.py`](deploy/renovate.py) is what actually decides: if `app` isn't a key in the target manifest's own `apps` mapping, it exits before ever opening an SSH connection to a host - the "wasted" work per non-matching target is just two checkouts, a pip install, and loading a key into the runner's local SSH agent, never an actual connection anywhere.
 

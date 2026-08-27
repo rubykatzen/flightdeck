@@ -67,28 +67,25 @@ jobs:
     if: needs.release.outputs.release_created == 'true'
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
-      count: ${{ steps.matrix.outputs.count }}
+      matrix: ${{ steps.load-targets.outputs.matrix }}
+      count: ${{ steps.load-targets.outputs.count }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release.outputs.tag_name }}
       - uses: $/.github/actions/load-yaml-matrix
-        id: matrix
+        id: load-targets
         with:
           directory: targets
   deploy:
-    needs: [upload-apps, encrypt, deploy-targets]
+    needs: [release, upload-apps, encrypt, deploy-targets]
     if: needs.deploy-targets.outputs.count != '0'
     strategy:
       matrix: ${{ fromJson(needs.deploy-targets.outputs.matrix) }}
     uses: $/.github/workflows/deploy-shared.yml
     with:
-      hosts: ${{ toJson(matrix.hosts) }}
-      app-refs: ${{ toJson(matrix.app_refs) }}
-      apps: ${{ toJson(matrix.apps) }}
-      path: ${{ matrix.path || '~/flightdeck' }}
-      keep-releases: ${{ matrix.keep_releases || 5 }}
+      target-manifest: ${{ matrix.manifest }}
+      target-manifest-ref: ${{ needs.release.outputs.tag_name }}
       tailscale-oauth-client-id: ${{ vars[matrix.credentials.variables.tailscale_oauth_client_id] }}
     secrets:
       ssh-private-key: ${{ secrets[matrix.credentials.secrets.ssh_private_key] }}

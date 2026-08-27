@@ -2,26 +2,14 @@ name: Deploy (shared)
 on:
   workflow_call:
     inputs:
-      hosts:
-        description: JSON array of user@host SSH destinations to deploy to.
+      target-manifest:
+        description: Path to this target's manifest file in the calling repository's own targets/ directory, e.g. targets/heimdall.yml.
         type: string
         required: true
-      app-refs:
-        description: JSON array of release refs for app bundles to merge into the release, in owner/repo@tag[:asset] format.
+      target-manifest-ref:
+        description: Git ref to check out this repository at when reading target-manifest. Leave unset to use the default branch (e.g. set this to a release tag when the caller itself pinned its own checkout to one, so both reads agree).
         type: string
-        required: true
-      apps:
-        description: JSON object mapping each app name to run on this target to its own env_refs list, e.g. {"traefik":{"env_refs":["owner/repo@latest:traefik.sops.env"]}}.
-        type: string
-        required: true
-      path:
-        description: Base path on the target host for releases, shared files, and the current symlink.
-        type: string
-        default: "~/flightdeck"
-      keep-releases:
-        description: Number of past releases to keep on the target host.
-        type: number
-        default: 5
+        default: ""
       tailscale-oauth-client-id:
         description: Tailscale OAuth client ID used to join the tailnet. Leave unset to skip joining a tailnet (e.g. when the runner already has network access to the hosts).
         type: string
@@ -46,11 +34,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: ${{ inputs.target-manifest-ref }}
+      - uses: actions/checkout@v7
+        with:
           repository: ${{ job.workflow_repository }}
           ref: ${{ job.workflow_sha }}
+          path: .flightdeck
       - name: Install deploy dependencies
         shell: bash
-        run: pip install --user --break-system-packages -r deploy/requirements.txt
+        run: pip install --user --break-system-packages -r .flightdeck/deploy/requirements.txt
       - name: Install sops
         shell: bash
         env:
@@ -76,20 +68,10 @@ jobs:
       - name: Run deploy
         shell: bash
         env:
-          HOSTS: ${{ inputs.hosts }}
-          APP_REFS: ${{ inputs.app-refs }}
-          APPS: ${{ inputs.apps }}
-          DEPLOY_PATH: ${{ inputs.path }}
-          KEEP_RELEASES: ${{ inputs.keep-releases }}
+          TARGET_MANIFEST: ${{ inputs.target-manifest }}
           SOPS_AGE_KEY: ${{ secrets.sops-age-key }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          jq -n \
-            --argjson hosts "$HOSTS" \
-            --argjson app_refs "$APP_REFS" \
-            --argjson apps "$APPS" \
-            --arg path "$DEPLOY_PATH" \
-            --argjson keep_releases "$KEEP_RELEASES" \
-            --arg sops_age_key "$SOPS_AGE_KEY" \
-            '{hosts: $hosts, app_refs: $app_refs, apps: $apps, path: $path, keep_releases: $keep_releases, sops_age_key: $sops_age_key}' \
-            | python3 deploy/deploy.py
+          jq -n --arg target_manifest "$TARGET_MANIFEST" --arg sops_age_key "$SOPS_AGE_KEY" \
+            '{target_manifest: $target_manifest, sops_age_key: $sops_age_key}' \
+            | python3 .flightdeck/deploy/deploy.py
