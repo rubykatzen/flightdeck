@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.0.0](https://github.com/rubykatzen/flightdeck/compare/v0.11.1...v1.0.0) (2026-08-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* rework deploy/renovate as composite actions with validated targets ([#162](https://github.com/rubykatzen/flightdeck/issues/162))
+
+### Bug Fixes
+
+* rename dependabot label to deps, matching baseline 0.16.2 ([#175](https://github.com/rubykatzen/flightdeck/issues/175)) ([800eb86](https://github.com/rubykatzen/flightdeck/commit/800eb860fc58653a1a95e0c11151dd76dbf4ce53))
+
+
+### Code Refactoring
+
+* rework deploy/renovate as composite actions with validated targets ([#162](https://github.com/rubykatzen/flightdeck/issues/162)) ([cfd3cb7](https://github.com/rubykatzen/flightdeck/commit/cfd3cb7d170e06a54f9513cfcd5e4b391ab4b448))
+
 ## [0.11.1](https://github.com/rubykatzen/flightdeck/compare/v0.11.0...v0.11.1) (2026-08-26)
 
 
