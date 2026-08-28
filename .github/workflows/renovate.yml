@@ -25,11 +25,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: $/.github/actions/renovate
+        id: renovate
         with:
           apps: ${{ inputs.apps }}
           target-manifest: ${{ matrix.manifest }}
           ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
           tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
           tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+      - name: Notify Telegram
+        if: steps.renovate.outputs.updated == 'true'
+        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.1
+        with:
+          message: "Renovate: updated on ${{ steps.renovate.outputs.target-name }} (${{ steps.renovate.outputs.updated-hosts }})"
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}

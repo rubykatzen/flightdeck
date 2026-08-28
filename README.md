@@ -371,7 +371,9 @@ Re-pulls and recreates one-or-more apps' containers on a target already present 
 
 `apps` is a JSON array, so one run can renovate several apps at once (e.g. a nightly cron renovating `["traefik","rybbit"]` while leaving everything else alone) — pass a single-element array for the one-app case. Not every target runs every requested app; [`renovate.py`](.github/actions/renovate/renovate.py) decides that itself from the target manifest's own `apps` mapping and simply does nothing — never opening an SSH connection — if none of the requested apps are present there.
 
-It never touches `app_refs`/`env_refs`, never re-decrypts a vault, never rebuilds the release tree; it just picks up a new image behind an existing tag. To tell whether a host's image actually changed (rather than the pull being a no-op), it compares `docker compose images -q` output before and after the pull, and reports `updated`/`updated_hosts`/`target_name` (derived from the manifest's own filename) via `$GITHUB_OUTPUT` - `updated_hosts` lists `app@host` pairs, since more than one app may have been renovated in the same run. When `updated` is `true`, the action's last step sends a Telegram message via `rubykatzen/baseline`'s generic `send-telegram-message` action (the same one `notify-telegram-release.yml`/`notify-telegram-pr.yml` use under the hood) — silent when nothing actually changed.
+It never touches `app_refs`/`env_refs`, never re-decrypts a vault, never rebuilds the release tree; it just picks up a new image behind an existing tag. To tell whether a host's image actually changed (rather than the pull being a no-op), it compares `docker compose images -q` output before and after the pull, and exposes `updated`/`updated-hosts`/`target-name` (derived from the manifest's own filename) as action outputs - `updated-hosts` lists `app@host` pairs, since more than one app may have been renovated in the same run.
+
+Unlike `deploy`, this action has no notification logic of its own — it just reports whether anything changed. `renovate.yml` below is what actually decides to notify, as its own separate step reading this action's outputs; a different caller is free to wire up a different channel, or none at all, without forking this action.
 
 ```yaml
 jobs:
@@ -384,14 +386,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: rubykatzen/flightdeck/.github/actions/renovate@v0.11.0
+        id: renovate
         with:
           apps: ${{ inputs.apps }}                    # JSON array, e.g. '["traefik","rybbit"]'
           target-manifest: ${{ matrix.manifest }}
           ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
-          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
           # tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
           # tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+      - name: Notify Telegram
+        if: steps.renovate.outputs.updated == 'true'
+        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.1
+        with:
+          message: "Renovate: updated on ${{ steps.renovate.outputs.target-name }} (${{ steps.renovate.outputs.updated-hosts }})"
+          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
 ```
 
 **Known gap:** if none of the requested `apps` match any target at all (a typo, say), every matrix job just does nothing and the whole run still reports success — there's no cheap way to fail loudly on "zero matches across the board" without a job that waits on the whole matrix and inspects its results. `apps`' "all/single/list" selection and scheduled/allowlist-driven runs (see #168) also aren't implemented yet — this only ever renovates exactly the apps it's given.

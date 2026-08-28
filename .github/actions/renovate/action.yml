@@ -10,12 +10,6 @@ inputs:
   ssh-private-key:
     description: SSH private key used to connect to the hosts.
     required: true
-  telegram-bot-token:
-    description: Telegram bot token used to notify when an update is found.
-    required: true
-  telegram-chat-id:
-    description: Telegram chat ID used to notify when an update is found.
-    required: true
   tailscale-oauth-client-id:
     description: Tailscale OAuth client ID used to join the tailnet. Leave unset to skip joining a tailnet (e.g. when the runner already has network access to the hosts).
     required: false
@@ -28,6 +22,16 @@ inputs:
     description: Comma-separated ACL tags for the ephemeral tailnet node.
     required: false
     default: tag:ci
+outputs:
+  updated:
+    description: "'true' if at least one requested app's image actually changed on this target."
+    value: ${{ steps.run.outputs.updated }}
+  updated-hosts:
+    description: Comma-separated app@host pairs that were actually updated.
+    value: ${{ steps.run.outputs.updated_hosts }}
+  target-name:
+    description: This target's name, derived from the manifest's own filename.
+    value: ${{ steps.run.outputs.target_name }}
 runs:
   using: composite
   steps:
@@ -57,10 +61,3 @@ runs:
         jq -n --argjson apps "$APPS" --arg target_manifest "$TARGET_MANIFEST" \
           '{apps: $apps, target_manifest: $target_manifest}' \
           | python3 "$GITHUB_ACTION_PATH/renovate.py"
-    - name: Notify Telegram
-      if: steps.run.outputs.updated == 'true'
-      uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.1
-      with:
-        message: "Renovate: updated on ${{ steps.run.outputs.target_name }} (${{ steps.run.outputs.updated_hosts }})"
-        telegram-bot-token: ${{ inputs.telegram-bot-token }}
-        telegram-chat-id: ${{ inputs.telegram-chat-id }}
