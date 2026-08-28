@@ -29,24 +29,24 @@ jobs:
         with:
           release-tag: ${{ needs.release.outputs.tag_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
-  encrypt-vaults:
+  load-vaults:
     needs: release
     if: needs.release.outputs.release_created == 'true'
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
-      count: ${{ steps.matrix.outputs.count }}
+      matrix: ${{ steps.load-vaults.outputs.matrix }}
+      count: ${{ steps.load-vaults.outputs.count }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release.outputs.tag_name }}
       - uses: $/.github/actions/load-vaults-matrix
-        id: matrix
+        id: load-vaults
   encrypt:
-    needs: [release, encrypt-vaults]
-    if: needs.encrypt-vaults.outputs.count != '0'
+    needs: [release, load-vaults]
+    if: needs.load-vaults.outputs.count != '0'
     strategy:
-      matrix: ${{ fromJson(needs.encrypt-vaults.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.load-vaults.outputs.matrix) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
