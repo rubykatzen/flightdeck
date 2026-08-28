@@ -21,8 +21,16 @@ jobs:
           # tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}  # optional, default: unset (skip joining a tailnet)
           # tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}    # required only if tailscale-oauth-client-id is set
           # tailscale-tags: tag:ci                                          # default: tag:ci
+      - name: Notify Telegram
+        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.1
+        with:
+          message: "Deploy: ${{ matrix.name }} updated"
+          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
 ```
 
 Unlike a `workflow_call` reusable workflow, this action doesn't check out anything itself - it reads `target-manifest` from whatever the caller's own preceding `actions/checkout` step already put on disk, and its own code (`deploy.py` and friends) comes along automatically via `$GITHUB_ACTION_PATH` whenever it's referenced as `owner/repo/.github/actions/deploy@ref`. This is also why there's no `target-manifest-ref` input here: if the caller needs a specific ref (e.g. a just-published release tag), it just checks out that ref itself before this step runs, the same way every other job in this repository already does.
 
 `sops-age-key`/`ssh-private-key` are secret *values*, resolved by the caller from the target manifest's own `sops_age_key_secret`/`ssh_private_key_secret` fields (GitHub Secret *names* - see the main README's "Vaults And Targets" section) - this action never reads the manifest's credential fields itself, since it never has access to `secrets.*` by name.
+
+This action has no notification logic of its own, same as [`renovate`](../renovate) - notifying is the caller's job, as a plain following step. Unlike `renovate`, there's no "did anything change" output to gate it on: reaching that step at all already means the `deploy` step above it succeeded, so it just runs unconditionally.

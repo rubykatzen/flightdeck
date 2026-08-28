@@ -340,6 +340,8 @@ The interface is a single path, not flattened deploy vocabulary — the caller n
 
 Tailscale is optional, not a dependency of this action: set `tailscale-oauth-client-id` (and the matching `tailscale-oauth-secret`) to have the runner join a tailnet as an ephemeral node before deploying. Leave both unset to skip that step entirely — e.g. when the job already runs on a self-hosted runner with network access to the hosts, or reaches them some other way.
 
+Like [`renovate`](#renovate), this action has no notification logic of its own - unlike `renovate`, a deploy doesn't need a "did anything actually change" check to decide whether to notify: reaching this point at all already means a real deploy just landed, so the caller's own following step notifies unconditionally (it simply never runs if the `deploy` step above it failed, same as any other step in a job).
+
 <!-- x-release-please-start-version -->
 
 ```yaml
@@ -357,6 +359,12 @@ jobs:
           # tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}  # optional, default: unset (skip joining a tailnet)
           # tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}    # required only if tailscale-oauth-client-id is set
           # tailscale-tags: tag:ci                                          # default: tag:ci
+      - name: Notify Telegram
+        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.1
+        with:
+          message: "Deploy: mainframe updated"
+          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
 ```
 
 <!-- x-release-please-end -->

@@ -91,3 +91,9 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
           tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+      - name: Notify Telegram
+        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.1
+        with:
+          message: "Deploy: ${{ matrix.name }} updated to ${{ needs.release.outputs.tag_name }}"
+          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
