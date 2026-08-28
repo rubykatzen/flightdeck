@@ -11,9 +11,8 @@ Reads a JSON config from stdin: {"target_manifest": "targets/heimdall.yml",
 manifest, parsed here rather than flattened into separate fields by the
 caller - the same shape encrypt-env's render-env.py already uses for
 vault manifests. `sops_age_key` can't come from that file, since it's a
-secret value, not YAML-safe config - deploy-shared.yml passes it
-separately (see README's "deploy-shared.yml" section for the exact
-contract).
+secret value, not YAML-safe config - the calling `deploy` action passes
+it separately (see README's "deploy" section for the exact contract).
 """
 import json
 import shlex

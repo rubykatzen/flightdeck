@@ -21,15 +21,15 @@ jobs:
     if: needs.find-targets.outputs.count != '0'
     strategy:
       matrix: ${{ fromJson(needs.find-targets.outputs.matrix) }}
-    uses: $/.github/workflows/renovate-shared.yml
-    with:
-      apps: ${{ inputs.apps }}
-      target-manifest: ${{ matrix.manifest }}
-      tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
-    secrets:
-      # Per-target, resolved by name from this target's own manifest.
-      ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
-      # Fixed - the same for every target, not resolved from the manifest.
-      tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
-      telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: $/.github/actions/renovate
+        with:
+          apps: ${{ inputs.apps }}
+          target-manifest: ${{ matrix.manifest }}
+          ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
+          tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
+          tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}

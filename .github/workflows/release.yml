@@ -78,12 +78,16 @@ jobs:
     if: needs.deploy-targets.outputs.count != '0'
     strategy:
       matrix: ${{ fromJson(needs.deploy-targets.outputs.matrix) }}
-    uses: $/.github/workflows/deploy-shared.yml
-    with:
-      target-manifest: ${{ matrix.manifest }}
-      target-manifest-ref: ${{ needs.release.outputs.tag_name }}
-      tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
-    secrets:
-      ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
-      tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
-      sops-age-key: ${{ secrets[matrix.sops_age_key_secret] }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release.outputs.tag_name }}
+      - uses: $/.github/actions/deploy
+        with:
+          target-manifest: ${{ matrix.manifest }}
+          ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
+          sops-age-key: ${{ secrets[matrix.sops_age_key_secret] }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
+          tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}

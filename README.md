@@ -22,7 +22,7 @@ A target server needs only:
 
 ## Automated Deploy
 
-Deployment goes through [`deploy-shared.yml`](.github/workflows/deploy-shared.yml) (documented in the GitHub Actions section below), a reusable workflow wrapping [`deploy/deploy.py`](deploy/deploy.py) behind one input — `target-manifest`, a path to that target's own manifest file, which the workflow reads itself rather than receiving `hosts`/`app_refs`/`apps` already flattened.
+Deployment goes through the [`deploy`](.github/actions/deploy) composite action (documented in the GitHub Actions section below) wrapping [`deploy.py`](.github/actions/deploy/deploy.py) behind one input — `target-manifest`, a path to that target's own manifest file, which the action reads itself rather than receiving `hosts`/`app_refs`/`apps` already flattened. It runs as a step inside a job the caller already checked its own repository out for, so the action needs no checkout logic of its own.
 
 The deploy is push-based and runs entirely on the GitHub Actions runner:
 
@@ -58,25 +58,24 @@ flightdeck/
 │   ├── postgres/                # PostgreSQL data
 │   └── {app-name}/              # Each app's data that must survive across releases
 │
-├── deploy/
-│   ├── deploy.py       # Push-based deploy entrypoint (runs on the CI runner)
-│   ├── renovate.py     # Prototype: re-pull/recreate one app's containers, reading its target manifest directly
-│   ├── resolve.py      # owner/repo@tag[:asset] release ref resolution/download
-│   ├── collisions.py   # Ciphertext-based env key collision detection
-│   ├── vault.py        # SOPS decryption
-│   └── render.py       # envsubst-equivalent config template rendering
 ├── .github/
 │   ├── actions/
 │   │   ├── build-bundle/              # Build and upload a zip bundle from given paths
 │   │   ├── build-apps-bundle/          # Build and upload an apps/ catalog bundle
 │   │   ├── encrypt-env/                # Encrypt a target env and upload it to a release
 │   │   ├── load-vaults-matrix/          # Read vaults/ into a workflow matrix, no schema validation
-│   │   └── load-targets-matrix/         # Same, but for targets/ specifically - validates the required shape
+│   │   ├── load-targets-matrix/         # Same, but for targets/ specifically - validates the required shape
+│   │   ├── deploy/                      # Push-based deploy against a target manifest (deploy.py + friends)
+│   │   │   ├── deploy.py               # Deploy entrypoint (runs on the CI runner)
+│   │   │   ├── resolve.py              # owner/repo@tag[:asset] release ref resolution/download
+│   │   │   ├── collisions.py           # Ciphertext-based env key collision detection
+│   │   │   ├── vault.py                # SOPS decryption
+│   │   │   └── render.py               # envsubst-equivalent config template rendering
+│   │   └── renovate/                    # Re-pull/recreate one-or-more apps' containers (renovate.py)
 │   └── workflows/
-│       ├── deploy-shared.yml           # Reusable deployment workflow
-│       ├── renovate.yml                # Prototype: computes a target matrix and calls renovate-shared.yml per target, like deploy.yml
-│       ├── renovate-shared.yml         # Prototype: reusable single-target renovation workflow, like deploy-shared.yml
-│       └── release.yml                 # Release Please + publish Flightdeck assets
+│       ├── deploy.yml                  # Manual redeploy of one target
+│       ├── renovate.yml                # Manual renovate of one-or-more apps across every matching target
+│       └── release.yml                 # Release Please + publish Flightdeck assets + auto-deploy
 │
 ├── vaults/                        # Encrypted env asset configurations, one per app
 └── targets/                       # Deployment targets
@@ -113,7 +112,7 @@ Variable names inside a compose file are always bare, never prefixed with the ap
 - **internal** - Isolated network for app-to-app communication
 - **databases** - Dedicated network for database services (PostgreSQL, Redis, MongoDB)
 
-`traefik` and `databases` are created on the target host by `deploy/deploy.py` (derived from `apps/networks.yml`'s `external: true` entries); `internal` is created by Docker Compose itself.
+`traefik` and `databases` are created on the target host by [`deploy.py`](.github/actions/deploy/deploy.py) (derived from `apps/networks.yml`'s `external: true` entries); `internal` is created by Docker Compose itself.
 
 ## Adding a New Application
 
@@ -188,7 +187,7 @@ Useful as a source of ready-made Docker Compose definitions when adding a new ap
 
 ## GitHub Actions
 
-This repository provides five composite actions under `.github/actions/` (`build-bundle`, `build-apps-bundle`, `encrypt-env`, `load-vaults-matrix`, and `load-targets-matrix`) and one reusable workflow, `deploy-shared.yml`.
+This repository provides seven composite actions under `.github/actions/` (`build-bundle`, `build-apps-bundle`, `encrypt-env`, `load-vaults-matrix`, `load-targets-matrix`, `deploy`, and `renovate`) — no reusable workflows. A reusable workflow only pays for itself when the reused thing genuinely needs its own multiple jobs or job-level config (`permissions`, `concurrency`, etc.); `deploy`/`renovate` are each a single job's worth of steps, and a composite action gets that for free without a `workflow_call` boundary's checkout/secrets ceremony (see [`deploy`](#deploy) below for what that ceremony would otherwise cost).
 
 ---
 
@@ -241,11 +240,11 @@ sops_age_key_secret: MAINFRAME_AGE_PRIVATE_KEY
 
 `ssh_private_key_secret`/`sops_age_key_secret` are GitHub Secret *names*, never the credential values themselves - the `_secret` suffix says so explicitly, since a flat field like `sops_age_key` could otherwise read as the key material itself. `sops_age_key_secret` names the GitHub Secret holding this target's *private* age key - the one used to decrypt its vaults, matching the public key in `keys/<target>.pub` used to encrypt them. Tailscale credentials live outside the target manifest entirely (`vars.TAILSCALE_OAUTH_CLIENT_ID`/`secrets.TAILSCALE_OAUTH_SECRET`, referenced directly by the workflows below) since the tailnet is shared infrastructure, not something that varies per target.
 
-`app_refs` and `hosts` are YAML arrays; `apps` is a mapping from app name to that app's own `env_refs` array. Each host uses the SSH `user@host` format. `app_refs` must list at least one app bundle — flightdeck's own `apps/` catalog is just another entry, not implicit. `env_refs` is optional — omit it (or leave it `[]`) for an app that genuinely needs zero vault-sourced values (e.g. `beszel` above); it still gets a `.env` with `APP_NAME`/`DATA_DIR`, just no vault is fetched or decrypted for it. Don't create a vault manifest with an empty `env:` just to satisfy this field - there's nothing to encrypt, so there's nothing to gain from one. When `env_refs` is given, it must be non-empty; `deploy/deploy.py` decrypts and concatenates all of an app's sources into that app's own `.env` on the runner, failing loud on any key collision — but only within that one app's own sources. Two different apps' vaults sharing a key (e.g. both declaring `DOMAIN`) is expected, since each app gets a separate `.env`.
+`app_refs` and `hosts` are YAML arrays; `apps` is a mapping from app name to that app's own `env_refs` array. Each host uses the SSH `user@host` format. `app_refs` must list at least one app bundle — flightdeck's own `apps/` catalog is just another entry, not implicit. `env_refs` is optional — omit it (or leave it `[]`) for an app that genuinely needs zero vault-sourced values (e.g. `beszel` above); it still gets a `.env` with `APP_NAME`/`DATA_DIR`, just no vault is fetched or decrypted for it. Don't create a vault manifest with an empty `env:` just to satisfy this field - there's nothing to encrypt, so there's nothing to gain from one. When `env_refs` is given, it must be non-empty; [`deploy.py`](.github/actions/deploy/deploy.py) decrypts and concatenates all of an app's sources into that app's own `.env` on the runner, failing loud on any key collision — but only within that one app's own sources. Two different apps' vaults sharing a key (e.g. both declaring `DOMAIN`) is expected, since each app gets a separate `.env`.
 
 A vault manifest's `env:` value is either `${NAME}` (a reference — look up the GitHub Secret/Variable named `NAME`) or a bare literal (any other value, used as-is with no lookup at all — see `DISABLE_SIGNUP: true` above). Use a literal for a value that's fixed for this target but isn't a secret and doesn't need a GitHub Secret/Variable to exist just to hold it.
 
-[`load-vaults-matrix`](.github/actions/load-vaults-matrix) reads every file in `vaults/` into a matrix — it does not validate the manifest shape; `encrypt-env` re-parses and validates its own manifest from `manifest` (see "`encrypt-env`" below). Targets go through the more specific [`load-targets-matrix`](.github/actions/load-targets-matrix) instead, which *does* validate the shape above (`hosts`, `app_refs`, `apps`, `ssh_private_key_secret`, `sops_age_key_secret` all required) before a broken manifest ever reaches a checkout+dependency-install on a different job entirely. The workflows calling `deploy-shared.yml`/`renovate-shared.yml` then pull `matrix.ssh_private_key_secret`/`matrix.sops_age_key_secret` directly, to resolve actual secret values by name.
+[`load-vaults-matrix`](.github/actions/load-vaults-matrix) reads every file in `vaults/` into a matrix — it does not validate the manifest shape; `encrypt-env` re-parses and validates its own manifest from `manifest` (see "`encrypt-env`" below). Targets go through the more specific [`load-targets-matrix`](.github/actions/load-targets-matrix) instead, which *does* validate the shape above (`hosts`, `app_refs`, `apps`, `ssh_private_key_secret`, `sops_age_key_secret` all required) before a broken manifest ever reaches a checkout+dependency-install on a different job entirely. The workflows calling the [`deploy`](#deploy)/[`renovate`](#renovate) actions then pull `matrix.ssh_private_key_secret`/`matrix.sops_age_key_secret` directly, to resolve actual secret values by name.
 
 ---
 
@@ -331,50 +330,48 @@ Requires `contents: write` permission on the calling job. `flightdeck-apps.zip` 
 
 ---
 
-### `deploy-shared.yml`
+### `deploy`
 
-Runs [`deploy/deploy.py`](deploy/deploy.py) from this repository against a target manifest owned by the caller. Intended to be called from a private consumer repository that owns both the config and secrets side (a `targets/*.yml` manifest shaped like the one above, the SSH key, encrypted `.sops.env` releases, the age private key, etc.) — this repository does not hold any deploy secrets itself. That manifest's `apps.<name>.env_refs` entries typically reference that same calling repository via `${{ github.repository }}`, since it's both the config and secrets source.
+Runs [`deploy.py`](.github/actions/deploy/deploy.py) against a target manifest already present in the caller's own checkout. Intended to be used from a private consumer repository that owns both the config and secrets side (a `targets/*.yml` manifest shaped like the one above, the SSH key, encrypted `.sops.env` releases, the age private key, etc.) — this repository does not hold any deploy secrets itself. That manifest's `apps.<name>.env_refs` entries typically reference that same calling repository via `${{ github.repository }}`, since it's both the config and secrets source.
 
-The interface is a single path, not flattened deploy vocabulary — the caller never re-serializes its target's `hosts`/`app_refs`/`apps`/`path` through `toJson(...)`, and `deploy.py` never receives them as separate fields. `target-manifest` just points at the file (`targets/mainframe.yml` in the example below); the workflow checks out the caller's own repository to read it, parses and validates it itself, and pipes the result to `python3 deploy/deploy.py` on stdin alongside the one thing that genuinely can't live in that file - the decrypted `sops-age-key` secret value. The runner then resolves and downloads every ref, decrypts and renders each app's env and config, merges the release, and pushes the finished result to each host over SSH — see "Automated Deploy" above for the full sequence.
+This used to be a `workflow_call` reusable workflow (`deploy-shared.yml`), which needed its own second `checkout` (`repository: job.workflow_repository, ref: job.workflow_sha`) just to get *this* repository's own `deploy.py` onto the runner, and a `target-manifest-ref` input to keep that checkout's ref in sync with whatever ref the caller had already resolved its matrix from. As a composite action, neither problem exists: `deploy.py` comes along automatically via `$GITHUB_ACTION_PATH` whenever this is referenced as `owner/repo/.github/actions/deploy@ref`, and `target-manifest` is just read from whatever the caller's own preceding `actions/checkout` step already put on disk — no second checkout, no ref to keep in sync, because there's only ever one checkout to begin with.
 
-`target-manifest-ref` matters only when the caller itself checked out something other than its default branch before computing the matrix this is called from (e.g. `release.yml` pins to the just-published release tag) - set it to that same ref so both reads agree on the manifest's exact content, instead of silently reading whatever the default branch's tip happens to be by the time this job runs.
+The interface is a single path, not flattened deploy vocabulary — the caller never re-serializes its target's `hosts`/`app_refs`/`apps`/`path` through `toJson(...)`, and `deploy.py` never receives them as separate fields; it parses and validates the manifest itself. `sops-age-key`/`ssh-private-key` are the two things that genuinely can't live in that file - secret *values*, resolved by the caller from the manifest's own `sops_age_key_secret`/`ssh_private_key_secret` fields (GitHub Secret *names*) and passed in directly. The action then resolves and downloads every ref, decrypts and renders each app's env and config, merges the release, and pushes the finished result to each host over SSH — see "Automated Deploy" above for the full sequence.
 
-Tailscale is optional, not a dependency of this workflow: set `tailscale-oauth-client-id` (and the matching `tailscale-oauth-secret`) to have the runner join a tailnet as an ephemeral node before deploying. Leave both unset to skip that step entirely — e.g. when the job already runs on a self-hosted runner with network access to the hosts, or reaches them some other way.
+Tailscale is optional, not a dependency of this action: set `tailscale-oauth-client-id` (and the matching `tailscale-oauth-secret`) to have the runner join a tailnet as an ephemeral node before deploying. Leave both unset to skip that step entirely — e.g. when the job already runs on a self-hosted runner with network access to the hosts, or reaches them some other way.
 
 <!-- x-release-please-start-version -->
 
 ```yaml
 jobs:
   deploy:
-    uses: rubykatzen/flightdeck/.github/workflows/deploy-shared.yml@v0.11.1
-    with:
-      target-manifest: targets/mainframe.yml                        # required, path in this repository
-      # target-manifest-ref: ${{ github.sha }}                      # optional, default: this repository's default branch
-      tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}  # optional, default: unset (skip joining a tailnet)
-      tailscale-tags: tag:ci                                         # default: tag:ci
-    secrets:
-      ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-      sops-age-key: ${{ secrets.MAINFRAME_AGE_PRIVATE_KEY }}
-      tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}  # optional, required only if tailscale-oauth-client-id is set
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: rubykatzen/flightdeck/.github/actions/deploy@v0.11.1
+        with:
+          target-manifest: targets/mainframe.yml                          # required, path in this repository
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
+          sops-age-key: ${{ secrets.MAINFRAME_AGE_PRIVATE_KEY }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          # tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}  # optional, default: unset (skip joining a tailnet)
+          # tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}    # required only if tailscale-oauth-client-id is set
+          # tailscale-tags: tag:ci                                          # default: tag:ci
 ```
 
 <!-- x-release-please-end -->
 
-The `@v0.11.1` pin on the `uses:` line only controls which ref runs `deploy/deploy.py` itself. `target-manifest`'s own `app_refs` entries are separate and don't have to match the workflow pin. <!-- x-release-please-version -->
+The `@v0.11.1` pin on the `uses:` line only controls which ref this action's own code runs at. `target-manifest`'s own `app_refs` entries are separate and don't have to match it. <!-- x-release-please-version -->
 
 ---
 
-### `renovate.yml` / `renovate-shared.yml` (prototype)
+### `renovate`
 
-**Experimental — kept around to compare against `deploy.yml`/`deploy-shared.yml`'s approach before settling on one contract for #120/#121.** Same two-job matrix shape as deploy: `renovate.yml` computes a matrix from `targets/` itself (via [`load-targets-matrix`](.github/actions/load-targets-matrix)) and calls `renovate-shared.yml` once per target, with that target's SSH key already picked out by name (`secrets[matrix.ssh_private_key_secret]`) — exactly like `deploy.yml`/`deploy-shared.yml` already do. No `secrets: inherit`, and deliberately so: it [only works within the same organization or enterprise as the reusable workflow](https://docs.github.com/en/actions/sharing-automations/reusing-workflows), which would silently break for exactly the external, unrelated callers this is meant to support (confirmed real case: `dupmachine/flightdeck`). Resolving each matrix cell's secret *value* by name instead happens in `renovate.yml` itself (a plain triggered workflow, not a `workflow_call` boundary, so it has native access to `secrets.*`), and only that one resolved value ever crosses into `renovate-shared.yml`, via its own explicitly declared `on.workflow_call.secrets`. Tailscale credentials aren't target-specific at all (one shared tailnet), so they're referenced directly (`vars.TAILSCALE_OAUTH_CLIENT_ID`/`secrets.TAILSCALE_OAUTH_SECRET`) rather than resolved per matrix cell.
+Re-pulls and recreates one-or-more apps' containers on a target already present in the caller's own checkout, without touching versions — no new app bundle, no new vault-sourced env, no rebuilt release tree. Just `docker compose pull && docker compose up -d` per requested app, against its already-current release, on each of the target's hosts. Sibling to [`deploy`](#deploy), same checkout-free shape, deliberately narrower job.
 
-Like `deploy-shared.yml`, `renovate.yml` passes only `target-manifest: ${{ matrix.manifest }}` — the file path `load-targets-matrix` already put in every matrix item — and `renovate-shared.yml` reads that file itself, the same way `encrypt-env` takes a vault manifest *path* and parses it rather than receiving flattened `env` fields, and `deploy-shared.yml` now does the same for `hosts`/`apps`/`path`. This keeps the wired interface down to `apps` + one path + Tailscale wiring, instead of re-serializing a target's whole shape through `toJson(matrix.X)` on every field. The trade-off: `renovate-shared.yml` needs a second `checkout` (the caller's own repository, to actually read that manifest file - the existing override checkout only ever fetches flightdeck's own code, into `.flightdeck/`, since that's the repo `deploy/renovate.py` itself lives in) — same shape `deploy-shared.yml` uses.
+`apps` is a JSON array, so one run can renovate several apps at once (e.g. a nightly cron renovating `["traefik","rybbit"]` while leaving everything else alone) — pass a single-element array for the one-app case. Not every target runs every requested app; [`renovate.py`](.github/actions/renovate/renovate.py) decides that itself from the target manifest's own `apps` mapping and simply does nothing — never opening an SSH connection — if none of the requested apps are present there.
 
-`apps` is a JSON array, so one run can renovate several apps at once (e.g. a nightly cron renovating `["traefik","rybbit"]` while leaving everything else alone) — pass a single-element array for the one-app case. Not every target runs every requested app, so every target's job still gets dispatched (a matrix job calling a reusable workflow via `uses:` can't condition its `if:` on `matrix.*` - only `github`, `inputs`, `needs`, and `vars` are available there), each with that target's own resolved SSH key loaded. [`deploy/renovate.py`](deploy/renovate.py) is what actually decides: it renovates whichever requested apps *are* keys in the target manifest's own `apps` mapping and skips the rest; if none match, it exits before ever opening an SSH connection to a host - the "wasted" work per non-matching target is just two checkouts, a pip install, and loading a key into the runner's local SSH agent, never an actual connection anywhere.
-
-Renovating means `docker compose pull && docker compose up -d` against each matched app's already-current release directory on the host — nothing else. It never touches `app_refs`/`env_refs`, never re-decrypts a vault, never rebuilds the release tree; it just picks up a new image behind an existing tag. To tell whether a host's image actually changed (rather than the pull being a no-op), `deploy/renovate.py` compares `docker compose images -q` output before and after the pull, and reports `updated`/`updated_hosts`/`target_name` (derived from the manifest's own filename) via `$GITHUB_OUTPUT` - `updated_hosts` lists `app@host` pairs, since more than one app may have been renovated in the same run. When `updated` is `true`, the job's last step sends a Telegram message via `rubykatzen/baseline`'s generic `send-telegram-message` action (the same one `notify-telegram-release.yml`/`notify-telegram-pr.yml` use under the hood) — silent when nothing actually changed.
-
-**Known gap:** if none of the requested `apps` match any target at all (a typo, say), every matrix job is just skipped and the whole run still reports success — there's no cheap way to fail loudly on "zero matches across the board" without a job that waits on the whole matrix and inspects its results. Deferred until this contract shape is the chosen one.
+It never touches `app_refs`/`env_refs`, never re-decrypts a vault, never rebuilds the release tree; it just picks up a new image behind an existing tag. To tell whether a host's image actually changed (rather than the pull being a no-op), it compares `docker compose images -q` output before and after the pull, and reports `updated`/`updated_hosts`/`target_name` (derived from the manifest's own filename) via `$GITHUB_OUTPUT` - `updated_hosts` lists `app@host` pairs, since more than one app may have been renovated in the same run. When `updated` is `true`, the action's last step sends a Telegram message via `rubykatzen/baseline`'s generic `send-telegram-message` action (the same one `notify-telegram-release.yml`/`notify-telegram-pr.yml` use under the hood) — silent when nothing actually changed.
 
 ```yaml
 jobs:
@@ -383,17 +380,21 @@ jobs:
     if: needs.find-targets.outputs.count != '0'
     strategy:
       matrix: ${{ fromJson(needs.find-targets.outputs.matrix) }}
-    uses: $/.github/workflows/renovate-shared.yml
-    with:
-      apps: ${{ inputs.apps }}                    # JSON array, e.g. '["traefik","rybbit"]'
-      target-manifest: ${{ matrix.manifest }}
-      tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
-    secrets:
-      ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
-      tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
-      telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: rubykatzen/flightdeck/.github/actions/renovate@v0.11.0
+        with:
+          apps: ${{ inputs.apps }}                    # JSON array, e.g. '["traefik","rybbit"]'
+          target-manifest: ${{ matrix.manifest }}
+          ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
+          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          # tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
+          # tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
 ```
+
+**Known gap:** if none of the requested `apps` match any target at all (a typo, say), every matrix job just does nothing and the whole run still reports success — there's no cheap way to fail loudly on "zero matches across the board" without a job that waits on the whole matrix and inspects its results. `apps`' "all/single/list" selection and scheduled/allowlist-driven runs (see #168) also aren't implemented yet — this only ever renovates exactly the apps it's given.
 
 ## License
 

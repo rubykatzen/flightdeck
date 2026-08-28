@@ -6,13 +6,13 @@ no rebuilt release tree. Just `docker compose pull && docker compose
 up -d` per requested app, against its already-current release, on each
 of the target's hosts.
 
-Unlike deploy/deploy.py, which receives an already-flattened config, this
-takes a manifest *path* and parses it itself - the same shape encrypt-env's
-render-env.py already uses for vault manifests, rather than flattening a
-target's hosts/apps/path into separate inputs the caller has to build.
-renovate-shared.yml's own two-job matrix (see README's "Renovate" section)
-is what finds every target and resolves its secrets; this script never
-reads a directory or touches GitHub Secrets itself.
+Like deploy.py, this takes a manifest *path* and parses it itself - the
+same shape encrypt-env's render-env.py already uses for vault manifests,
+rather than flattening a target's hosts/apps/path into separate inputs
+the caller has to build. Finding every target and resolving its secrets
+happens in the calling workflow's own matrix (see README's "renovate"
+section), not here - this script never reads a directory or touches
+GitHub Secrets itself.
 
 Reads a JSON config from stdin: {"apps": ["traefik", "rybbit"],
 "target_manifest": "targets/heimdall.yml"}. Any requested app that isn't
