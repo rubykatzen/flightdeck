@@ -68,12 +68,12 @@ class RenovateHostTest(unittest.TestCase):
 
 
 class MainTest(unittest.TestCase):
-    def _run_main(self, directory, app, manifest_text, manifest_name="heimdall"):
+    def _run_main(self, directory, apps, manifest_text, manifest_name="heimdall"):
         manifest_path = Path(directory) / f"{manifest_name}.yml"
         manifest_path.write_text(manifest_text)
         output_path = Path(directory) / "outputs"
 
-        config = {"app": app, "target_manifest": str(manifest_path)}
+        config = {"apps": apps, "target_manifest": str(manifest_path)}
         with (
             patch.object(sys, "stdin", io.StringIO(json.dumps(config))),
             patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_path)}),
@@ -81,7 +81,7 @@ class MainTest(unittest.TestCase):
             renovate.main()
         return output_path.read_text() if output_path.exists() else ""
 
-    def test_skips_a_target_that_does_not_run_the_app(self):
+    def test_skips_a_target_that_runs_none_of_the_requested_apps(self):
         with (
             tempfile.TemporaryDirectory() as directory,
             patch.object(renovate, "renovate_host") as fake_renovate_host,
@@ -92,19 +92,35 @@ class MainTest(unittest.TestCase):
         self.assertIn("updated=false\n", outputs)
         self.assertIn("target_name=heimdall\n", outputs)
 
-    def test_reports_updated_hosts_when_the_image_changed(self):
-        def fake_renovate_host(host, base_path, app):
-            return host == "deploy@app1.example.com"
+    def test_renovates_only_the_requested_apps_present_on_the_target(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.object(renovate, "renovate_host", return_value=False) as fake_renovate_host,
+        ):
+            self._run_main(
+                directory,
+                "traefik,rybbit,beszel",
+                "apps:\n  traefik: {}\n  gatus: {}\nhosts: [deploy@host]\n",
+            )
 
-        manifest = "apps:\n  beszel: {}\nhosts: [deploy@app1.example.com, deploy@app2.example.com]\npath: ~/flightdeck\n"
+        fake_renovate_host.assert_called_once_with("deploy@host", "~/flightdeck", "traefik")
+
+    def test_reports_updated_app_host_pairs_when_the_image_changed(self):
+        def fake_renovate_host(host, base_path, app):
+            return app == "beszel" and host == "deploy@app1.example.com"
+
+        manifest = (
+            "apps:\n  beszel: {}\n  traefik: {}\n"
+            "hosts: [deploy@app1.example.com, deploy@app2.example.com]\npath: ~/flightdeck\n"
+        )
         with (
             tempfile.TemporaryDirectory() as directory,
             patch.object(renovate, "renovate_host", side_effect=fake_renovate_host),
         ):
-            outputs = self._run_main(directory, "beszel", manifest)
+            outputs = self._run_main(directory, "beszel,traefik", manifest)
 
         self.assertIn("updated=true\n", outputs)
-        self.assertIn("updated_hosts=deploy@app1.example.com\n", outputs)
+        self.assertIn("updated_hosts=beszel@deploy@app1.example.com\n", outputs)
 
     def test_reports_not_updated_when_every_host_was_already_current(self):
         with (

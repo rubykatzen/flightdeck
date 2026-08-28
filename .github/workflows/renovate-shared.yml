@@ -2,8 +2,8 @@ name: Renovate (shared)
 on:
   workflow_call:
     inputs:
-      app:
-        description: App name to renovate (re-pull its image and recreate its containers).
+      apps:
+        description: Comma-separated app name(s) to renovate (re-pull their image and recreate their containers).
         type: string
         required: true
       target-manifest:
@@ -61,16 +61,16 @@ jobs:
         id: run
         shell: bash
         env:
-          APP: ${{ inputs.app }}
+          APPS: ${{ inputs.apps }}
           TARGET_MANIFEST: ${{ inputs.target-manifest }}
         run: |
-          jq -n --arg app "$APP" --arg target_manifest "$TARGET_MANIFEST" \
-            '{app: $app, target_manifest: $target_manifest}' \
+          jq -n --arg apps "$APPS" --arg target_manifest "$TARGET_MANIFEST" \
+            '{apps: $apps, target_manifest: $target_manifest}' \
             | python3 .flightdeck/deploy/renovate.py
       - name: Notify Telegram
         if: steps.run.outputs.updated == 'true'
         uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.1
         with:
-          message: "Renovate: ${{ inputs.app }} updated on ${{ steps.run.outputs.target_name }} (${{ steps.run.outputs.updated_hosts }})"
+          message: "Renovate: updated on ${{ steps.run.outputs.target_name }} (${{ steps.run.outputs.updated_hosts }})"
           telegram-bot-token: ${{ secrets.telegram-bot-token }}
           telegram-chat-id: ${{ secrets.telegram-chat-id }}

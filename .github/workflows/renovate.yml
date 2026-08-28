@@ -2,8 +2,8 @@ name: Renovate
 on:
   workflow_dispatch:
     inputs:
-      app:
-        description: App name to renovate (re-pull its image and recreate its containers) wherever it's currently deployed.
+      apps:
+        description: Comma-separated app name(s) to renovate (re-pull their image and recreate their containers) wherever each is currently deployed.
         type: string
         required: true
 jobs:
@@ -23,7 +23,7 @@ jobs:
       matrix: ${{ fromJson(needs.find-targets.outputs.matrix) }}
     uses: $/.github/workflows/renovate-shared.yml
     with:
-      app: ${{ inputs.app }}
+      apps: ${{ inputs.apps }}
       target-manifest: ${{ matrix.manifest }}
       tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
     secrets:
