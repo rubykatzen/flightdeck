@@ -1,0 +1,65 @@
+name: Deploy
+description: Push-based deploy against a target manifest already present in the caller's own checkout.
+inputs:
+  target-manifest:
+    description: Path to the target manifest file, e.g. targets/heimdall.yml - already checked out by the caller.
+    required: true
+  ssh-private-key:
+    description: SSH private key used to connect to the hosts.
+    required: true
+  sops-age-key:
+    description: Private SOPS age key used to decrypt this target's vault-sourced env, on the runner.
+    required: true
+  github-token:
+    description: Token used to resolve/download release refs (app bundles, encrypted env sources).
+    required: true
+  tailscale-oauth-client-id:
+    description: Tailscale OAuth client ID used to join the tailnet. Leave unset to skip joining a tailnet (e.g. when the runner already has network access to the hosts).
+    required: false
+    default: ""
+  tailscale-oauth-secret:
+    description: Tailscale OAuth client secret used to join the tailnet. Required only when tailscale-oauth-client-id is set.
+    required: false
+    default: ""
+  tailscale-tags:
+    description: Comma-separated ACL tags for the ephemeral tailnet node.
+    required: false
+    default: tag:ci
+runs:
+  using: composite
+  steps:
+    - name: Install deploy dependencies
+      shell: bash
+      run: python3 -m pip install --disable-pip-version-check --requirement "$GITHUB_ACTION_PATH/requirements.txt"
+    - name: Install sops
+      shell: bash
+      env:
+        SOPS_VERSION: "3.13.1"
+      run: |
+        curl --fail --location --silent --show-error \
+          "https://github.com/getsops/sops/releases/download/v${SOPS_VERSION}/sops-v${SOPS_VERSION}.linux.amd64" \
+          --output /usr/local/bin/sops
+        chmod +x /usr/local/bin/sops
+    - uses: tailscale/github-action@v4
+      if: inputs.tailscale-oauth-client-id != ''
+      with:
+        oauth-client-id: ${{ inputs.tailscale-oauth-client-id }}
+        oauth-secret: ${{ inputs.tailscale-oauth-secret }}
+        tags: ${{ inputs.tailscale-tags }}
+    - name: Load SSH key
+      shell: bash
+      run: |
+        eval "$(ssh-agent -s)"
+        echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+        echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
+        ssh-add - <<< "${{ inputs.ssh-private-key }}"
+    - name: Run deploy
+      shell: bash
+      env:
+        TARGET_MANIFEST: ${{ inputs.target-manifest }}
+        SOPS_AGE_KEY: ${{ inputs.sops-age-key }}
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        jq -n --arg target_manifest "$TARGET_MANIFEST" --arg sops_age_key "$SOPS_AGE_KEY" \
+          '{target_manifest: $target_manifest, sops_age_key: $sops_age_key}' \
+          | python3 "$GITHUB_ACTION_PATH/deploy.py"

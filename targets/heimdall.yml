@@ -12,10 +12,5 @@ apps:
       - rubykatzen/flightdeck@latest:cloudflared.sops.env
 hosts:
   - root@100.75.53.13
-credentials:
-  variables:
-    tailscale_oauth_client_id: TAILSCALE_OAUTH_CLIENT_ID
-  secrets:
-    ssh_private_key: DEPLOY_SSH_PRIVATE_KEY
-    tailscale_oauth_secret: TAILSCALE_OAUTH_SECRET
-    sops_age_key: HEIMDALL_AGE_PRIVATE_KEY
+ssh_private_key_secret: DEPLOY_SSH_PRIVATE_KEY
+sops_age_key_secret: HEIMDALL_AGE_PRIVATE_KEY

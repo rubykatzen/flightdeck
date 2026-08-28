@@ -1,0 +1,64 @@
+name: Renovate
+description: Re-pull and recreate one-or-more apps' containers on a target already present in the caller's own checkout, without touching versions.
+inputs:
+  apps:
+    description: JSON array of app name(s) to renovate (re-pull their image and recreate their containers). Empty array means every app this target runs.
+    required: false
+    default: "[]"
+  target-manifest:
+    description: Path to the target manifest file, e.g. targets/heimdall.yml - already checked out by the caller.
+    required: true
+  ssh-private-key:
+    description: SSH private key used to connect to the hosts.
+    required: true
+  tailscale-oauth-client-id:
+    description: Tailscale OAuth client ID used to join the tailnet. Leave unset to skip joining a tailnet (e.g. when the runner already has network access to the hosts).
+    required: false
+    default: ""
+  tailscale-oauth-secret:
+    description: Tailscale OAuth client secret used to join the tailnet. Required only when tailscale-oauth-client-id is set.
+    required: false
+    default: ""
+  tailscale-tags:
+    description: Comma-separated ACL tags for the ephemeral tailnet node.
+    required: false
+    default: tag:ci
+outputs:
+  updated:
+    description: "'true' if at least one requested app's image actually changed on this target."
+    value: ${{ steps.run.outputs.updated }}
+  updated-hosts:
+    description: Comma-separated app@host pairs that were actually updated.
+    value: ${{ steps.run.outputs.updated_hosts }}
+  target-name:
+    description: This target's name, derived from the manifest's own filename.
+    value: ${{ steps.run.outputs.target_name }}
+runs:
+  using: composite
+  steps:
+    - name: Install deploy dependencies
+      shell: bash
+      run: python3 -m pip install --disable-pip-version-check --requirement "$GITHUB_ACTION_PATH/requirements.txt"
+    - uses: tailscale/github-action@v4
+      if: inputs.tailscale-oauth-client-id != ''
+      with:
+        oauth-client-id: ${{ inputs.tailscale-oauth-client-id }}
+        oauth-secret: ${{ inputs.tailscale-oauth-secret }}
+        tags: ${{ inputs.tailscale-tags }}
+    - name: Load SSH key
+      shell: bash
+      run: |
+        eval "$(ssh-agent -s)"
+        echo "SSH_AUTH_SOCK=$SSH_AUTH_SOCK" >> "$GITHUB_ENV"
+        echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
+        ssh-add - <<< "${{ inputs.ssh-private-key }}"
+    - name: Run renovate
+      id: run
+      shell: bash
+      env:
+        APPS: ${{ inputs.apps }}
+        TARGET_MANIFEST: ${{ inputs.target-manifest }}
+      run: |
+        jq -n --argjson apps "$APPS" --arg target_manifest "$TARGET_MANIFEST" \
+          '{apps: $apps, target_manifest: $target_manifest}' \
+          | python3 "$GITHUB_ACTION_PATH/renovate.py"

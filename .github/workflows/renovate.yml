@@ -1,7 +1,14 @@
-name: Deploy
+name: Renovate
 on:
-  workflow_dispatch: {}
-  workflow_call: {}
+  workflow_dispatch:
+    inputs:
+      apps:
+        description: JSON array of app name(s) to renovate (re-pull their image and recreate their containers) wherever each is currently deployed, e.g. ["traefik","rybbit"]. Leave empty to renovate every app on every target.
+        type: string
+        required: false
+        default: "[]"
+  schedule:
+    - cron: "0 3 * * *"
 jobs:
   load-targets:
     runs-on: ubuntu-latest
@@ -12,7 +19,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: $/.github/actions/load-targets-matrix
         id: load-targets
-  deploy:
+  renovate:
     needs: load-targets
     if: needs.load-targets.outputs.count != '0'
     strategy:
@@ -20,17 +27,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: $/.github/actions/deploy
+      - uses: $/.github/actions/renovate
+        id: renovate
         with:
+          apps: ${{ inputs.apps || '[]' }}
           target-manifest: ${{ matrix.manifest }}
           ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
-          sops-age-key: ${{ secrets[matrix.sops_age_key_secret] }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
           tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
       - name: Notify Telegram
+        if: steps.renovate.outputs.updated == 'true'
         uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.1
         with:
-          message: "Deploy: ${{ matrix.name }} updated"
+          message: "Renovate: updated on ${{ steps.renovate.outputs.target-name }} (${{ steps.renovate.outputs.updated-hosts }})"
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
