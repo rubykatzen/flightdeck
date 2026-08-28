@@ -2,8 +2,9 @@ name: Renovate
 description: Re-pull and recreate one-or-more apps' containers on a target already present in the caller's own checkout, without touching versions.
 inputs:
   apps:
-    description: JSON array of app name(s) to renovate (re-pull their image and recreate their containers).
-    required: true
+    description: JSON array of app name(s) to renovate (re-pull their image and recreate their containers). Empty array means every app this target runs.
+    required: false
+    default: "[]"
   target-manifest:
     description: Path to the target manifest file, e.g. targets/heimdall.yml - already checked out by the caller.
     required: true

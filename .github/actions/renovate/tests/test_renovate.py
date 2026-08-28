@@ -92,6 +92,27 @@ class MainTest(unittest.TestCase):
         self.assertIn("updated=false\n", outputs)
         self.assertIn("target_name=heimdall\n", outputs)
 
+    def test_renovates_every_app_when_apps_is_empty(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.object(renovate, "renovate_host", return_value=False) as fake_renovate_host,
+        ):
+            self._run_main(directory, [], "apps:\n  traefik: {}\n  gatus: {}\nhosts: [deploy@host]\n")
+
+        fake_renovate_host.assert_any_call("deploy@host", "~/flightdeck", "traefik")
+        fake_renovate_host.assert_any_call("deploy@host", "~/flightdeck", "gatus")
+        self.assertEqual(fake_renovate_host.call_count, 2)
+
+    def test_skips_a_target_with_no_apps_when_apps_is_empty(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.object(renovate, "renovate_host") as fake_renovate_host,
+        ):
+            outputs = self._run_main(directory, [], "apps: {}\nhosts: [deploy@host]\n")
+
+        fake_renovate_host.assert_not_called()
+        self.assertIn("updated=false\n", outputs)
+
     def test_renovates_only_the_requested_apps_present_on_the_target(self):
         with (
             tempfile.TemporaryDirectory() as directory,

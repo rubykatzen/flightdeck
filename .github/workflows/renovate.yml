@@ -3,9 +3,12 @@ on:
   workflow_dispatch:
     inputs:
       apps:
-        description: JSON array of app name(s) to renovate (re-pull their image and recreate their containers) wherever each is currently deployed, e.g. ["traefik","rybbit"].
+        description: JSON array of app name(s) to renovate (re-pull their image and recreate their containers) wherever each is currently deployed, e.g. ["traefik","rybbit"]. Leave empty to renovate every app on every target.
         type: string
-        required: true
+        required: false
+        default: "[]"
+  schedule:
+    - cron: "0 3 * * *"
 jobs:
   load-targets:
     runs-on: ubuntu-latest
@@ -27,7 +30,7 @@ jobs:
       - uses: $/.github/actions/renovate
         id: renovate
         with:
-          apps: ${{ inputs.apps }}
+          apps: ${{ inputs.apps || '[]' }}
           target-manifest: ${{ matrix.manifest }}
           ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
           tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}

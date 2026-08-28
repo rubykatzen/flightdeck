@@ -394,7 +394,7 @@ jobs:
 
 Re-pulls and recreates one-or-more apps' containers on a target already present in the caller's own checkout, without touching versions — no new app bundle, no new vault-sourced env, no rebuilt release tree. Just `docker compose pull && docker compose up -d` per requested app, against its already-current release, on each of the target's hosts. Sibling to [`deploy`](#deploy), same checkout-free shape, deliberately narrower job.
 
-`apps` is a JSON array, so one run can renovate several apps at once (e.g. a nightly cron renovating `["traefik","rybbit"]` while leaving everything else alone) — pass a single-element array for the one-app case. Not every target runs every requested app; [`renovate.py`](.github/actions/renovate/renovate.py) decides that itself from the target manifest's own `apps` mapping and simply does nothing — never opening an SSH connection — if none of the requested apps are present there.
+`apps` is a JSON array, so one run can renovate several apps at once (e.g. `["traefik","rybbit"]`) — pass a single-element array for the one-app case, or an empty array for every app the target runs. Not every target runs every requested app; [`renovate.py`](.github/actions/renovate/renovate.py) decides that itself from the target manifest's own `apps` mapping and simply does nothing — never opening an SSH connection — if none of the requested apps are present there.
 
 It never touches `app_refs`/`env_refs`, never re-decrypts a vault, never rebuilds the release tree; it just picks up a new image behind an existing tag. To tell whether a host's image actually changed (rather than the pull being a no-op), it compares `docker compose images -q` output before and after the pull, and exposes `updated`/`updated-hosts`/`target-name` (derived from the manifest's own filename) as action outputs - `updated-hosts` lists `app@host` pairs, since more than one app may have been renovated in the same run.
 
@@ -413,7 +413,7 @@ jobs:
       - uses: rubykatzen/flightdeck/.github/actions/renovate@v0.11.0
         id: renovate
         with:
-          apps: ${{ inputs.apps }}                    # JSON array, e.g. '["traefik","rybbit"]'
+          apps: ${{ inputs.apps || '[]' }}             # JSON array, e.g. '["traefik","rybbit"]'; '[]' on the nightly cron run
           target-manifest: ${{ matrix.manifest }}
           ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
           # tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
@@ -427,7 +427,9 @@ jobs:
           telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
 ```
 
-**Known gap:** if none of the requested `apps` match any target at all (a typo, say), every matrix job just does nothing and the whole run still reports success — there's no cheap way to fail loudly on "zero matches across the board" without a job that waits on the whole matrix and inspects its results. `apps`' "all/single/list" selection and scheduled/allowlist-driven runs (see #168) also aren't implemented yet — this only ever renovates exactly the apps it's given.
+`renovate.yml` also runs on a nightly `schedule` (`0 3 * * *`), with `apps` defaulting to `[]` — a cron trigger can't supply `workflow_dispatch` inputs at all, so the empty-array-means-everything behavior above exists specifically to give the scheduled run something to pass.
+
+**Known gap:** if none of the requested `apps` match any target at all (a typo, say), every matrix job just does nothing and the whole run still reports success — there's no cheap way to fail loudly on "zero matches across the board" without a job that waits on the whole matrix and inspects its results.
 
 ## License
 

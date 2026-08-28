@@ -19,7 +19,9 @@ Reads a JSON config from stdin: {"apps": ["traefik", "rybbit"],
 a key in that manifest's own `apps` mapping is skipped, not an error - a
 target-matrix fan-out dispatches to every target regardless of which of
 the requested apps it actually runs; skipping all of them there is a
-clean no-op.
+clean no-op. An empty `apps` list means "every app this target runs" -
+the scheduled nightly run has no specific apps to name, so it renovates
+everything.
 
 Writes `updated`/`updated_hosts`/`target_name` to $GITHUB_OUTPUT so the
 calling workflow can notify only when a host's image actually changed,
@@ -71,9 +73,12 @@ def main():
 
     target = yaml.safe_load(manifest_path.read_text())
     target_apps = target.get("apps") or {}
-    matching_apps = [app for app in requested_apps if app in target_apps]
+    matching_apps = [app for app in requested_apps if app in target_apps] if requested_apps else list(target_apps)
     if not matching_apps:
-        print(f"none of {requested_apps} are deployed on target {target_name!r}, skipping")
+        if requested_apps:
+            print(f"none of {requested_apps} are deployed on target {target_name!r}, skipping")
+        else:
+            print(f"target {target_name!r} has no apps deployed, skipping")
         write_github_output("updated", "false")
         return
 
