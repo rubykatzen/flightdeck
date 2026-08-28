@@ -14,10 +14,9 @@ jobs:
       count: ${{ steps.load-targets.outputs.count }}
     steps:
       - uses: actions/checkout@v7
-      - uses: $/.github/actions/load-yaml-matrix
+      - uses: $/.github/actions/load-targets-matrix
         id: load-targets
         with:
-          directory: targets
           name: ${{ inputs.target }}
   deploy:
     needs: deploy-targets
@@ -27,8 +26,8 @@ jobs:
     uses: $/.github/workflows/deploy-shared.yml
     with:
       target-manifest: ${{ matrix.manifest }}
-      tailscale-oauth-client-id: ${{ vars[matrix.credentials.variables.tailscale_oauth_client_id] }}
+      tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
     secrets:
-      ssh-private-key: ${{ secrets[matrix.credentials.secrets.ssh_private_key] }}
-      tailscale-oauth-secret: ${{ secrets[matrix.credentials.secrets.tailscale_oauth_secret] }}
-      sops-age-key: ${{ secrets[matrix.credentials.secrets.sops_age_key] }}
+      ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
+      tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+      sops-age-key: ${{ secrets[matrix.sops_age_key_secret] }}

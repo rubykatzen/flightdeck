@@ -14,10 +14,8 @@ jobs:
       count: ${{ steps.load-targets.outputs.count }}
     steps:
       - uses: actions/checkout@v7
-      - uses: $/.github/actions/load-yaml-matrix
+      - uses: $/.github/actions/load-targets-matrix
         id: load-targets
-        with:
-          directory: targets
   renovate:
     needs: find-targets
     if: needs.find-targets.outputs.count != '0'
@@ -27,11 +25,11 @@ jobs:
     with:
       app: ${{ inputs.app }}
       target-manifest: ${{ matrix.manifest }}
-      tailscale-oauth-client-id: ${{ vars[matrix.credentials.variables.tailscale_oauth_client_id] }}
+      tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
     secrets:
       # Per-target, resolved by name from this target's own manifest.
-      ssh-private-key: ${{ secrets[matrix.credentials.secrets.ssh_private_key] }}
-      tailscale-oauth-secret: ${{ secrets[matrix.credentials.secrets.tailscale_oauth_secret] }}
+      ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
       # Fixed - the same for every target, not resolved from the manifest.
+      tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
       telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
       telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}

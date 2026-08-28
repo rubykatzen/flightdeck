@@ -1,0 +1,32 @@
+name: Load targets matrix
+description: Read every target manifest in a directory into a GitHub Actions matrix, validating each one's required shape.
+inputs:
+  directory:
+    description: Directory containing target manifests.
+    required: false
+    default: targets
+  name:
+    description: Single target name to load, or all.
+    required: false
+    default: all
+outputs:
+  matrix:
+    description: JSON strategy matrix, one item per target manifest, merging its parsed YAML fields with name and manifest.
+    value: ${{ steps.load.outputs.matrix }}
+  count:
+    description: Number of targets in the matrix.
+    value: ${{ steps.load.outputs.count }}
+runs:
+  using: composite
+  steps:
+    - name: Install dependencies
+      shell: bash
+      run: python3 -m pip install --disable-pip-version-check --requirement "$GITHUB_ACTION_PATH/requirements.txt"
+    - name: Load matrix
+      id: load
+      shell: bash
+      env:
+        DIRECTORY: ${{ inputs.directory }}
+        NAME: ${{ inputs.name }}
+      run: |
+        python3 "$GITHUB_ACTION_PATH/scripts/load-targets-matrix.py" --directory "$DIRECTORY" --name "$NAME"
