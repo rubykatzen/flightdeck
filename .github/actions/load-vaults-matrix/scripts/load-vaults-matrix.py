@@ -45,6 +45,15 @@ def load_manifest(path):
     return value
 
 
+def validate_vault(name, manifest):
+    if not isinstance(manifest.get("asset"), str) or not manifest["asset"]:
+        raise ManifestError(f"vault {name!r} must set asset to a non-empty string")
+    if not isinstance(manifest.get("keys"), list) or not manifest["keys"]:
+        raise ManifestError(f"vault {name!r} must set keys to a non-empty list")
+    if not isinstance(manifest.get("env"), dict) or not manifest["env"]:
+        raise ManifestError(f"vault {name!r} must set env to a non-empty mapping")
+
+
 def build_matrix(directory):
     paths = sorted(directory.glob("*.yml")) + sorted(directory.glob("*.yaml"))
     if not paths:
@@ -59,6 +68,7 @@ def build_matrix(directory):
             raise ManifestError(f"duplicate manifest name: {name}")
         seen_names.add(name)
         manifest = load_manifest(path)
+        validate_vault(name, manifest)
         item = {"name": name, "manifest": str(path)}
         item.update(manifest)
         include.append(item)

@@ -74,6 +74,23 @@ class LoadVaultsMatrixTest(unittest.TestCase):
         with self.assertRaisesRegex(load_vaults_matrix.ManifestError, "duplicate YAML key"):
             load_vaults_matrix.build_matrix(self.directory)
 
+    def test_rejects_missing_asset(self):
+        (self.directory / "traefik.yml").write_text("keys: [mainframe]\nenv: {HTTP_PORT: '80'}\n")
+        with self.assertRaisesRegex(load_vaults_matrix.ManifestError, "must set asset"):
+            load_vaults_matrix.build_matrix(self.directory)
+
+    def test_rejects_empty_keys(self):
+        (self.directory / "traefik.yml").write_text(
+            "asset: mainframe-traefik.sops.env\nkeys: []\nenv: {HTTP_PORT: '80'}\n"
+        )
+        with self.assertRaisesRegex(load_vaults_matrix.ManifestError, "must set keys"):
+            load_vaults_matrix.build_matrix(self.directory)
+
+    def test_rejects_missing_env(self):
+        (self.directory / "traefik.yml").write_text("asset: mainframe-traefik.sops.env\nkeys: [mainframe]\n")
+        with self.assertRaisesRegex(load_vaults_matrix.ManifestError, "must set env"):
+            load_vaults_matrix.build_matrix(self.directory)
+
 
 if __name__ == "__main__":
     unittest.main()
