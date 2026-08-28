@@ -60,7 +60,7 @@ jobs:
         env:
           GITHUB_SECRETS_JSON: ${{ toJson(secrets) }}
           GITHUB_VARS_JSON: ${{ toJson(vars) }}
-  deploy-targets:
+  load-targets:
     needs: release
     if: needs.release.outputs.release_created == 'true'
     runs-on: ubuntu-latest
@@ -74,10 +74,10 @@ jobs:
       - uses: $/.github/actions/load-targets-matrix
         id: load-targets
   deploy:
-    needs: [release, upload-apps, encrypt, deploy-targets]
-    if: needs.deploy-targets.outputs.count != '0'
+    needs: [release, upload-apps, encrypt, load-targets]
+    if: needs.load-targets.outputs.count != '0'
     strategy:
-      matrix: ${{ fromJson(needs.deploy-targets.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.load-targets.outputs.matrix) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

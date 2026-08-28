@@ -7,7 +7,7 @@ on:
         type: string
         required: true
 jobs:
-  deploy-targets:
+  load-targets:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.load-targets.outputs.matrix }}
@@ -19,10 +19,10 @@ jobs:
         with:
           name: ${{ inputs.target }}
   deploy:
-    needs: deploy-targets
-    if: needs.deploy-targets.outputs.count != '0'
+    needs: load-targets
+    if: needs.load-targets.outputs.count != '0'
     strategy:
-      matrix: ${{ fromJson(needs.deploy-targets.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.load-targets.outputs.matrix) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

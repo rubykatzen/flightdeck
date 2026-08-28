@@ -8,7 +8,7 @@ Composite GitHub Action that runs a push-based deploy against a target manifest 
 jobs:
   deploy:
     strategy:
-      matrix: ${{ fromJson(needs.deploy-targets.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.load-targets.outputs.matrix) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
