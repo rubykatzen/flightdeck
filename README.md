@@ -187,7 +187,9 @@ Useful as a source of ready-made Docker Compose definitions when adding a new ap
 
 ## GitHub Actions
 
-This repository provides seven composite actions under `.github/actions/` (`build-bundle`, `build-apps-bundle`, `encrypt-env`, `load-vaults-matrix`, `load-targets-matrix`, `deploy`, and `renovate`) — no reusable workflows. A reusable workflow only pays for itself when the reused thing genuinely needs its own multiple jobs or job-level config (`permissions`, `concurrency`, etc.); `deploy`/`renovate` are each a single job's worth of steps, and a composite action gets that for free without a `workflow_call` boundary's checkout/secrets ceremony (see [`deploy`](#deploy) below for what that ceremony would otherwise cost).
+This repository provides seven composite actions under `.github/actions/` (`build-bundle`, `build-apps-bundle`, `encrypt-env`, `load-vaults-matrix`, `load-targets-matrix`, `deploy`, and `renovate`). A reusable workflow only pays for itself when the reused thing genuinely needs its own multiple jobs or job-level config (`permissions`, `concurrency`, etc.); `deploy`/`renovate` are each a single job's worth of steps, and a composite action gets that for free without a `workflow_call` boundary's checkout/secrets ceremony (see [`deploy`](#deploy) below for what that ceremony would otherwise cost).
+
+The one exception is `deploy.yml` itself: it also declares `workflow_call`, purely so `release.yml` can call it directly instead of duplicating its `load-targets`+`deploy` job pair — see "`deploy.yml`" below.
 
 ---
 
@@ -370,6 +372,21 @@ jobs:
 <!-- x-release-please-end -->
 
 The `@v0.11.1` pin on the `uses:` line only controls which ref this action's own code runs at. `target-manifest`'s own `app_refs` entries are separate and don't have to match it. <!-- x-release-please-version -->
+
+#### `deploy.yml`
+
+This repository's own `deploy.yml` is the manual-redeploy entry point shown above (`workflow_dispatch`, no inputs — it always redeploys every target in `targets/`), but it also declares `on.workflow_call` with no inputs of its own, purely so `release.yml` can call it directly instead of duplicating its `load-targets`+`deploy` job pair:
+
+```yaml
+jobs:
+  deploy:
+    needs: [release, upload-apps, encrypt]
+    if: needs.release.outputs.release_created == 'true'
+    uses: $/.github/workflows/deploy.yml
+    secrets: inherit
+```
+
+`secrets: inherit` is safe here specifically because both workflows live in this same repository — `deploy.yml` already has native access to every one of this repository's own secrets when triggered directly, so inheriting them from `release.yml` (also this repository) doesn't actually broaden anything. This is the one narrow case where `secrets: inherit`'s same-organization restriction (see [`renovate`](#renovate) below) isn't a concern at all, since there's no organization boundary being crossed in the first place. The trade-off: `release.yml`'s deploy no longer includes the release tag in its Telegram message, since `deploy.yml`'s own generic "`{target}` updated" text doesn't know it - not worth reintroducing an input and a conditional `format(...)` expression just to preserve that one detail.
 
 ---
 

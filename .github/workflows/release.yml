@@ -60,40 +60,8 @@ jobs:
         env:
           GITHUB_SECRETS_JSON: ${{ toJson(secrets) }}
           GITHUB_VARS_JSON: ${{ toJson(vars) }}
-  load-targets:
-    needs: release
-    if: needs.release.outputs.release_created == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.load-targets.outputs.matrix }}
-      count: ${{ steps.load-targets.outputs.count }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.release.outputs.tag_name }}
-      - uses: $/.github/actions/load-targets-matrix
-        id: load-targets
   deploy:
-    needs: [release, upload-apps, encrypt, load-targets]
-    if: needs.load-targets.outputs.count != '0'
-    strategy:
-      matrix: ${{ fromJson(needs.load-targets.outputs.matrix) }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.release.outputs.tag_name }}
-      - uses: $/.github/actions/deploy
-        with:
-          target-manifest: ${{ matrix.manifest }}
-          ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
-          sops-age-key: ${{ secrets[matrix.sops_age_key_secret] }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
-          tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
-      - name: Notify Telegram
-        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.1
-        with:
-          message: "Deploy: ${{ matrix.name }} updated to ${{ needs.release.outputs.tag_name }}"
-          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+    needs: [release, upload-apps, encrypt]
+    if: needs.release.outputs.release_created == 'true'
+    uses: $/.github/workflows/deploy.yml
+    secrets: inherit
