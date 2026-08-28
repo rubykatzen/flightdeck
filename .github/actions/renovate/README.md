@@ -8,7 +8,7 @@ Composite GitHub Action that re-pulls and recreates one-or-more apps' containers
 jobs:
   renovate:
     strategy:
-      matrix: ${{ fromJson(needs.find-targets.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.load-targets.outputs.matrix) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

@@ -376,10 +376,10 @@ It never touches `app_refs`/`env_refs`, never re-decrypts a vault, never rebuild
 ```yaml
 jobs:
   renovate:
-    needs: find-targets
-    if: needs.find-targets.outputs.count != '0'
+    needs: load-targets
+    if: needs.load-targets.outputs.count != '0'
     strategy:
-      matrix: ${{ fromJson(needs.find-targets.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.load-targets.outputs.matrix) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

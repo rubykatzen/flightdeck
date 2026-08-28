@@ -7,7 +7,7 @@ on:
         type: string
         required: true
 jobs:
-  find-targets:
+  load-targets:
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.load-targets.outputs.matrix }}
@@ -17,10 +17,10 @@ jobs:
       - uses: $/.github/actions/load-targets-matrix
         id: load-targets
   renovate:
-    needs: find-targets
-    if: needs.find-targets.outputs.count != '0'
+    needs: load-targets
+    if: needs.load-targets.outputs.count != '0'
     strategy:
-      matrix: ${{ fromJson(needs.find-targets.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.load-targets.outputs.matrix) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
