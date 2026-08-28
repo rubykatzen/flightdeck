@@ -45,20 +45,12 @@ class LoadTargetsMatrixTest(unittest.TestCase):
         )
 
     def test_merges_manifest_fields_with_name_and_manifest(self):
-        item = load_targets_matrix.build_matrix(self.directory, "heimdall")["include"][0]
-        self.assertEqual(item["name"], "heimdall")
+        matrix = load_targets_matrix.build_matrix(self.directory)
+        item = next(item for item in matrix["include"] if item["name"] == "heimdall")
         self.assertEqual(item["manifest"], str(self.directory / "heimdall.yml"))
         self.assertEqual(item["hosts"], ["root@100.75.53.13"])
         self.assertEqual(item["ssh_private_key_secret"], "DEPLOY_SSH_PRIVATE_KEY")
         self.assertEqual(item["sops_age_key_secret"], "HEIMDALL_AGE_PRIVATE_KEY")
-
-    def test_filters_selected_manifest(self):
-        matrix = load_targets_matrix.build_matrix(self.directory, "heimdall")
-        self.assertEqual([item["name"] for item in matrix["include"]], ["heimdall"])
-
-    def test_rejects_unknown_name(self):
-        with self.assertRaisesRegex(load_targets_matrix.ManifestError, "unknown name"):
-            load_targets_matrix.build_matrix(self.directory, "missing")
 
     def test_rejects_empty_directory(self):
         empty = self.directory / "empty"

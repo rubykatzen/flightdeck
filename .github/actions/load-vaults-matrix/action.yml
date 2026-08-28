@@ -5,10 +5,6 @@ inputs:
     description: Directory containing vault manifests.
     required: false
     default: vaults
-  name:
-    description: Single manifest name to load, or all.
-    required: false
-    default: all
 outputs:
   matrix:
     description: JSON strategy matrix, one item per manifest, merging its parsed YAML fields with name and manifest.
@@ -27,6 +23,5 @@ runs:
       shell: bash
       env:
         DIRECTORY: ${{ inputs.directory }}
-        NAME: ${{ inputs.name }}
       run: |
-        python3 "$GITHUB_ACTION_PATH/scripts/load-vaults-matrix.py" --directory "$DIRECTORY" --name "$NAME"
+        python3 "$GITHUB_ACTION_PATH/scripts/load-vaults-matrix.py" --directory "$DIRECTORY"

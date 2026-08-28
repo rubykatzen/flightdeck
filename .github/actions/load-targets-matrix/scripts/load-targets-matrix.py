@@ -58,13 +58,10 @@ def validate_target(name, manifest):
         raise ManifestError(f"target {name!r} must set sops_age_key_secret to a non-empty string")
 
 
-def build_matrix(directory, selected="all"):
+def build_matrix(directory):
     paths = sorted(directory.glob("*.yml")) + sorted(directory.glob("*.yaml"))
     if not paths:
         raise ManifestError(f"no manifests found in {directory}")
-    names = {path.stem for path in paths}
-    if selected != "all" and selected not in names:
-        raise ManifestError(f"unknown name: {selected}")
     include = []
     seen_names = set()
     for path in paths:
@@ -76,8 +73,6 @@ def build_matrix(directory, selected="all"):
         seen_names.add(name)
         manifest = load_manifest(path)
         validate_target(name, manifest)
-        if selected != "all" and name != selected:
-            continue
         item = {"name": name, "manifest": str(path)}
         item.update(manifest)
         include.append(item)
@@ -94,10 +89,9 @@ def write_github_output(name, value):
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--directory", required=True, type=Path)
-    parser.add_argument("--name", default="all")
     args = parser.parse_args(argv)
     try:
-        matrix = build_matrix(args.directory, args.name)
+        matrix = build_matrix(args.directory)
         encoded = json.dumps(matrix, separators=(",", ":"))
         write_github_output("matrix", encoded)
         write_github_output("count", len(matrix["include"]))

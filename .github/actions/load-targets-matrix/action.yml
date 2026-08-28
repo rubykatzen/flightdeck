@@ -5,10 +5,6 @@ inputs:
     description: Directory containing target manifests.
     required: false
     default: targets
-  name:
-    description: Single target name to load, or all.
-    required: false
-    default: all
 outputs:
   matrix:
     description: JSON strategy matrix, one item per target manifest, merging its parsed YAML fields with name and manifest.
@@ -27,6 +23,5 @@ runs:
       shell: bash
       env:
         DIRECTORY: ${{ inputs.directory }}
-        NAME: ${{ inputs.name }}
       run: |
-        python3 "$GITHUB_ACTION_PATH/scripts/load-targets-matrix.py" --directory "$DIRECTORY" --name "$NAME"
+        python3 "$GITHUB_ACTION_PATH/scripts/load-targets-matrix.py" --directory "$DIRECTORY"

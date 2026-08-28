@@ -73,7 +73,7 @@ flightdeck/
 │   │   │   └── render.py               # envsubst-equivalent config template rendering
 │   │   └── renovate/                    # Re-pull/recreate one-or-more apps' containers (renovate.py)
 │   └── workflows/
-│       ├── deploy.yml                  # Manual redeploy of one target
+│       ├── deploy.yml                  # Manual redeploy of every target
 │       ├── renovate.yml                # Manual renovate of one-or-more apps across every matching target
 │       └── release.yml                 # Release Please + publish Flightdeck assets + auto-deploy
 │

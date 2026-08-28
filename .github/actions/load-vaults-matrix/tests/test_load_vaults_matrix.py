@@ -42,19 +42,11 @@ class LoadVaultsMatrixTest(unittest.TestCase):
         )
 
     def test_merges_manifest_fields_with_name_and_manifest(self):
-        item = load_vaults_matrix.build_matrix(self.directory, "traefik")["include"][0]
-        self.assertEqual(item["name"], "traefik")
+        matrix = load_vaults_matrix.build_matrix(self.directory)
+        item = next(item for item in matrix["include"] if item["name"] == "traefik")
         self.assertEqual(item["manifest"], str(self.directory / "traefik.yml"))
         self.assertEqual(item["asset"], "mainframe-traefik.sops.env")
         self.assertEqual(item["keys"], ["mainframe"])
-
-    def test_filters_selected_manifest(self):
-        matrix = load_vaults_matrix.build_matrix(self.directory, "traefik")
-        self.assertEqual([item["name"] for item in matrix["include"]], ["traefik"])
-
-    def test_rejects_unknown_name(self):
-        with self.assertRaisesRegex(load_vaults_matrix.ManifestError, "unknown name"):
-            load_vaults_matrix.build_matrix(self.directory, "missing")
 
     def test_rejects_empty_directory(self):
         empty = self.directory / "empty"

@@ -9,7 +9,6 @@ Composite GitHub Action that reads every target manifest in a directory into a G
   id: load-targets
   with:
     # directory: targets  # optional, default shown
-    # name: all           # optional; single target name to load, default: all
 ```
 
 The action exposes `matrix`, containing `{ "include": [...] }`, and `count`. Each matrix item merges the manifest's own top-level YAML fields with `name` (the file's basename) and `manifest` (its path).

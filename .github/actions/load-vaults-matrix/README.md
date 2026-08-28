@@ -9,7 +9,6 @@ Composite GitHub Action that reads every vault manifest in `vaults/` into a GitH
   id: matrix
   with:
     # directory: vaults  # optional, default shown
-    # name: all          # optional; single manifest name to load, default: all
 ```
 
 The action exposes `matrix`, containing `{ "include": [...] }`, and `count`. Each matrix item merges the manifest's own top-level YAML fields with `name` (the file's basename) and `manifest` (its path).

@@ -1,11 +1,6 @@
 name: Deploy
 on:
-  workflow_dispatch:
-    inputs:
-      target:
-        description: Deploy target to redeploy.
-        type: string
-        required: true
+  workflow_dispatch: {}
 jobs:
   load-targets:
     runs-on: ubuntu-latest
@@ -16,8 +11,6 @@ jobs:
       - uses: actions/checkout@v7
       - uses: $/.github/actions/load-targets-matrix
         id: load-targets
-        with:
-          name: ${{ inputs.target }}
   deploy:
     needs: load-targets
     if: needs.load-targets.outputs.count != '0'
