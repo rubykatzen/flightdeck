@@ -40,10 +40,8 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release.outputs.tag_name }}
-      - uses: $/.github/actions/load-yaml-matrix
+      - uses: $/.github/actions/load-vaults-matrix
         id: matrix
-        with:
-          directory: vaults
   encrypt:
     needs: [release, encrypt-vaults]
     if: needs.encrypt-vaults.outputs.count != '0'

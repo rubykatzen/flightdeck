@@ -1,14 +1,14 @@
-# load-yaml-matrix
+# load-vaults-matrix
 
-Composite GitHub Action that reads every YAML file in a directory into a GitHub Actions matrix. It does no schema validation — callers are responsible for the shape of their own manifests.
+Composite GitHub Action that reads every vault manifest in `vaults/` into a GitHub Actions matrix. It does no schema validation — `encrypt-env` re-parses and validates each manifest itself when it actually encrypts it. Specialized counterpart to [`load-targets-matrix`](../load-targets-matrix), which *does* validate, for `targets/*.yml` specifically.
 
 ## Usage
 
 ```yaml
-- uses: rubykatzen/flightdeck/.github/actions/load-yaml-matrix@main
+- uses: rubykatzen/flightdeck/.github/actions/load-vaults-matrix@main
   id: matrix
   with:
-    directory: targets  # required
+    # directory: vaults  # optional, default shown
     # name: all          # optional; single manifest name to load, default: all
 ```
 

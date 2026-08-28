@@ -1,6 +1,6 @@
 # load-targets-matrix
 
-Composite GitHub Action that reads every target manifest in a directory into a GitHub Actions matrix, validating each one's required shape. Specialized counterpart to [`load-yaml-matrix`](../load-yaml-matrix) for `targets/*.yml` specifically — `load-yaml-matrix` stays generic and unvalidated for everything else (`vaults/*.yml`).
+Composite GitHub Action that reads every target manifest in a directory into a GitHub Actions matrix, validating each one's required shape. Sibling to [`load-vaults-matrix`](../load-vaults-matrix), which stays generic and unvalidated for `vaults/*.yml`.
 
 ## Usage
 

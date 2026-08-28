@@ -70,7 +70,7 @@ flightdeck/
 │   │   ├── build-bundle/              # Build and upload a zip bundle from given paths
 │   │   ├── build-apps-bundle/          # Build and upload an apps/ catalog bundle
 │   │   ├── encrypt-env/                # Encrypt a target env and upload it to a release
-│   │   ├── load-yaml-matrix/            # Read a directory of YAML manifests into a workflow matrix (vaults/)
+│   │   ├── load-vaults-matrix/          # Read vaults/ into a workflow matrix, no schema validation
 │   │   └── load-targets-matrix/         # Same, but for targets/ specifically - validates the required shape
 │   └── workflows/
 │       ├── deploy-shared.yml           # Reusable deployment workflow
@@ -188,7 +188,7 @@ Useful as a source of ready-made Docker Compose definitions when adding a new ap
 
 ## GitHub Actions
 
-This repository provides five composite actions under `.github/actions/` (`build-bundle`, `build-apps-bundle`, `encrypt-env`, `load-yaml-matrix`, and `load-targets-matrix`) and one reusable workflow, `deploy-shared.yml`.
+This repository provides five composite actions under `.github/actions/` (`build-bundle`, `build-apps-bundle`, `encrypt-env`, `load-vaults-matrix`, and `load-targets-matrix`) and one reusable workflow, `deploy-shared.yml`.
 
 ---
 
@@ -245,7 +245,7 @@ sops_age_key_secret: MAINFRAME_AGE_PRIVATE_KEY
 
 A vault manifest's `env:` value is either `${NAME}` (a reference — look up the GitHub Secret/Variable named `NAME`) or a bare literal (any other value, used as-is with no lookup at all — see `DISABLE_SIGNUP: true` above). Use a literal for a value that's fixed for this target but isn't a secret and doesn't need a GitHub Secret/Variable to exist just to hold it.
 
-`load-yaml-matrix` reads every file in `vaults/` into a matrix — it does not validate the manifest shape; `encrypt-env` re-parses and validates its own manifest from `manifest` (see "`encrypt-env`" below). Targets go through the more specific [`load-targets-matrix`](.github/actions/load-targets-matrix) instead, which *does* validate the shape above (`hosts`, `app_refs`, `apps`, `ssh_private_key_secret`, `sops_age_key_secret` all required) before a broken manifest ever reaches a checkout+dependency-install on a different job entirely. The workflows calling `deploy-shared.yml`/`renovate-shared.yml` then pull `matrix.ssh_private_key_secret`/`matrix.sops_age_key_secret` directly, to resolve actual secret values by name.
+[`load-vaults-matrix`](.github/actions/load-vaults-matrix) reads every file in `vaults/` into a matrix — it does not validate the manifest shape; `encrypt-env` re-parses and validates its own manifest from `manifest` (see "`encrypt-env`" below). Targets go through the more specific [`load-targets-matrix`](.github/actions/load-targets-matrix) instead, which *does* validate the shape above (`hosts`, `app_refs`, `apps`, `ssh_private_key_secret`, `sops_age_key_secret` all required) before a broken manifest ever reaches a checkout+dependency-install on a different job entirely. The workflows calling `deploy-shared.yml`/`renovate-shared.yml` then pull `matrix.ssh_private_key_secret`/`matrix.sops_age_key_secret` directly, to resolve actual secret values by name.
 
 ---
 
