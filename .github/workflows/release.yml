@@ -29,26 +29,24 @@ jobs:
         with:
           release-tag: ${{ needs.release.outputs.tag_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
-  encrypt-vaults:
+  load-vaults:
     needs: release
     if: needs.release.outputs.release_created == 'true'
     runs-on: ubuntu-latest
     outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
-      count: ${{ steps.matrix.outputs.count }}
+      matrix: ${{ steps.load-vaults.outputs.matrix }}
+      count: ${{ steps.load-vaults.outputs.count }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: ${{ needs.release.outputs.tag_name }}
-      - uses: $/.github/actions/load-yaml-matrix
-        id: matrix
-        with:
-          directory: vaults
+      - uses: $/.github/actions/load-vaults-matrix
+        id: load-vaults
   encrypt:
-    needs: [release, encrypt-vaults]
-    if: needs.encrypt-vaults.outputs.count != '0'
+    needs: [release, load-vaults]
+    if: needs.load-vaults.outputs.count != '0'
     strategy:
-      matrix: ${{ fromJson(needs.encrypt-vaults.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.load-vaults.outputs.matrix) }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -62,35 +60,8 @@ jobs:
         env:
           GITHUB_SECRETS_JSON: ${{ toJson(secrets) }}
           GITHUB_VARS_JSON: ${{ toJson(vars) }}
-  deploy-targets:
-    needs: release
-    if: needs.release.outputs.release_created == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
-      count: ${{ steps.matrix.outputs.count }}
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ needs.release.outputs.tag_name }}
-      - uses: $/.github/actions/load-yaml-matrix
-        id: matrix
-        with:
-          directory: targets
   deploy:
-    needs: [upload-apps, encrypt, deploy-targets]
-    if: needs.deploy-targets.outputs.count != '0'
-    strategy:
-      matrix: ${{ fromJson(needs.deploy-targets.outputs.matrix) }}
-    uses: $/.github/workflows/deploy-shared.yml
-    with:
-      hosts: ${{ toJson(matrix.hosts) }}
-      app-refs: ${{ toJson(matrix.app_refs) }}
-      apps: ${{ toJson(matrix.apps) }}
-      path: ${{ matrix.path || '~/flightdeck' }}
-      keep-releases: ${{ matrix.keep_releases || 5 }}
-      tailscale-oauth-client-id: ${{ vars[matrix.credentials.variables.tailscale_oauth_client_id] }}
-    secrets:
-      ssh-private-key: ${{ secrets[matrix.credentials.secrets.ssh_private_key] }}
-      tailscale-oauth-secret: ${{ secrets[matrix.credentials.secrets.tailscale_oauth_secret] }}
-      sops-age-key: ${{ secrets[matrix.credentials.secrets.sops_age_key] }}
+    needs: [release, upload-apps, encrypt]
+    if: needs.release.outputs.release_created == 'true'
+    uses: $/.github/workflows/deploy.yml
+    secrets: inherit

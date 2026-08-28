@@ -1,13 +1,10 @@
-name: Load YAML matrix
-description: Read every YAML file in a directory into a GitHub Actions matrix. No schema validation.
+name: Load vaults matrix
+description: Read every vault manifest in a directory into a GitHub Actions matrix. No schema validation - encrypt-env re-parses and validates each manifest itself.
 inputs:
   directory:
-    description: Directory containing YAML files.
-    required: true
-  name:
-    description: Single manifest name to load, or all.
+    description: Directory containing vault manifests.
     required: false
-    default: all
+    default: vaults
 outputs:
   matrix:
     description: JSON strategy matrix, one item per manifest, merging its parsed YAML fields with name and manifest.
@@ -26,6 +23,5 @@ runs:
       shell: bash
       env:
         DIRECTORY: ${{ inputs.directory }}
-        NAME: ${{ inputs.name }}
       run: |
-        python3 "$GITHUB_ACTION_PATH/scripts/load-yaml-matrix.py" --directory "$DIRECTORY" --name "$NAME"
+        python3 "$GITHUB_ACTION_PATH/scripts/load-vaults-matrix.py" --directory "$DIRECTORY"

@@ -6,8 +6,13 @@ over SSH, and run a short remote command sequence. The target host needs
 nothing but Docker and Docker Compose: no sops, no age key, no gh, no
 flightdeck scripts of any kind.
 
-Reads a JSON config from stdin (see README's "deploy-shared.yml" section
-for the exact shape).
+Reads a JSON config from stdin: {"target_manifest": "targets/heimdall.yml",
+"sops_age_key": "..."}. `target_manifest` is a path to that target's own
+manifest, parsed here rather than flattened into separate fields by the
+caller - the same shape encrypt-env's render-env.py already uses for
+vault manifests. `sops_age_key` can't come from that file, since it's a
+secret value, not YAML-safe config - the calling `deploy` action passes
+it separately (see README's "deploy" section for the exact contract).
 """
 import json
 import shlex
@@ -192,6 +197,10 @@ def deploy_to_host(host, archive_path, apps, networks, config, release_name):
     connection.run("docker container prune -f && docker image prune -a -f")
 
 
+def load_target(path):
+    return yaml.safe_load(Path(path).read_text())
+
+
 def validate_config(config):
     if not config.get("hosts"):
         raise DeployError("Config must set hosts to a non-empty list")
@@ -204,7 +213,9 @@ def validate_config(config):
 
 
 def main():
-    config = json.load(sys.stdin)
+    stdin_config = json.load(sys.stdin)
+    config = load_target(stdin_config["target_manifest"])
+    config["sops_age_key"] = stdin_config.get("sops_age_key")
     validate_config(config)
     with tempfile.TemporaryDirectory(prefix="flightdeck-deploy-") as raw_dir:
         work_dir = Path(raw_dir)
