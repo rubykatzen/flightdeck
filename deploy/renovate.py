@@ -14,12 +14,12 @@ renovate-shared.yml's own two-job matrix (see README's "Renovate" section)
 is what finds every target and resolves its secrets; this script never
 reads a directory or touches GitHub Secrets itself.
 
-Reads a JSON config from stdin: {"apps": "traefik,rybbit", "target_manifest":
-"targets/heimdall.yml"}. `apps` is a comma-separated list of one or more
-app names. Any requested app that isn't a key in that manifest's own
-`apps` mapping is skipped, not an error - a target-matrix fan-out
-dispatches to every target regardless of which of the requested apps it
-actually runs; skipping all of them there is a clean no-op.
+Reads a JSON config from stdin: {"apps": ["traefik", "rybbit"],
+"target_manifest": "targets/heimdall.yml"}. Any requested app that isn't
+a key in that manifest's own `apps` mapping is skipped, not an error - a
+target-matrix fan-out dispatches to every target regardless of which of
+the requested apps it actually runs; skipping all of them there is a
+clean no-op.
 
 Writes `updated`/`updated_hosts`/`target_name` to $GITHUB_OUTPUT so the
 calling workflow can notify only when a host's image actually changed,
@@ -64,7 +64,7 @@ def write_github_output(name, value):
 
 def main():
     config = json.load(sys.stdin)
-    requested_apps = [name.strip() for name in config["apps"].split(",") if name.strip()]
+    requested_apps = config["apps"]
     manifest_path = Path(config["target_manifest"])
     target_name = manifest_path.stem
     write_github_output("target_name", target_name)

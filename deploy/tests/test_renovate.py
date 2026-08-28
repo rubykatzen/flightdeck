@@ -86,7 +86,7 @@ class MainTest(unittest.TestCase):
             tempfile.TemporaryDirectory() as directory,
             patch.object(renovate, "renovate_host") as fake_renovate_host,
         ):
-            outputs = self._run_main(directory, "beszel", "apps:\n  traefik: {}\nhosts: [deploy@host]\n")
+            outputs = self._run_main(directory, ["beszel"], "apps:\n  traefik: {}\nhosts: [deploy@host]\n")
 
         fake_renovate_host.assert_not_called()
         self.assertIn("updated=false\n", outputs)
@@ -99,7 +99,7 @@ class MainTest(unittest.TestCase):
         ):
             self._run_main(
                 directory,
-                "traefik,rybbit,beszel",
+                ["traefik", "rybbit", "beszel"],
                 "apps:\n  traefik: {}\n  gatus: {}\nhosts: [deploy@host]\n",
             )
 
@@ -117,7 +117,7 @@ class MainTest(unittest.TestCase):
             tempfile.TemporaryDirectory() as directory,
             patch.object(renovate, "renovate_host", side_effect=fake_renovate_host),
         ):
-            outputs = self._run_main(directory, "beszel,traefik", manifest)
+            outputs = self._run_main(directory, ["beszel", "traefik"], manifest)
 
         self.assertIn("updated=true\n", outputs)
         self.assertIn("updated_hosts=beszel@deploy@app1.example.com\n", outputs)
@@ -127,7 +127,7 @@ class MainTest(unittest.TestCase):
             tempfile.TemporaryDirectory() as directory,
             patch.object(renovate, "renovate_host", return_value=False),
         ):
-            outputs = self._run_main(directory, "beszel", "apps:\n  beszel: {}\nhosts: [deploy@host]\n")
+            outputs = self._run_main(directory, ["beszel"], "apps:\n  beszel: {}\nhosts: [deploy@host]\n")
 
         self.assertIn("updated=false\n", outputs)
         self.assertIn("updated_hosts=\n", outputs)
@@ -137,7 +137,7 @@ class MainTest(unittest.TestCase):
             tempfile.TemporaryDirectory() as directory,
             patch.object(renovate, "renovate_host", return_value=False) as fake_renovate_host,
         ):
-            self._run_main(directory, "beszel", "apps:\n  beszel: {}\nhosts: [deploy@host]\n")
+            self._run_main(directory, ["beszel"], "apps:\n  beszel: {}\nhosts: [deploy@host]\n")
 
         fake_renovate_host.assert_called_once_with("deploy@host", "~/flightdeck", "beszel")
 
@@ -147,7 +147,7 @@ class MainTest(unittest.TestCase):
             patch.object(renovate, "renovate_host", return_value=False),
         ):
             outputs = self._run_main(
-                directory, "beszel", "apps:\n  beszel: {}\nhosts: [deploy@host]\n", manifest_name="mainframe"
+                directory, ["beszel"], "apps:\n  beszel: {}\nhosts: [deploy@host]\n", manifest_name="mainframe"
             )
 
         self.assertIn("target_name=mainframe\n", outputs)

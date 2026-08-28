@@ -3,7 +3,7 @@ on:
   workflow_call:
     inputs:
       apps:
-        description: Comma-separated app name(s) to renovate (re-pull their image and recreate their containers).
+        description: JSON array of app name(s) to renovate (re-pull their image and recreate their containers).
         type: string
         required: true
       target-manifest:
@@ -64,7 +64,7 @@ jobs:
           APPS: ${{ inputs.apps }}
           TARGET_MANIFEST: ${{ inputs.target-manifest }}
         run: |
-          jq -n --arg apps "$APPS" --arg target_manifest "$TARGET_MANIFEST" \
+          jq -n --argjson apps "$APPS" --arg target_manifest "$TARGET_MANIFEST" \
             '{apps: $apps, target_manifest: $target_manifest}' \
             | python3 .flightdeck/deploy/renovate.py
       - name: Notify Telegram

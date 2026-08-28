@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       apps:
-        description: Comma-separated app name(s) to renovate (re-pull their image and recreate their containers) wherever each is currently deployed.
+        description: JSON array of app name(s) to renovate (re-pull their image and recreate their containers) wherever each is currently deployed, e.g. ["traefik","rybbit"].
         type: string
         required: true
 jobs:
