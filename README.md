@@ -342,7 +342,7 @@ The interface is a single path, not flattened deploy vocabulary — the caller n
 
 Tailscale is optional, not a dependency of this action: set `tailscale-oauth-client-id` (and the matching `tailscale-oauth-secret`) to have the runner join a tailnet as an ephemeral node before deploying. Leave both unset to skip that step entirely — e.g. when the job already runs on a self-hosted runner with network access to the hosts, or reaches them some other way.
 
-Like [`renovate`](#renovate), this action has no notification logic of its own - unlike `renovate`, a deploy doesn't need a "did anything actually change" check to decide whether to notify: reaching this point at all already means a real deploy just landed, so the caller's own following step notifies unconditionally (it simply never runs if the `deploy` step above it failed, same as any other step in a job).
+The action prepares a successful deploy notification as its `telegram-message` output. It never sends the message or receives Telegram credentials; the caller's following step owns delivery. Unlike `renovate`, a deploy doesn't need a "did anything actually change" check: reaching that step already means a real deploy just landed, so the caller notifies unconditionally (the step simply never runs if `deploy` failed).
 
 <!-- x-release-please-start-version -->
 
@@ -353,6 +353,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: rubykatzen/flightdeck/.github/actions/deploy@v1.0.0
+        id: deploy
         with:
           target-manifest: targets/mainframe.yml                          # required, path in this repository
           ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
@@ -361,17 +362,10 @@ jobs:
           # tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}  # optional, default: unset (skip joining a tailnet)
           # tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}    # required only if tailscale-oauth-client-id is set
           # tailscale-tags: tag:ci                                          # default: tag:ci
-      - uses: rubykatzen/flightdeck/.github/actions/prepare-telegram-operation-message@v1.0.0
-        id: prepare-notification
-        with:
-          repository: ${{ github.repository }}
-          operation: deploy
-          target: mainframe
-          run-url: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
       - name: Notify Telegram
         uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.17.0
         with:
-          message: ${{ steps.prepare-notification.outputs.message }}
+          message: ${{ steps.deploy.outputs.telegram-message }}
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
           parse-mode: MarkdownV2
@@ -406,7 +400,7 @@ Re-pulls and recreates one-or-more apps' containers on a target already present 
 
 It never touches `app_refs`/`env_refs`, never re-decrypts a vault, never rebuilds the release tree; it just picks up a new image behind an existing tag. To tell whether a host's image actually changed (rather than the pull being a no-op), it compares `docker compose images -q` output before and after the pull, and exposes `updated`/`updated-hosts`/`updated-items`/`target-name` (derived from the manifest's own filename) as action outputs. `updated-items` is a JSON array of `{app, host}` objects for structured consumers such as notification formatters; `updated-hosts` retains the original comma-separated `app@host` representation for compatibility.
 
-Unlike `deploy`, this action has no notification logic of its own — it just reports whether anything changed. `renovate.yml` below is what actually decides to notify, as its own separate step reading this action's outputs; a different caller is free to wire up a different channel, or none at all, without forking this action.
+The action prepares a host-grouped notification as its `telegram-message` output only when something changed. It never sends the message or receives Telegram credentials; `renovate.yml` below owns delivery in a separate step. A different caller can wire up another channel, or none at all, without forking the action.
 
 ```yaml
 jobs:
@@ -426,20 +420,11 @@ jobs:
           ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
           # tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
           # tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
-      - uses: rubykatzen/flightdeck/.github/actions/prepare-telegram-operation-message@v1.0.0
-        if: steps.renovate.outputs.updated == 'true'
-        id: prepare-notification
-        with:
-          repository: ${{ github.repository }}
-          operation: renovate
-          target: ${{ steps.renovate.outputs.target-name }}
-          run-url: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
-          items: ${{ steps.renovate.outputs.updated-items }}
       - name: Notify Telegram
         if: steps.renovate.outputs.updated == 'true'
         uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.17.0
         with:
-          message: ${{ steps.prepare-notification.outputs.message }}
+          message: ${{ steps.renovate.outputs.telegram-message }}
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
           parse-mode: MarkdownV2

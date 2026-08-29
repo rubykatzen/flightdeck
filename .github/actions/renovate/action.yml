@@ -36,6 +36,9 @@ outputs:
   target-name:
     description: This target's name, derived from the manifest's own filename.
     value: ${{ steps.run.outputs.target_name }}
+  telegram-message:
+    description: Successful renovation notification formatted as Telegram MarkdownV2, or empty when nothing changed.
+    value: ${{ steps.prepare-notification.outputs.message }}
 runs:
   using: composite
   steps:
@@ -65,3 +68,14 @@ runs:
         jq -n --argjson apps "$APPS" --arg target_manifest "$TARGET_MANIFEST" \
           '{apps: $apps, target_manifest: $target_manifest}' \
           | python3 "$GITHUB_ACTION_PATH/renovate.py"
+    - name: Prepare notification
+      if: steps.run.outputs.updated == 'true'
+      id: prepare-notification
+      shell: bash
+      env:
+        REPOSITORY: ${{ github.repository }}
+        OPERATION: renovate
+        TARGET: ${{ steps.run.outputs.target_name }}
+        RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
+        ITEMS: ${{ steps.run.outputs.updated_items }}
+      run: python3 "$GITHUB_ACTION_PATH/../telegram-message/prepare.py"

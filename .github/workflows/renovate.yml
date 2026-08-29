@@ -35,20 +35,11 @@ jobs:
           ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
           tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
           tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
-      - uses: $/.github/actions/prepare-telegram-operation-message
-        if: steps.renovate.outputs.updated == 'true'
-        id: prepare-notification
-        with:
-          repository: ${{ github.repository }}
-          operation: renovate
-          target: ${{ steps.renovate.outputs.target-name }}
-          run-url: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
-          items: ${{ steps.renovate.outputs.updated-items }}
       - name: Notify Telegram
         if: steps.renovate.outputs.updated == 'true'
         uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.17.0
         with:
-          message: ${{ steps.prepare-notification.outputs.message }}
+          message: ${{ steps.renovate.outputs.telegram-message }}
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
           parse-mode: MarkdownV2

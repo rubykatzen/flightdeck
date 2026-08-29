@@ -13,6 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: rubykatzen/flightdeck/.github/actions/deploy@main
+        id: deploy
         with:
           target-manifest: ${{ matrix.manifest }}                          # required, path in this repository
           ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
@@ -21,17 +22,10 @@ jobs:
           # tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}  # optional, default: unset (skip joining a tailnet)
           # tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}    # required only if tailscale-oauth-client-id is set
           # tailscale-tags: tag:ci                                          # default: tag:ci
-      - uses: rubykatzen/flightdeck/.github/actions/prepare-telegram-operation-message@main
-        id: prepare-notification
-        with:
-          repository: ${{ github.repository }}
-          operation: deploy
-          target: ${{ matrix.name }}
-          run-url: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
       - name: Notify Telegram
         uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.17.0
         with:
-          message: ${{ steps.prepare-notification.outputs.message }}
+          message: ${{ steps.deploy.outputs.telegram-message }}
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
           parse-mode: MarkdownV2
@@ -41,4 +35,4 @@ Unlike a `workflow_call` reusable workflow, this action doesn't check out anythi
 
 `sops-age-key`/`ssh-private-key` are secret *values*, resolved by the caller from the target manifest's own `sops_age_key_secret`/`ssh_private_key_secret` fields (GitHub Secret *names* - see the main README's "Vaults And Targets" section) - this action never reads the manifest's credential fields itself, since it never has access to `secrets.*` by name.
 
-This action has no notification logic of its own, same as [`renovate`](../renovate) - notifying is the caller's job, as a plain following step. Unlike `renovate`, there's no "did anything change" output to gate it on: reaching that step at all already means the `deploy` step above it succeeded, so it just runs unconditionally.
+The action prepares a successful deploy message as its `telegram-message` output, but never sends it or receives Telegram credentials. Delivery remains the caller's job, as a plain following step. Unlike `renovate`, there's no "did anything change" output to gate it on: reaching that step at all already means the `deploy` step above it succeeded, so it just runs unconditionally.
