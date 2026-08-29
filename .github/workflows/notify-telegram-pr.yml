@@ -7,23 +7,8 @@ on:
   workflow_dispatch:
 jobs:
   notify:
-    if: >-
-      github.event_name == 'schedule' ||
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request_target' &&
-      (contains(fromJSON('["opened","ready_for_review","reopened"]'), github.event.action) ||
-      (github.event.action == 'closed' && github.event.pull_request.merged == true)))
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: read
-    steps:
-      - id: prepare
-        uses: rubykatzen/baseline/.github/actions/prepare-telegram-pr-message@v0.16.2
-      - name: Send
-        if: steps.prepare.outputs.message != ''
-        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.2
-        with:
-          message: ${{ steps.prepare.outputs.message }}
-          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
-          parse-mode: MarkdownV2
+    uses: rubykatzen/baseline/.github/workflows/notify-telegram-pr-shared.yml@v0.17.0
+    with:
+      telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
+    secrets:
+      telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}

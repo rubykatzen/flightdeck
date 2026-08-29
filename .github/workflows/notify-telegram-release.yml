@@ -4,18 +4,8 @@ on:
     types: [published]
 jobs:
   notify:
-    if: >-
-      github.event_name == 'release' &&
-      github.event.action == 'published'
-    runs-on: ubuntu-slim
-    permissions: {}
-    steps:
-      - id: prepare
-        uses: rubykatzen/baseline/.github/actions/prepare-telegram-release-message@v0.16.2
-      - name: Send
-        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.2
-        with:
-          message: ${{ steps.prepare.outputs.message }}
-          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
-          parse-mode: MarkdownV2
+    uses: rubykatzen/baseline/.github/workflows/notify-telegram-release-shared.yml@v0.17.0
+    with:
+      telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
+    secrets:
+      telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
