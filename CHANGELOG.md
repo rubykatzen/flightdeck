@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0](https://github.com/rubykatzen/flightdeck/compare/v1.0.0...v1.1.0) (2026-08-29)
+
+
+### Features
+
+* format deploy and renovate notifications ([#179](https://github.com/rubykatzen/flightdeck/issues/179)) ([6722ae4](https://github.com/rubykatzen/flightdeck/commit/6722ae441f73081f80c6ed7633ee82d8037ed21c))
+
 ## [1.0.0](https://github.com/rubykatzen/flightdeck/compare/v0.11.1...v1.0.0) (2026-08-28)
 
 
