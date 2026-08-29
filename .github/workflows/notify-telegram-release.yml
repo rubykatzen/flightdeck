@@ -4,7 +4,18 @@ on:
     types: [published]
 jobs:
   notify:
-    uses: rubykatzen/baseline/.github/workflows/notify-telegram-release-shared.yml@v0.16.2
-    secrets:
-      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-      TELEGRAM_CHAT_ID: ${{ vars.TELEGRAM_CHAT_ID }}
+    if: >-
+      github.event_name == 'release' &&
+      github.event.action == 'published'
+    runs-on: ubuntu-slim
+    permissions: {}
+    steps:
+      - id: prepare
+        uses: rubykatzen/baseline/.github/actions/prepare-telegram-release-message@v0.16.2
+      - name: Send
+        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.2
+        with:
+          message: ${{ steps.prepare.outputs.message }}
+          telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
+          parse-mode: MarkdownV2
