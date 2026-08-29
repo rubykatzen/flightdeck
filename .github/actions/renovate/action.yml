@@ -30,6 +30,9 @@ outputs:
   updated-hosts:
     description: Comma-separated app@host pairs that were actually updated.
     value: ${{ steps.run.outputs.updated_hosts }}
+  updated-items:
+    description: JSON array of app and host objects that were actually updated.
+    value: ${{ steps.run.outputs.updated_items }}
   target-name:
     description: This target's name, derived from the manifest's own filename.
     value: ${{ steps.run.outputs.target_name }}

@@ -361,12 +361,20 @@ jobs:
           # tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}  # optional, default: unset (skip joining a tailnet)
           # tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}    # required only if tailscale-oauth-client-id is set
           # tailscale-tags: tag:ci                                          # default: tag:ci
-      - name: Notify Telegram
-        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v1.0.0
+      - uses: rubykatzen/flightdeck/.github/actions/prepare-telegram-operation-message@v1.0.0
+        id: prepare-notification
         with:
-          message: "Deploy: mainframe updated"
+          repository: ${{ github.repository }}
+          operation: deploy
+          target: mainframe
+          run-url: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
+      - name: Notify Telegram
+        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.17.0
+        with:
+          message: ${{ steps.prepare-notification.outputs.message }}
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
+          parse-mode: MarkdownV2
 ```
 
 <!-- x-release-please-end -->
@@ -396,7 +404,7 @@ Re-pulls and recreates one-or-more apps' containers on a target already present 
 
 `apps` is a JSON array, so one run can renovate several apps at once (e.g. `["traefik","rybbit"]`) — pass a single-element array for the one-app case, or an empty array for every app the target runs. Not every target runs every requested app; [`renovate.py`](.github/actions/renovate/renovate.py) decides that itself from the target manifest's own `apps` mapping and simply does nothing — never opening an SSH connection — if none of the requested apps are present there.
 
-It never touches `app_refs`/`env_refs`, never re-decrypts a vault, never rebuilds the release tree; it just picks up a new image behind an existing tag. To tell whether a host's image actually changed (rather than the pull being a no-op), it compares `docker compose images -q` output before and after the pull, and exposes `updated`/`updated-hosts`/`target-name` (derived from the manifest's own filename) as action outputs - `updated-hosts` lists `app@host` pairs, since more than one app may have been renovated in the same run.
+It never touches `app_refs`/`env_refs`, never re-decrypts a vault, never rebuilds the release tree; it just picks up a new image behind an existing tag. To tell whether a host's image actually changed (rather than the pull being a no-op), it compares `docker compose images -q` output before and after the pull, and exposes `updated`/`updated-hosts`/`updated-items`/`target-name` (derived from the manifest's own filename) as action outputs. `updated-items` is a JSON array of `{app, host}` objects for structured consumers such as notification formatters; `updated-hosts` retains the original comma-separated `app@host` representation for compatibility.
 
 Unlike `deploy`, this action has no notification logic of its own — it just reports whether anything changed. `renovate.yml` below is what actually decides to notify, as its own separate step reading this action's outputs; a different caller is free to wire up a different channel, or none at all, without forking this action.
 
@@ -418,13 +426,23 @@ jobs:
           ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
           # tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
           # tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
+      - uses: rubykatzen/flightdeck/.github/actions/prepare-telegram-operation-message@v1.0.0
+        if: steps.renovate.outputs.updated == 'true'
+        id: prepare-notification
+        with:
+          repository: ${{ github.repository }}
+          operation: renovate
+          target: ${{ steps.renovate.outputs.target-name }}
+          run-url: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
+          items: ${{ steps.renovate.outputs.updated-items }}
       - name: Notify Telegram
         if: steps.renovate.outputs.updated == 'true'
-        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.1
+        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.17.0
         with:
-          message: "Renovate: updated on ${{ steps.renovate.outputs.target-name }} (${{ steps.renovate.outputs.updated-hosts }})"
+          message: ${{ steps.prepare-notification.outputs.message }}
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
+          parse-mode: MarkdownV2
 ```
 
 `renovate.yml` also runs on a nightly `schedule` (`0 3 * * *`), with `apps` defaulting to `[]` — a cron trigger can't supply `workflow_dispatch` inputs at all, so the empty-array-means-everything behavior above exists specifically to give the scheduled run something to pass.

@@ -21,12 +21,20 @@ jobs:
           # tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}  # optional, default: unset (skip joining a tailnet)
           # tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}    # required only if tailscale-oauth-client-id is set
           # tailscale-tags: tag:ci                                          # default: tag:ci
-      - name: Notify Telegram
-        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.1
+      - uses: rubykatzen/flightdeck/.github/actions/prepare-telegram-operation-message@main
+        id: prepare-notification
         with:
-          message: "Deploy: ${{ matrix.name }} updated"
+          repository: ${{ github.repository }}
+          operation: deploy
+          target: ${{ matrix.name }}
+          run-url: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
+      - name: Notify Telegram
+        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.17.0
+        with:
+          message: ${{ steps.prepare-notification.outputs.message }}
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
+          parse-mode: MarkdownV2
 ```
 
 Unlike a `workflow_call` reusable workflow, this action doesn't check out anything itself - it reads `target-manifest` from whatever the caller's own preceding `actions/checkout` step already put on disk, and its own code (`deploy.py` and friends) comes along automatically via `$GITHUB_ACTION_PATH` whenever it's referenced as `owner/repo/.github/actions/deploy@ref`. This is also why there's no `target-manifest-ref` input here: if the caller needs a specific ref (e.g. a just-published release tag), it just checks out that ref itself before this step runs, the same way every other job in this repository already does.

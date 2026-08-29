@@ -23,10 +23,11 @@ clean no-op. An empty `apps` list means "every app this target runs" -
 the scheduled nightly run has no specific apps to name, so it renovates
 everything.
 
-Writes `updated`/`updated_hosts`/`target_name` to $GITHUB_OUTPUT so the
+Writes `updated`/`updated_hosts`/`updated_items`/`target_name` to $GITHUB_OUTPUT so the
 calling workflow can notify only when a host's image actually changed,
 rather than on every run. `updated_hosts` lists `app@host` pairs, since
-more than one app may have been renovated in the same run.
+more than one app may have been renovated in the same run. `updated_items`
+contains the same data as structured JSON for downstream formatting.
 """
 import json
 import os
@@ -80,6 +81,8 @@ def main():
         else:
             print(f"target {target_name!r} has no apps deployed, skipping")
         write_github_output("updated", "false")
+        write_github_output("updated_hosts", "")
+        write_github_output("updated_items", "[]")
         return
 
     base_path = target.get("path", "~/flightdeck")
@@ -88,10 +91,11 @@ def main():
         for host in target["hosts"]:
             print(f"Renovating {app} on {host}")
             if renovate_host(host, base_path, app):
-                updated.append(f"{app}@{host}")
+                updated.append({"app": app, "host": host})
 
     write_github_output("updated", "true" if updated else "false")
-    write_github_output("updated_hosts", ",".join(updated))
+    write_github_output("updated_hosts", ",".join(f"{item['app']}@{item['host']}" for item in updated))
+    write_github_output("updated_items", json.dumps(updated, separators=(",", ":")))
 
 
 if __name__ == "__main__":

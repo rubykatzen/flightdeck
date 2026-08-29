@@ -142,6 +142,7 @@ class MainTest(unittest.TestCase):
 
         self.assertIn("updated=true\n", outputs)
         self.assertIn("updated_hosts=beszel@deploy@app1.example.com\n", outputs)
+        self.assertIn('updated_items=[{"app":"beszel","host":"deploy@app1.example.com"}]\n', outputs)
 
     def test_reports_not_updated_when_every_host_was_already_current(self):
         with (
@@ -152,6 +153,7 @@ class MainTest(unittest.TestCase):
 
         self.assertIn("updated=false\n", outputs)
         self.assertIn("updated_hosts=\n", outputs)
+        self.assertIn("updated_items=[]\n", outputs)
 
     def test_defaults_path_when_omitted(self):
         with (
