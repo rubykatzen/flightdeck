@@ -26,7 +26,7 @@ jobs:
         with:
           message: "Renovate: updated on ${{ steps.renovate.outputs.target-name }} (${{ steps.renovate.outputs.updated-hosts }})"
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
 ```
 
 Not every target runs every requested app - `renovate.py` decides that itself, from the target manifest's own `apps` mapping, and simply does nothing (never opening an SSH connection) if none of the requested apps are present. To tell whether a host's image actually changed (rather than the pull being a no-op), it compares `docker compose images -q` output before and after the pull, and exposes that as this action's own `updated`/`updated-hosts`/`target-name` outputs.

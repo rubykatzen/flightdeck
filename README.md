@@ -366,7 +366,7 @@ jobs:
         with:
           message: "Deploy: mainframe updated"
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
 ```
 
 <!-- x-release-please-end -->
@@ -424,7 +424,7 @@ jobs:
         with:
           message: "Renovate: updated on ${{ steps.renovate.outputs.target-name }} (${{ steps.renovate.outputs.updated-hosts }})"
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
 ```
 
 `renovate.yml` also runs on a nightly `schedule` (`0 3 * * *`), with `apps` defaulting to `[]` — a cron trigger can't supply `workflow_dispatch` inputs at all, so the empty-array-means-everything behavior above exists specifically to give the scheduled run something to pass.
