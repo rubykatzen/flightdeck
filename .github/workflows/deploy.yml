@@ -33,4 +33,4 @@ jobs:
         with:
           message: "Deploy: ${{ matrix.name }} updated"
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}

@@ -26,7 +26,7 @@ jobs:
         with:
           message: "Deploy: ${{ matrix.name }} updated"
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          telegram-chat-id: ${{ secrets.TELEGRAM_CHAT_ID }}
+          telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
 ```
 
 Unlike a `workflow_call` reusable workflow, this action doesn't check out anything itself - it reads `target-manifest` from whatever the caller's own preceding `actions/checkout` step already put on disk, and its own code (`deploy.py` and friends) comes along automatically via `$GITHUB_ACTION_PATH` whenever it's referenced as `owner/repo/.github/actions/deploy@ref`. This is also why there's no `target-manifest-ref` input here: if the caller needs a specific ref (e.g. a just-published release tag), it just checks out that ref itself before this step runs, the same way every other job in this repository already does.
