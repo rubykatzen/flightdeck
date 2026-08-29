@@ -37,8 +37,9 @@ jobs:
           tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
       - name: Notify Telegram
         if: steps.renovate.outputs.updated == 'true'
-        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.2
+        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.17.0
         with:
-          message: "Renovate: updated on ${{ steps.renovate.outputs.target-name }} (${{ steps.renovate.outputs.updated-hosts }})"
+          message: ${{ steps.renovate.outputs.telegram-message }}
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
+          parse-mode: MarkdownV2

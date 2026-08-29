@@ -21,6 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: $/.github/actions/deploy
+        id: deploy
         with:
           target-manifest: ${{ matrix.manifest }}
           ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
@@ -29,8 +30,9 @@ jobs:
           tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
           tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
       - name: Notify Telegram
-        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.16.2
+        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v0.17.0
         with:
-          message: "Deploy: ${{ matrix.name }} updated"
+          message: ${{ steps.deploy.outputs.telegram-message }}
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
+          parse-mode: MarkdownV2

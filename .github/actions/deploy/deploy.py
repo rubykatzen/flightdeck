@@ -15,6 +15,7 @@ secret value, not YAML-safe config - the calling `deploy` action passes
 it separately (see README's "deploy" section for the exact contract).
 """
 import json
+import os
 import shlex
 import shutil
 import sys
@@ -201,6 +202,13 @@ def load_target(path):
     return yaml.safe_load(Path(path).read_text())
 
 
+def write_github_output(name, value):
+    output_path = os.environ.get("GITHUB_OUTPUT")
+    if output_path:
+        with open(output_path, "a", encoding="utf-8") as output:
+            output.write(f"{name}={value}\n")
+
+
 def validate_config(config):
     if not config.get("hosts"):
         raise DeployError("Config must set hosts to a non-empty list")
@@ -214,7 +222,8 @@ def validate_config(config):
 
 def main():
     stdin_config = json.load(sys.stdin)
-    config = load_target(stdin_config["target_manifest"])
+    manifest_path = Path(stdin_config["target_manifest"])
+    config = load_target(manifest_path)
     config["sops_age_key"] = stdin_config.get("sops_age_key")
     validate_config(config)
     with tempfile.TemporaryDirectory(prefix="flightdeck-deploy-") as raw_dir:
@@ -236,6 +245,7 @@ def main():
         for host in config["hosts"]:
             print(f"Deploying to {host}")
             deploy_to_host(host, archive_path, apps, networks, config, release_name)
+    write_github_output("target_name", manifest_path.stem)
 
 
 if __name__ == "__main__":

@@ -25,6 +25,10 @@ inputs:
     description: Comma-separated ACL tags for the ephemeral tailnet node.
     required: false
     default: tag:ci
+outputs:
+  telegram-message:
+    description: Successful deploy notification formatted as Telegram MarkdownV2.
+    value: ${{ steps.prepare-notification.outputs.message }}
 runs:
   using: composite
   steps:
@@ -54,6 +58,7 @@ runs:
         echo "SSH_AGENT_PID=$SSH_AGENT_PID" >> "$GITHUB_ENV"
         ssh-add - <<< "${{ inputs.ssh-private-key }}"
     - name: Run deploy
+      id: run
       shell: bash
       env:
         TARGET_MANIFEST: ${{ inputs.target-manifest }}
@@ -63,3 +68,13 @@ runs:
         jq -n --arg target_manifest "$TARGET_MANIFEST" --arg sops_age_key "$SOPS_AGE_KEY" \
           '{target_manifest: $target_manifest, sops_age_key: $sops_age_key}' \
           | python3 "$GITHUB_ACTION_PATH/deploy.py"
+    - name: Prepare notification
+      id: prepare-notification
+      shell: bash
+      env:
+        REPOSITORY: ${{ github.repository }}
+        OPERATION: deploy
+        TARGET: ${{ steps.run.outputs.target_name }}
+        RUN_URL: ${{ format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id) }}
+        ITEMS: "[]"
+      run: python3 "$GITHUB_ACTION_PATH/../telegram-message/prepare.py"

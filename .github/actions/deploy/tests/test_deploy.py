@@ -1,6 +1,7 @@
 import importlib.util
 import io
 import json
+import os
 import sys
 import tarfile
 import tempfile
@@ -477,6 +478,7 @@ class MainTest(unittest.TestCase):
     def test_reads_target_manifest_and_merges_sops_age_key(self):
         with tempfile.TemporaryDirectory() as directory:
             manifest_path = Path(directory) / "heimdall.yml"
+            output_path = Path(directory) / "output"
             manifest_path.write_text(
                 "hosts: [deploy@host]\n"
                 "app_refs: [owner/repo@latest]\n"
@@ -485,6 +487,7 @@ class MainTest(unittest.TestCase):
             stdin_config = {"target_manifest": str(manifest_path), "sops_age_key": "AGE-SECRET-KEY-1..."}
 
             with (
+                patch.dict(os.environ, {"GITHUB_OUTPUT": str(output_path)}),
                 patch.object(sys, "stdin", io.StringIO(json.dumps(stdin_config))),
                 patch.object(
                     deploy, "build_release", return_value=(Path(directory) / "release", ["owner/repo@v1.0.0"])
@@ -511,6 +514,7 @@ class MainTest(unittest.TestCase):
             host, archive_path, apps, networks, deploy_config = fake_deploy_to_host.call_args[0][:5]
             expected = ("deploy@host", Path(directory) / "release.tar.gz", ["traefik"], [], config_arg)
             self.assertEqual((host, archive_path, apps, networks, deploy_config), expected)
+            self.assertEqual(output_path.read_text(), "target_name=heimdall\n")
 
     def test_raises_when_sops_age_key_missing(self):
         with tempfile.TemporaryDirectory() as directory:
