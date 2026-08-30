@@ -24,8 +24,8 @@ class FormatMessageTest(unittest.TestCase):
 
         self.assertEqual(
             message,
-            "*dupmachine/flightdeck* · "
-            "[deploy](https://github.com/dupmachine/flightdeck/actions/runs/123) completed · "
+            "*dupmachine/flightdeck* • "
+            "[deploy](https://github.com/dupmachine/flightdeck/actions/runs/123) completed • "
             "*mainframe*",
         )
 
@@ -44,8 +44,8 @@ class FormatMessageTest(unittest.TestCase):
 
         self.assertEqual(
             message,
-            "*dupmachine/flightdeck* · "
-            "[renovate](https://github.com/dupmachine/flightdeck/actions/runs/123) completed · "
+            "*dupmachine/flightdeck* • "
+            "[renovate](https://github.com/dupmachine/flightdeck/actions/runs/123) completed • "
             "*hawkeye*\n"
             "*root@100\\.75\\.50\\.2*\n"
             "• gatus\n"
@@ -65,7 +65,7 @@ class FormatMessageTest(unittest.TestCase):
 
         self.assertEqual(
             message,
-            "*owner/repo\\_test* · [deploy\\-now](https://example.com/run/1\\)) completed · "
+            "*owner/repo\\_test* • [deploy\\-now](https://example.com/run/1\\)) completed • "
             "*prod\\.main*\n*root@host\\.example*\n• api\\_v2",
         )
 
@@ -91,7 +91,7 @@ class FormatMessageTest(unittest.TestCase):
             ],
         )
 
-        self.assertIn("• gatus · gatus: 5\\.21\\.0 → 5\\.22\\.0", message)
+        self.assertIn("• gatus • gatus: 5\\.21\\.0 → 5\\.22\\.0", message)
 
     def test_formats_each_changed_service_on_its_own_line(self):
         message = prepare.format_message(
@@ -122,8 +122,8 @@ class FormatMessageTest(unittest.TestCase):
         )
 
         self.assertIn(
-            "• rybbit · client: 1\\.6\\.0 → 1\\.6\\.1\n"
-            "• rybbit · backend: 1\\.6\\.0 → 1\\.6\\.1",
+            "• rybbit • client: 1\\.6\\.0 → 1\\.6\\.1\n"
+            "• rybbit • backend: 1\\.6\\.0 → 1\\.6\\.1",
             message,
         )
 
@@ -150,7 +150,7 @@ class FormatMessageTest(unittest.TestCase):
         )
 
         self.assertIn(
-            "• app · web: 1\\.0\\.0 \\(sha:12345678\\) → 1\\.0\\.0 \\(sha:abcdef12\\)",
+            "• app • web: 1\\.0\\.0 \\(sha:12345678\\) → 1\\.0\\.0 \\(sha:abcdef12\\)",
             message,
         )
 
@@ -176,7 +176,7 @@ class FormatMessageTest(unittest.TestCase):
             ],
         )
 
-        self.assertIn("• app · web: sha:12345678 → sha:abcdef12", message)
+        self.assertIn("• app • web: sha:12345678 → sha:abcdef12", message)
 
     def test_rejects_unstructured_items(self):
         with self.assertRaisesRegex(ValueError, "items must be a JSON array"):

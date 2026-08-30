@@ -99,7 +99,7 @@ def format_app(item, change=None):
         return f"• {app}"
     previous, current = format_versions(change["before"], change["after"])
     service = escape_markdown(change["service"])
-    return f"• {app} · {service}: {escape_markdown(previous)} → {escape_markdown(current)}"
+    return f"• {app} • {service}: {escape_markdown(previous)} → {escape_markdown(current)}"
 
 
 def flatten_items(items):
@@ -132,8 +132,8 @@ def format_message(repository, operation, target, run_url, items=None):
     run_url = require_text(run_url, "run-url")
     items = validate_items([] if items is None else items)
     header = (
-        f"*{escape_markdown(repository)}* · "
-        f"[{escape_markdown(operation)}]({escape_link_url(run_url)}) completed · "
+        f"*{escape_markdown(repository)}* • "
+        f"[{escape_markdown(operation)}]({escape_link_url(run_url)}) completed • "
         f"*{escape_markdown(target)}*"
     )
     if not items:
