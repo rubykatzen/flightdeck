@@ -46,7 +46,7 @@ class FormatMessageTest(unittest.TestCase):
             message,
             "*dupmachine/flightdeck* · "
             "[renovate](https://github.com/dupmachine/flightdeck/actions/runs/123) completed · "
-            "*hawkeye*\n\n"
+            "*hawkeye*\n"
             "*root@100\\.75\\.50\\.2*\n"
             "• gatus\n"
             "• yamtrack\n\n"
@@ -66,8 +66,117 @@ class FormatMessageTest(unittest.TestCase):
         self.assertEqual(
             message,
             "*owner/repo\\_test* · [deploy\\-now](https://example.com/run/1\\)) completed · "
-            "*prod\\.main*\n\n*root@host\\.example*\n• api\\_v2",
+            "*prod\\.main*\n*root@host\\.example*\n• api\\_v2",
         )
+
+    def test_formats_image_version_transition(self):
+        message = prepare.format_message(
+            "owner/repo",
+            "renovate",
+            "target",
+            "https://example.com",
+            [
+                {
+                    "app": "gatus",
+                    "host": "root@host",
+                    "changes": [
+                        {
+                            "service": "gatus",
+                            "image": "twinproduction/gatus:latest",
+                            "before": {"id": "sha256:old", "version": "5.21.0"},
+                            "after": {"id": "sha256:new", "version": "5.22.0"},
+                        }
+                    ],
+                }
+            ],
+        )
+
+        self.assertIn("• gatus · gatus: 5\\.21\\.0 → 5\\.22\\.0", message)
+
+    def test_formats_each_changed_service_on_its_own_line(self):
+        message = prepare.format_message(
+            "owner/repo",
+            "renovate",
+            "target",
+            "https://example.com",
+            [
+                {
+                    "app": "qbittorrent-vpn",
+                    "host": "root@host",
+                    "changes": [
+                        {
+                            "service": "qbittorrent",
+                            "image": "lscr.io/linuxserver/qbittorrent:latest",
+                            "before": {"id": "sha256:qbit-old", "version": "5.1.2"},
+                            "after": {"id": "sha256:qbit-new", "version": "5.1.3"},
+                        },
+                        {
+                            "service": "gluetun",
+                            "image": "qmcgaw/gluetun:latest",
+                            "before": {"id": "sha256:glue-old", "version": "3.40.0"},
+                            "after": {"id": "sha256:glue-new", "version": "3.41.0"},
+                        },
+                    ],
+                }
+            ],
+        )
+
+        self.assertIn(
+            "• qbittorrent\\-vpn · qbittorrent: 5\\.1\\.2 → 5\\.1\\.3\n"
+            "• qbittorrent\\-vpn · gluetun: 3\\.40\\.0 → 3\\.41\\.0",
+            message,
+        )
+
+    def test_adds_image_ids_when_the_version_label_did_not_change(self):
+        message = prepare.format_message(
+            "owner/repo",
+            "renovate",
+            "target",
+            "https://example.com",
+            [
+                {
+                    "app": "app",
+                    "host": "root@host",
+                    "changes": [
+                        {
+                            "service": "web",
+                            "image": "owner/app:latest",
+                            "before": {"id": "sha256:1234567890abcdef", "version": "1.0.0"},
+                            "after": {"id": "sha256:abcdef1234567890", "version": "1.0.0"},
+                        }
+                    ],
+                }
+            ],
+        )
+
+        self.assertIn(
+            "• app · web: 1\\.0\\.0 \\(sha:12345678\\) → 1\\.0\\.0 \\(sha:abcdef12\\)",
+            message,
+        )
+
+    def test_falls_back_to_image_ids_when_version_labels_are_missing(self):
+        message = prepare.format_message(
+            "owner/repo",
+            "renovate",
+            "target",
+            "https://example.com",
+            [
+                {
+                    "app": "app",
+                    "host": "root@host",
+                    "changes": [
+                        {
+                            "service": "web",
+                            "image": "owner/app:latest",
+                            "before": {"id": "sha256:1234567890abcdef", "version": None},
+                            "after": {"id": "sha256:abcdef1234567890", "version": None},
+                        }
+                    ],
+                }
+            ],
+        )
+
+        self.assertIn("• app · web: sha:12345678 → sha:abcdef12", message)
 
     def test_rejects_unstructured_items(self):
         with self.assertRaisesRegex(ValueError, "items must be a JSON array"):
@@ -83,7 +192,7 @@ class FormatMessageTest(unittest.TestCase):
         message = prepare.format_message("owner/repo", "renovate", "target", "https://example.com", items)
 
         self.assertLessEqual(len(message), prepare.TELEGRAM_MESSAGE_LIMIT)
-        self.assertRegex(message, r"…and \d+ more$")
+        self.assertRegex(message, r"…and \d+ more services$")
 
 
 class MainTest(unittest.TestCase):

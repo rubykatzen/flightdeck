@@ -32,24 +32,95 @@ def validate_items(items):
     for index, item in enumerate(items):
         if not isinstance(item, dict):
             raise ValueError(f"items[{index}] must be an object")
-        validated.append(
-            {
-                "app": require_text(item.get("app"), f"items[{index}].app"),
-                "host": require_text(item.get("host"), f"items[{index}].host"),
-            }
-        )
+        validated_item = {
+            "app": require_text(item.get("app"), f"items[{index}].app"),
+            "host": require_text(item.get("host"), f"items[{index}].host"),
+        }
+        changes = item.get("changes", [])
+        if not isinstance(changes, list):
+            raise ValueError(f"items[{index}].changes must be an array")
+        validated_item["changes"] = []
+        for change_index, change in enumerate(changes):
+            if not isinstance(change, dict):
+                raise ValueError(f"items[{index}].changes[{change_index}] must be an object")
+            before = change.get("before")
+            after = change.get("after")
+            if not isinstance(before, dict):
+                raise ValueError(f"items[{index}].changes[{change_index}].before must be an object")
+            if not isinstance(after, dict):
+                raise ValueError(f"items[{index}].changes[{change_index}].after must be an object")
+            validated_item["changes"].append(
+                {
+                    "service": require_text(
+                        change.get("service"), f"items[{index}].changes[{change_index}].service"
+                    ),
+                    "image": require_text(
+                        change.get("image"), f"items[{index}].changes[{change_index}].image"
+                    ),
+                    "before": validate_image(before, f"items[{index}].changes[{change_index}].before"),
+                    "after": validate_image(after, f"items[{index}].changes[{change_index}].after"),
+                }
+            )
+        validated.append(validated_item)
     return validated
 
 
-def format_items(items):
-    groups = OrderedDict()
+def validate_image(image, name):
+    image_id = require_text(image.get("id"), f"{name}.id")
+    version = image.get("version")
+    if version is not None and (not isinstance(version, str) or not version):
+        raise ValueError(f"{name}.version must be a non-empty string or null")
+    return {"id": image_id, "version": version}
+
+
+def short_image_id(image_id):
+    return image_id.removeprefix("sha256:")[:8]
+
+
+def format_versions(before, after):
+    before_version = before["version"]
+    after_version = after["version"]
+    if before_version and after_version and before_version != after_version:
+        return before_version, after_version
+    if before_version and after_version:
+        return (
+            f"{before_version} (sha:{short_image_id(before['id'])})",
+            f"{after_version} (sha:{short_image_id(after['id'])})",
+        )
+    return (
+        before_version or f"sha:{short_image_id(before['id'])}",
+        after_version or f"sha:{short_image_id(after['id'])}",
+    )
+
+
+def format_app(item, change=None):
+    app = escape_markdown(item["app"])
+    if change is None:
+        return f"• {app}"
+    previous, current = format_versions(change["before"], change["after"])
+    service = escape_markdown(change["service"])
+    return f"• {app} · {service}: {escape_markdown(previous)} → {escape_markdown(current)}"
+
+
+def flatten_items(items):
+    entries = []
     for item in items:
-        groups.setdefault(item["host"], []).append(item["app"])
+        changes = item["changes"]
+        entries.extend((item, change) for change in changes)
+        if not changes:
+            entries.append((item, None))
+    return entries
+
+
+def format_entries(entries):
+    groups = OrderedDict()
+    for item, change in entries:
+        groups.setdefault(item["host"], []).append((item, change))
 
     sections = []
-    for host, apps in groups.items():
+    for host, host_entries in groups.items():
         lines = [f"*{escape_markdown(host)}*"]
-        lines.extend(f"• {escape_markdown(app)}" for app in apps)
+        lines.extend(format_app(item, change) for item, change in host_entries)
         sections.append("\n".join(lines))
     return "\n\n".join(sections)
 
@@ -68,15 +139,16 @@ def format_message(repository, operation, target, run_url, items=None):
     if not items:
         return header
 
-    message = f"{header}\n\n{format_items(items)}"
+    entries = flatten_items(items)
+    message = f"{header}\n{format_entries(entries)}"
     if len(message) <= TELEGRAM_MESSAGE_LIMIT:
         return message
 
-    for visible_count in range(len(items) - 1, -1, -1):
-        remaining = len(items) - visible_count
-        suffix = escape_markdown(f"…and {remaining} more")
-        body = format_items(items[:visible_count])
-        candidate = f"{header}\n\n{body}\n\n{suffix}" if body else f"{header}\n\n{suffix}"
+    for visible_count in range(len(entries) - 1, -1, -1):
+        remaining = len(entries) - visible_count
+        suffix = escape_markdown(f"…and {remaining} more services")
+        body = format_entries(entries[:visible_count])
+        candidate = f"{header}\n{body}\n\n{suffix}" if body else f"{header}\n{suffix}"
         if len(candidate) <= TELEGRAM_MESSAGE_LIMIT:
             return candidate
     raise ValueError("operation notification header exceeds Telegram's message limit")

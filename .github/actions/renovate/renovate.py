@@ -27,7 +27,8 @@ Writes `updated`/`updated_hosts`/`updated_items`/`target_name` to $GITHUB_OUTPUT
 calling workflow can notify only when a host's image actually changed,
 rather than on every run. `updated_hosts` lists `app@host` pairs, since
 more than one app may have been renovated in the same run. `updated_items`
-contains the same data as structured JSON for downstream formatting.
+contains the same data plus per-service image-version transitions as
+structured JSON for downstream formatting.
 """
 import json
 import os
@@ -44,18 +45,63 @@ def expand_home(path, home):
     return home + path[1:] if path.startswith("~") else path
 
 
+def image_version(connection, image_id):
+    command = f"docker image inspect {shlex.quote(image_id)} --format '{{{{json .Config.Labels}}}}'"
+    labels = json.loads(connection.run(command, hide=True).stdout.strip() or "null") or {}
+    return labels.get("org.opencontainers.image.version") or labels.get("org.label-schema.version")
+
+
+def container_snapshot(connection, compose_dir):
+    result = connection.run(f"cd {compose_dir} && docker compose ps --all -q", hide=True)
+    snapshot = {}
+    versions = {}
+    for container_id in result.stdout.splitlines():
+        inspect = connection.run(f"docker inspect {shlex.quote(container_id)}", hide=True)
+        container = json.loads(inspect.stdout)[0]
+        config = container["Config"]
+        service = config["Labels"]["com.docker.compose.service"]
+        image_id = container["Image"]
+        if image_id not in versions:
+            versions[image_id] = image_version(connection, image_id)
+        snapshot[service] = {
+            "id": image_id,
+            "image": config["Image"],
+            "version": versions[image_id],
+        }
+    return snapshot
+
+
+def image_transitions(before, after):
+    transitions = []
+    for service in sorted(after):
+        current = after[service]
+        previous = before.get(service)
+        if previous and previous["id"] == current["id"]:
+            continue
+        transitions.append(
+            {
+                "service": service,
+                "image": current["image"],
+                "before": {
+                    "id": previous["id"] if previous else "none",
+                    "version": previous["version"] if previous else None,
+                },
+                "after": {"id": current["id"], "version": current["version"]},
+            }
+        )
+    return transitions
+
+
 def renovate_host(host, base_path, app):
     connection = Connection(host)
     connection.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     home = connection.run("echo $HOME", hide=True).stdout.strip()
     compose_dir = shlex.quote(f"{expand_home(base_path, home)}/current/apps/{app}")
-    command = (
-        f"cd {compose_dir} && before=$(docker compose images -q) && docker compose pull "
-        f'&& after=$(docker compose images -q) && docker compose up -d --remove-orphans '
-        f'&& if [ "$before" != "$after" ]; then echo RENOVATE_UPDATED; fi'
-    )
-    result = connection.run(command)
-    return "RENOVATE_UPDATED" in result.stdout
+    before = container_snapshot(connection, compose_dir)
+    connection.run(f"cd {compose_dir} && docker compose pull")
+    connection.run(f"cd {compose_dir} && docker compose up -d --remove-orphans")
+    after = container_snapshot(connection, compose_dir)
+    return image_transitions(before, after)
 
 
 def write_github_output(name, value):
@@ -90,8 +136,9 @@ def main():
     for app in matching_apps:
         for host in target["hosts"]:
             print(f"Renovating {app} on {host}")
-            if renovate_host(host, base_path, app):
-                updated.append({"app": app, "host": host})
+            changes = renovate_host(host, base_path, app)
+            if changes:
+                updated.append({"app": app, "host": host, "changes": changes})
 
     write_github_output("updated", "true" if updated else "false")
     write_github_output("updated_hosts", ",".join(f"{item['app']}@{item['host']}" for item in updated))
