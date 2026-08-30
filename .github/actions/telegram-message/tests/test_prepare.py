@@ -101,20 +101,20 @@ class FormatMessageTest(unittest.TestCase):
             "https://example.com",
             [
                 {
-                    "app": "qbittorrent-vpn",
+                    "app": "rybbit",
                     "host": "root@host",
                     "changes": [
                         {
-                            "service": "qbittorrent",
-                            "image": "lscr.io/linuxserver/qbittorrent:latest",
-                            "before": {"id": "sha256:qbit-old", "version": "5.1.2"},
-                            "after": {"id": "sha256:qbit-new", "version": "5.1.3"},
+                            "service": "client",
+                            "image": "ghcr.io/rybbit-io/rybbit-client:latest",
+                            "before": {"id": "sha256:client-old", "version": "1.6.0"},
+                            "after": {"id": "sha256:client-new", "version": "1.6.1"},
                         },
                         {
-                            "service": "gluetun",
-                            "image": "qmcgaw/gluetun:latest",
-                            "before": {"id": "sha256:glue-old", "version": "3.40.0"},
-                            "after": {"id": "sha256:glue-new", "version": "3.41.0"},
+                            "service": "backend",
+                            "image": "ghcr.io/rybbit-io/rybbit-backend:latest",
+                            "before": {"id": "sha256:backend-old", "version": "1.6.0"},
+                            "after": {"id": "sha256:backend-new", "version": "1.6.1"},
                         },
                     ],
                 }
@@ -122,8 +122,8 @@ class FormatMessageTest(unittest.TestCase):
         )
 
         self.assertIn(
-            "• qbittorrent\\-vpn · qbittorrent: 5\\.1\\.2 → 5\\.1\\.3\n"
-            "• qbittorrent\\-vpn · gluetun: 3\\.40\\.0 → 3\\.41\\.0",
+            "• rybbit · client: 1\\.6\\.0 → 1\\.6\\.1\n"
+            "• rybbit · backend: 1\\.6\\.0 → 1\\.6\\.1",
             message,
         )
 

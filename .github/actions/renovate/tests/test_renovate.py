@@ -126,39 +126,39 @@ class RenovateHostTest(unittest.TestCase):
 
     def test_reports_the_specific_changed_service_in_a_multiservice_app(self):
         before = {
-            "qbit-container": {
-                "service": "qbittorrent",
-                "image": "lscr.io/linuxserver/qbittorrent:latest",
-                "image_id": "sha256:qbit-old",
+            "client-container": {
+                "service": "client",
+                "image": "ghcr.io/rybbit-io/rybbit-client:latest",
+                "image_id": "sha256:client-old",
             },
-            "gluetun-container": {
-                "service": "gluetun",
-                "image": "qmcgaw/gluetun:latest",
-                "image_id": "sha256:gluetun-same",
+            "backend-container": {
+                "service": "backend",
+                "image": "ghcr.io/rybbit-io/rybbit-backend:latest",
+                "image_id": "sha256:backend-same",
             },
         }
         after = {
-            "qbit-container": {
-                "service": "qbittorrent",
-                "image": "lscr.io/linuxserver/qbittorrent:latest",
-                "image_id": "sha256:qbit-new",
+            "client-container": {
+                "service": "client",
+                "image": "ghcr.io/rybbit-io/rybbit-client:latest",
+                "image_id": "sha256:client-new",
             },
-            "gluetun-container": {
-                "service": "gluetun",
-                "image": "qmcgaw/gluetun:latest",
-                "image_id": "sha256:gluetun-same",
+            "backend-container": {
+                "service": "backend",
+                "image": "ghcr.io/rybbit-io/rybbit-backend:latest",
+                "image_id": "sha256:backend-same",
             },
         }
         labels = {
-            "sha256:qbit-old": {"org.opencontainers.image.version": "5.1.2"},
-            "sha256:qbit-new": {"org.opencontainers.image.version": "5.1.3"},
+            "sha256:client-old": {"org.opencontainers.image.version": "1.6.0"},
+            "sha256:client-new": {"org.opencontainers.image.version": "1.6.1"},
         }
         fake = FakeConnection("deploy@host", [before, after], labels)
 
         with patch.object(renovate, "Connection", return_value=fake):
-            changes = renovate.renovate_host("deploy@host", "~/flightdeck", "qbittorrent-vpn")
+            changes = renovate.renovate_host("deploy@host", "~/flightdeck", "rybbit")
 
-        self.assertEqual([change["service"] for change in changes], ["qbittorrent"])
+        self.assertEqual([change["service"] for change in changes], ["client"])
 
     def test_preserves_missing_versions_for_downstream_image_id_fallback(self):
         before = {
