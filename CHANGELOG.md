@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/rubykatzen/flightdeck/compare/v1.1.0...v1.2.0) (2026-08-30)
+
+
+### Features
+
+* report renovate service versions ([#181](https://github.com/rubykatzen/flightdeck/issues/181)) ([5582880](https://github.com/rubykatzen/flightdeck/commit/5582880f42ebea20e9b1f66c8202c724d93d598a))
+
 ## [1.1.0](https://github.com/rubykatzen/flightdeck/compare/v1.0.0...v1.1.0) (2026-08-29)
 
 
