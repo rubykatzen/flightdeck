@@ -293,12 +293,12 @@ Builds a zip archive from caller-selected paths, rejects runtime state and env f
 steps:
   - uses: actions/checkout@v7
     with:
-      ref: v1.2.0
-  - uses: rubykatzen/flightdeck/.github/actions/build-bundle@v1.2.0
+      ref: v1.3.0
+  - uses: rubykatzen/flightdeck/.github/actions/build-bundle@v1.3.0
     with:
       paths: apps
       bundle-name: flightdeck-apps.zip
-      release-tag: v1.2.0
+      release-tag: v1.3.0
       token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
@@ -318,10 +318,10 @@ A thin defaults wrapper around `build-bundle`: `paths` defaults to `apps`, `bund
 steps:
   - uses: actions/checkout@v7
     with:
-      ref: v1.2.0
-  - uses: rubykatzen/flightdeck/.github/actions/build-apps-bundle@v1.2.0
+      ref: v1.3.0
+  - uses: rubykatzen/flightdeck/.github/actions/build-apps-bundle@v1.3.0
     with:
-      release-tag: v1.2.0
+      release-tag: v1.3.0
       token: ${{ secrets.GITHUB_TOKEN }}
 ```
 
@@ -351,7 +351,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: rubykatzen/flightdeck/.github/actions/deploy@v1.2.0
+      - uses: rubykatzen/flightdeck/.github/actions/deploy@v1.3.0
         id: deploy
         with:
           target-manifest: targets/mainframe.yml                          # required, path in this repository
@@ -362,7 +362,7 @@ jobs:
           # tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}    # required only if tailscale-oauth-client-id is set
           # tailscale-tags: tag:ci                                          # default: tag:ci
       - name: Notify Telegram
-        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v1.2.0
+        uses: rubykatzen/baseline/.github/actions/send-telegram-message@v1.3.0
         with:
           message: ${{ steps.deploy.outputs.telegram-message }}
           telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -372,7 +372,7 @@ jobs:
 
 <!-- x-release-please-end -->
 
-The `@v1.2.0` pin on the `uses:` line only controls which ref this action's own code runs at. `target-manifest`'s own `app_refs` entries are separate and don't have to match it. <!-- x-release-please-version -->
+The `@v1.3.0` pin on the `uses:` line only controls which ref this action's own code runs at. `target-manifest`'s own `app_refs` entries are separate and don't have to match it. <!-- x-release-please-version -->
 
 #### `deploy.yml`
 

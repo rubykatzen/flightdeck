@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/rubykatzen/flightdeck/compare/v1.2.0...v1.3.0) (2026-09-03)
+
+
+### Features
+
+* publish releases to LinkedIn ([#191](https://github.com/rubykatzen/flightdeck/issues/191)) ([d499977](https://github.com/rubykatzen/flightdeck/commit/d499977ab84e3178f032cb6916f7317b0d4e88c0))
+
 ## [1.2.0](https://github.com/rubykatzen/flightdeck/compare/v1.1.0...v1.2.0) (2026-08-30)
 
 
