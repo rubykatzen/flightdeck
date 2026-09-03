@@ -1,0 +1,12 @@
+name: Publish LinkedIn release
+on:
+  release:
+    types: [published]
+jobs:
+  publish:
+    uses: rubykatzen/baseline/.github/workflows/publish-linkedin-release-shared.yml@v0.18.0
+    with:
+      telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
+    secrets:
+      linkedin-access-token: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+      telegram-bot-token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
