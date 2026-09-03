@@ -4,7 +4,7 @@ on:
     types: [published]
 jobs:
   notify:
-    uses: rubykatzen/baseline/.github/workflows/notify-telegram-release-shared.yml@v0.17.0
+    uses: rubykatzen/baseline/.github/workflows/notify-telegram-release-shared.yml@v0.17.2
     with:
       telegram-chat-id: ${{ vars.TELEGRAM_CHAT_ID }}
     secrets:
