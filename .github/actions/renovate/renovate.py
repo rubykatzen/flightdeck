@@ -4,7 +4,11 @@ target, read directly from that target's own targets/*.yml manifest,
 without touching versions - no new app bundle, no new vault-sourced env,
 no rebuilt release tree. Just `docker compose pull && docker compose
 up -d` per requested app, against its already-current release, on each
-of the target's hosts.
+of the target's hosts. After every app is processed on a host, prunes
+that host's now-unused images (`docker image prune -a -f`, same as
+deploy.py's own post-deploy cleanup) - repeated renovate runs otherwise
+leave the superseded image behind every time, and those dangling layers
+accumulate across weeks of runs until the disk fills (see #219).
 
 Like deploy.py, this takes a manifest *path* and parses it itself - the
 same shape encrypt-env's render-env.py already uses for vault manifests,
@@ -104,6 +108,12 @@ def renovate_host(host, base_path, app):
     return image_transitions(before, after)
 
 
+def prune_host(host):
+    connection = Connection(host)
+    connection.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    connection.run("docker container prune -f && docker image prune -a -f")
+
+
 def write_github_output(name, value):
     output_path = os.environ.get("GITHUB_OUTPUT")
     if output_path:
@@ -133,12 +143,13 @@ def main():
 
     base_path = target.get("path", "~/flightdeck")
     updated = []
-    for app in matching_apps:
-        for host in target["hosts"]:
+    for host in target["hosts"]:
+        for app in matching_apps:
             print(f"Renovating {app} on {host}")
             changes = renovate_host(host, base_path, app)
             if changes:
                 updated.append({"app": app, "host": host, "changes": changes})
+        prune_host(host)
 
     write_github_output("updated", "true" if updated else "false")
     write_github_output("updated_hosts", ",".join(f"{item['app']}@{item['host']}" for item in updated))
