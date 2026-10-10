@@ -21,7 +21,7 @@ import shutil
 import sys
 import tarfile
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from zipfile import ZipFile
 
@@ -235,7 +235,7 @@ def main():
 
         release_dir, resolved_app_refs = build_release(config, work_dir)
         resolved_env_refs = resolve_app_envs(config, work_dir, release_dir, age_key_file)
-        release_name = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        release_name = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         write_release_manifest(release_dir, release_name, resolved_app_refs, resolved_env_refs)
         archive_path = archive_release(release_dir, work_dir)
         networks = list_required_networks(release_dir)
