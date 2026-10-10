@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.2](https://github.com/rubykatzen/flightdeck/compare/v1.4.1...v1.4.2) (2026-10-10)
+
+
+### Bug Fixes
+
+* **rybbit:** stop redeclaring the included clickhouse service ([#228](https://github.com/rubykatzen/flightdeck/issues/228)) ([0f26ba7](https://github.com/rubykatzen/flightdeck/commit/0f26ba7b9a35912c86c83dfe15a827ecb7ef015e))
+
 ## [1.4.1](https://github.com/rubykatzen/flightdeck/compare/v1.4.0...v1.4.1) (2026-10-10)
 
 
