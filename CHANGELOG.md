@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.4.0](https://github.com/rubykatzen/flightdeck/compare/v1.3.1...v1.4.0) (2026-10-10)
+
+
+### Features
+
+* **traefik:** add Selectel v2 DNS-01 challenge support ([#221](https://github.com/rubykatzen/flightdeck/issues/221)) ([314139f](https://github.com/rubykatzen/flightdeck/commit/314139f00b595b7f7b9e80dd5787d0ab002bbbd1))
+
+
+### Bug Fixes
+
+* **deploy:** use datetime.UTC alias instead of timezone.utc ([#222](https://github.com/rubykatzen/flightdeck/issues/222)) ([8a9c8b4](https://github.com/rubykatzen/flightdeck/commit/8a9c8b47fd99c08a8f319b139428922bf0ba0260))
+* **renovate:** prune unused Docker images after recreating containers ([#224](https://github.com/rubykatzen/flightdeck/issues/224)) ([1dd99ca](https://github.com/rubykatzen/flightdeck/commit/1dd99ca540dda4d966141cc488a0c0c18a627594))
+
 ## [1.3.1](https://github.com/rubykatzen/flightdeck/compare/v1.3.0...v1.3.1) (2026-09-08)
 
 
