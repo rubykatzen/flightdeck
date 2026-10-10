@@ -23,9 +23,6 @@ x-internal-env: &internal-env
   REDIS_HOST: redis
   REDIS_PORT: 6379
 services:
-  clickhouse:
-    environment:
-      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
   client:
     image: ghcr.io/rybbit-io/rybbit-client
     extends:
