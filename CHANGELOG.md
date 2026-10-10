@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/rubykatzen/flightdeck/compare/v1.4.0...v1.4.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **rybbit:** grant clickhouse access_management for rybbit_query provisioning ([#226](https://github.com/rubykatzen/flightdeck/issues/226)) ([dab6a77](https://github.com/rubykatzen/flightdeck/commit/dab6a7763473afcbbac43d21fbfabc8187612d15))
+
 ## [1.4.0](https://github.com/rubykatzen/flightdeck/compare/v1.3.1...v1.4.0) (2026-10-10)
 
 
