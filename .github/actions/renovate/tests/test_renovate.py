@@ -189,6 +189,15 @@ class RenovateHostTest(unittest.TestCase):
         )
 
 
+class PruneHostTest(unittest.TestCase):
+    def test_prunes_unused_containers_and_images(self):
+        fake = FakeConnection("deploy@host")
+        with patch.object(renovate, "Connection", return_value=fake):
+            renovate.prune_host("deploy@host")
+
+        self.assertIn("docker container prune -f && docker image prune -a -f", fake.commands)
+
+
 class MainTest(unittest.TestCase):
     def _run_main(self, directory, apps, manifest_text, manifest_name="heimdall"):
         manifest_path = Path(directory) / f"{manifest_name}.yml"
@@ -207,10 +216,12 @@ class MainTest(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as directory,
             patch.object(renovate, "renovate_host") as fake_renovate_host,
+            patch.object(renovate, "prune_host") as fake_prune_host,
         ):
             outputs = self._run_main(directory, ["beszel"], "apps:\n  traefik: {}\nhosts: [deploy@host]\n")
 
         fake_renovate_host.assert_not_called()
+        fake_prune_host.assert_not_called()
         self.assertIn("updated=false\n", outputs)
         self.assertIn("target_name=heimdall\n", outputs)
 
@@ -218,27 +229,49 @@ class MainTest(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as directory,
             patch.object(renovate, "renovate_host", return_value=[]) as fake_renovate_host,
+            patch.object(renovate, "prune_host") as fake_prune_host,
         ):
             self._run_main(directory, [], "apps:\n  traefik: {}\n  gatus: {}\nhosts: [deploy@host]\n")
 
         fake_renovate_host.assert_any_call("deploy@host", "~/flightdeck", "traefik")
         fake_renovate_host.assert_any_call("deploy@host", "~/flightdeck", "gatus")
         self.assertEqual(fake_renovate_host.call_count, 2)
+        fake_prune_host.assert_called_once_with("deploy@host")
 
     def test_skips_a_target_with_no_apps_when_apps_is_empty(self):
         with (
             tempfile.TemporaryDirectory() as directory,
             patch.object(renovate, "renovate_host") as fake_renovate_host,
+            patch.object(renovate, "prune_host") as fake_prune_host,
         ):
             outputs = self._run_main(directory, [], "apps: {}\nhosts: [deploy@host]\n")
 
         fake_renovate_host.assert_not_called()
+        fake_prune_host.assert_not_called()
         self.assertIn("updated=false\n", outputs)
+
+    def test_prunes_each_host_once_per_invocation_regardless_of_app_count(self):
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.object(renovate, "renovate_host", return_value=[]),
+            patch.object(renovate, "prune_host") as fake_prune_host,
+        ):
+            self._run_main(
+                directory,
+                ["traefik", "gatus"],
+                "apps:\n  traefik: {}\n  gatus: {}\n"
+                "hosts: [deploy@app1.example.com, deploy@app2.example.com]\n",
+            )
+
+        fake_prune_host.assert_any_call("deploy@app1.example.com")
+        fake_prune_host.assert_any_call("deploy@app2.example.com")
+        self.assertEqual(fake_prune_host.call_count, 2)
 
     def test_renovates_only_the_requested_apps_present_on_the_target(self):
         with (
             tempfile.TemporaryDirectory() as directory,
             patch.object(renovate, "renovate_host", return_value=[]) as fake_renovate_host,
+            patch.object(renovate, "prune_host"),
         ):
             self._run_main(
                 directory,
@@ -268,6 +301,7 @@ class MainTest(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as directory,
             patch.object(renovate, "renovate_host", side_effect=fake_renovate_host),
+            patch.object(renovate, "prune_host"),
         ):
             outputs = self._run_main(directory, ["beszel", "traefik"], manifest)
 
@@ -285,6 +319,7 @@ class MainTest(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as directory,
             patch.object(renovate, "renovate_host", return_value=[]),
+            patch.object(renovate, "prune_host"),
         ):
             outputs = self._run_main(directory, ["beszel"], "apps:\n  beszel: {}\nhosts: [deploy@host]\n")
 
@@ -296,6 +331,7 @@ class MainTest(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as directory,
             patch.object(renovate, "renovate_host", return_value=[]) as fake_renovate_host,
+            patch.object(renovate, "prune_host"),
         ):
             self._run_main(directory, ["beszel"], "apps:\n  beszel: {}\nhosts: [deploy@host]\n")
 
@@ -305,6 +341,7 @@ class MainTest(unittest.TestCase):
         with (
             tempfile.TemporaryDirectory() as directory,
             patch.object(renovate, "renovate_host", return_value=[]),
+            patch.object(renovate, "prune_host"),
         ):
             outputs = self._run_main(
                 directory, ["beszel"], "apps:\n  beszel: {}\nhosts: [deploy@host]\n", manifest_name="mainframe"
