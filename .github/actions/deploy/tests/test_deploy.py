@@ -367,10 +367,13 @@ class FakeConnection:
         self.client = SimpleNamespace(set_missing_host_key_policy=lambda policy: None)
         self.commands = []
         self.uploads = []
+        self.stdins = []
         self.previous_manifest = previous_manifest
 
-    def run(self, command, hide=False):
+    def run(self, command, hide=False, in_stream=None):
         self.commands.append(command)
+        if in_stream is not None:
+            self.stdins.append(in_stream.read())
         if command == "echo $HOME":
             return SimpleNamespace(stdout="/home/deploy\n")
         if command.startswith("ls -1dt"):
@@ -384,6 +387,31 @@ class FakeConnection:
         self.uploads.append((local, remote))
 
 
+class LoginRegistryTest(unittest.TestCase):
+    def test_does_nothing_without_a_token(self):
+        fake = FakeConnection("deploy@host")
+        with patch.dict(os.environ, {}, clear=True):
+            deploy.login_registry(fake)
+
+        self.assertEqual(fake.commands, [])
+
+    def test_logs_in_with_the_token_over_stdin_not_the_command_line(self):
+        fake = FakeConnection("deploy@host")
+        with patch.dict(os.environ, {"GH_TOKEN": "ghs_secret123", "GITHUB_ACTOR": "flightdeck-bot"}, clear=True):
+            deploy.login_registry(fake)
+
+        self.assertEqual(fake.commands, ["docker login ghcr.io -u flightdeck-bot --password-stdin"])
+        self.assertNotIn("ghs_secret123", fake.commands[0])
+        self.assertEqual(fake.stdins, ["ghs_secret123"])
+
+    def test_defaults_actor_when_github_actor_is_unset(self):
+        fake = FakeConnection("deploy@host")
+        with patch.dict(os.environ, {"GH_TOKEN": "ghs_secret123"}, clear=True):
+            deploy.login_registry(fake)
+
+        self.assertEqual(fake.commands, ["docker login ghcr.io -u flightdeck --password-stdin"])
+
+
 class DeployToHostTest(unittest.TestCase):
     def test_full_sequence(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -393,7 +421,10 @@ class DeployToHostTest(unittest.TestCase):
             config = {"hosts": ["deploy@host"], "keep_releases": 5}
 
             fake = FakeConnection("deploy@host")
-            with patch.object(deploy, "Connection", return_value=fake):
+            with (
+                patch.object(deploy, "Connection", return_value=fake),
+                patch.dict(os.environ, {"GH_TOKEN": ""}),
+            ):
                 deploy.deploy_to_host(
                     "deploy@host",
                     archive_path,
@@ -408,6 +439,7 @@ class DeployToHostTest(unittest.TestCase):
             self.assertEqual(len(fake.uploads), 1)
 
             joined = "\n".join(fake.commands)
+            self.assertNotIn("docker login", joined)
             self.assertIn("docker network create traefik", joined)
             self.assertIn("docker network create databases", joined)
             self.assertIn("docker network create mcp", joined)
@@ -428,6 +460,32 @@ class DeployToHostTest(unittest.TestCase):
                 self.assertIn(stale, prune_command)
             for kept in ("rel0", "rel1", "rel2", "rel3", "rel4"):
                 self.assertNotIn(kept, prune_command)
+
+    def test_logs_into_ghcr_before_pushing_the_release_when_a_token_is_available(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work_dir = Path(directory)
+            archive_path = work_dir / "release.tar.gz"
+            archive_path.write_text("fake archive\n")
+            config = {"hosts": ["deploy@host"], "keep_releases": 5}
+
+            fake = FakeConnection("deploy@host")
+            with (
+                patch.object(deploy, "Connection", return_value=fake),
+                patch.dict(os.environ, {"GH_TOKEN": "ghs_secret123", "GITHUB_ACTOR": "flightdeck-bot"}),
+            ):
+                deploy.deploy_to_host(
+                    "deploy@host",
+                    archive_path,
+                    apps=["traefik"],
+                    networks=["traefik"],
+                    config=config,
+                    release_name="20260824T211714Z",
+                )
+
+            login_index = fake.commands.index("docker login ghcr.io -u flightdeck-bot --password-stdin")
+            push_index = next(i for i, command in enumerate(fake.commands) if command.startswith("tar -xzf"))
+            self.assertLess(login_index, push_index)
+            self.assertEqual(fake.stdins, ["ghs_secret123"])
 
     def test_stops_apps_removed_from_the_desired_set(self):
         with tempfile.TemporaryDirectory() as directory:

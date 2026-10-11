@@ -14,6 +14,7 @@ vault manifests. `sops_age_key` can't come from that file, since it's a
 secret value, not YAML-safe config - the calling `deploy` action passes
 it separately (see README's "deploy" section for the exact contract).
 """
+import io
 import json
 import os
 import shlex
@@ -140,6 +141,25 @@ def bootstrap_host(connection, base_path, networks):
         connection.run(f"docker network create {shlex.quote(network)} >/dev/null 2>&1 || true", hide=True)
 
 
+def login_registry(connection):
+    """Log the host's Docker daemon into ghcr.io using the Actions-run
+    GITHUB_TOKEN, so `docker compose pull` can reach private GHCR images
+    published from another repository under the same org/user - that
+    package's own "Manage Actions access" setting must grant read to this
+    workflow's repository, since GITHUB_TOKEN only carries that far. A
+    no-op when GH_TOKEN isn't set (e.g. running deploy.py outside Actions).
+    See #230."""
+    token = os.environ.get("GH_TOKEN")
+    if not token:
+        return
+    actor = os.environ.get("GITHUB_ACTOR", "flightdeck")
+    connection.run(
+        f"docker login ghcr.io -u {shlex.quote(actor)} --password-stdin",
+        hide=True,
+        in_stream=io.StringIO(token),
+    )
+
+
 def push_release(connection, archive_path, release_path):
     connection.run(f"mkdir -p {shlex.quote(release_path)}", hide=True)
     connection.put(str(archive_path), remote=f"{release_path}.tar.gz")
@@ -180,6 +200,7 @@ def deploy_to_host(host, archive_path, apps, networks, config, release_name):
     release_path = f"{releases_path}/{release_name}"
 
     bootstrap_host(connection, base_path, networks)
+    login_registry(connection)
     push_release(connection, archive_path, release_path)
     for app in apps:
         data_dir = f"{base_path}/apps-data/{app}"

@@ -34,6 +34,7 @@ more than one app may have been renovated in the same run. `updated_items`
 contains the same data plus per-service image-version transitions as
 structured JSON for downstream formatting.
 """
+import io
 import json
 import os
 import shlex
@@ -47,6 +48,21 @@ from fabric import Connection
 
 def expand_home(path, home):
     return home + path[1:] if path.startswith("~") else path
+
+
+def login_registry(connection):
+    """Log the host's Docker daemon into ghcr.io using the Actions-run
+    GITHUB_TOKEN, so `docker compose pull` can reach private GHCR images -
+    same rationale as deploy.py's own login_registry, see #230."""
+    token = os.environ.get("GH_TOKEN")
+    if not token:
+        return
+    actor = os.environ.get("GITHUB_ACTOR", "flightdeck")
+    connection.run(
+        f"docker login ghcr.io -u {shlex.quote(actor)} --password-stdin",
+        hide=True,
+        in_stream=io.StringIO(token),
+    )
 
 
 def image_version(connection, image_id):
@@ -102,6 +118,7 @@ def renovate_host(host, base_path, app):
     home = connection.run("echo $HOME", hide=True).stdout.strip()
     compose_dir = shlex.quote(f"{expand_home(base_path, home)}/current/apps/{app}")
     before = container_snapshot(connection, compose_dir)
+    login_registry(connection)
     connection.run(f"cd {compose_dir} && docker compose pull")
     connection.run(f"cd {compose_dir} && docker compose up -d --remove-orphans")
     after = container_snapshot(connection, compose_dir)

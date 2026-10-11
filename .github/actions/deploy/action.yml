@@ -11,7 +11,7 @@ inputs:
     description: Private SOPS age key used to decrypt this target's vault-sourced env, on the runner.
     required: true
   github-token:
-    description: Token used to resolve/download release refs (app bundles, encrypted env sources).
+    description: Token used to resolve/download release refs (app bundles, encrypted env sources), and forwarded to each host to `docker login ghcr.io` so a private GHCR image can be pulled. For the latter, the underlying package's own "Manage Actions access" setting must grant read to this workflow's repository, since GITHUB_TOKEN only carries that far.
     required: true
   tailscale-oauth-client-id:
     description: Tailscale OAuth client ID used to join the tailnet. Leave unset to skip joining a tailnet (e.g. when the runner already has network access to the hosts).
