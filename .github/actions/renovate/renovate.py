@@ -51,18 +51,25 @@ def expand_home(path, home):
 
 
 def login_registry(connection):
-    """Log the host's Docker daemon into ghcr.io using the Actions-run
-    GITHUB_TOKEN, so `docker compose pull` can reach private GHCR images -
-    same rationale as deploy.py's own login_registry, see #230."""
+    """Log into ghcr.io using the Actions-run GITHUB_TOKEN, so `docker
+    compose pull` can reach private GHCR images - same rationale as
+    deploy.py's own login_registry, including the throwaway
+    DOCKER_CONFIG directory instead of the host's default
+    ~/.docker/config.json. Returns the directory to export as
+    DOCKER_CONFIG for the pull that follows (the caller removes it once
+    done), or None when no token is available."""
     token = os.environ.get("GH_TOKEN")
     if not token:
-        return
+        return None
+    docker_config = connection.run("mktemp -d", hide=True).stdout.strip()
     actor = os.environ.get("GITHUB_ACTOR", "flightdeck")
     connection.run(
+        f"DOCKER_CONFIG={shlex.quote(docker_config)} "
         f"docker login ghcr.io -u {shlex.quote(actor)} --password-stdin",
         hide=True,
         in_stream=io.StringIO(token),
     )
+    return docker_config
 
 
 def image_version(connection, image_id):
@@ -118,9 +125,14 @@ def renovate_host(host, base_path, app):
     home = connection.run("echo $HOME", hide=True).stdout.strip()
     compose_dir = shlex.quote(f"{expand_home(base_path, home)}/current/apps/{app}")
     before = container_snapshot(connection, compose_dir)
-    login_registry(connection)
-    connection.run(f"cd {compose_dir} && docker compose pull")
-    connection.run(f"cd {compose_dir} && docker compose up -d --remove-orphans")
+    docker_config = login_registry(connection)
+    try:
+        pull_env = f"DOCKER_CONFIG={shlex.quote(docker_config)} " if docker_config else ""
+        connection.run(f"cd {compose_dir} && {pull_env}docker compose pull")
+        connection.run(f"cd {compose_dir} && docker compose up -d --remove-orphans")
+    finally:
+        if docker_config:
+            connection.run(f"rm -rf {shlex.quote(docker_config)}", hide=True)
     after = container_snapshot(connection, compose_dir)
     return image_transitions(before, after)
 

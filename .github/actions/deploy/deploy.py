@@ -142,22 +142,31 @@ def bootstrap_host(connection, base_path, networks):
 
 
 def login_registry(connection):
-    """Log the host's Docker daemon into ghcr.io using the Actions-run
-    GITHUB_TOKEN, so `docker compose pull` can reach private GHCR images
-    published from another repository under the same org/user - that
-    package's own "Manage Actions access" setting must grant read to this
-    workflow's repository, since GITHUB_TOKEN only carries that far. A
-    no-op when GH_TOKEN isn't set (e.g. running deploy.py outside Actions).
-    See #230."""
+    """Log into ghcr.io using the Actions-run GITHUB_TOKEN, so `docker
+    compose pull` can reach private GHCR images published from another
+    repository under the same org/user - that package's own "Manage
+    Actions access" setting must grant read to this workflow's
+    repository, since GITHUB_TOKEN only carries that far.
+
+    Scoped to a throwaway DOCKER_CONFIG directory rather than the host's
+    default ~/.docker/config.json - a plain `docker login` would persist
+    the short-lived token past this run and silently replace whatever
+    ghcr.io credential was already configured on the host. Returns the
+    directory to export as DOCKER_CONFIG for the pull that follows (the
+    caller removes it once done), or None when no token is available -
+    nothing to log into, nothing to clean up."""
     token = os.environ.get("GH_TOKEN")
     if not token:
-        return
+        return None
+    docker_config = connection.run("mktemp -d", hide=True).stdout.strip()
     actor = os.environ.get("GITHUB_ACTOR", "flightdeck")
     connection.run(
+        f"DOCKER_CONFIG={shlex.quote(docker_config)} "
         f"docker login ghcr.io -u {shlex.quote(actor)} --password-stdin",
         hide=True,
         in_stream=io.StringIO(token),
     )
+    return docker_config
 
 
 def push_release(connection, archive_path, release_path):
@@ -200,20 +209,27 @@ def deploy_to_host(host, archive_path, apps, networks, config, release_name):
     release_path = f"{releases_path}/{release_name}"
 
     bootstrap_host(connection, base_path, networks)
-    login_registry(connection)
-    push_release(connection, archive_path, release_path)
-    for app in apps:
-        data_dir = f"{base_path}/apps-data/{app}"
-        connection.run(f"mkdir -p {shlex.quote(data_dir)}", hide=True)
-        env_path = f"{release_path}/apps/{app}/.env"
-        connection.run(f"echo {shlex.quote(f'DATA_DIR={data_dir}')} >> {shlex.quote(env_path)}", hide=True)
+    docker_config = login_registry(connection)
+    try:
+        push_release(connection, archive_path, release_path)
+        for app in apps:
+            data_dir = f"{base_path}/apps-data/{app}"
+            connection.run(f"mkdir -p {shlex.quote(data_dir)}", hide=True)
+            env_path = f"{release_path}/apps/{app}/.env"
+            connection.run(f"echo {shlex.quote(f'DATA_DIR={data_dir}')} >> {shlex.quote(env_path)}", hide=True)
 
-    stop_removed_apps(connection, current_path, apps)
-    connection.run(f"ln -sfn {shlex.quote(release_path)} {shlex.quote(current_path)}", hide=True)
+        stop_removed_apps(connection, current_path, apps)
+        connection.run(f"ln -sfn {shlex.quote(release_path)} {shlex.quote(current_path)}", hide=True)
 
-    for app in apps:
-        compose_dir = f"{current_path}/apps/{app}"
-        connection.run(f"cd {shlex.quote(compose_dir)} && docker compose pull && docker compose up -d --remove-orphans")
+        pull_env = f"DOCKER_CONFIG={shlex.quote(docker_config)} " if docker_config else ""
+        for app in apps:
+            compose_dir = f"{current_path}/apps/{app}"
+            connection.run(
+                f"cd {shlex.quote(compose_dir)} && {pull_env}docker compose pull && docker compose up -d --remove-orphans"
+            )
+    finally:
+        if docker_config:
+            connection.run(f"rm -rf {shlex.quote(docker_config)}", hide=True)
 
     prune_releases(connection, releases_path, keep_releases)
     connection.run("docker container prune -f && docker image prune -a -f")
