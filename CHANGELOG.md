@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.3](https://github.com/rubykatzen/flightdeck/compare/v1.4.2...v1.4.3) (2026-10-12)
+
+
+### Bug Fixes
+
+* **deploy,renovate:** forward GITHUB_TOKEN to ghcr.io login on the host ([#231](https://github.com/rubykatzen/flightdeck/issues/231)) ([27a2e79](https://github.com/rubykatzen/flightdeck/commit/27a2e79ac764f7f52207362f58a24e3333767096))
+
 ## [1.4.2](https://github.com/rubykatzen/flightdeck/compare/v1.4.1...v1.4.2) (2026-10-10)
 
 
