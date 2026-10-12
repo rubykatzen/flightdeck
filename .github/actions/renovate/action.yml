@@ -11,6 +11,10 @@ inputs:
   ssh-private-key:
     description: SSH private key used to connect to the hosts.
     required: true
+  github-token:
+    description: Token forwarded to each host to `docker login ghcr.io`, so a private GHCR image can be re-pulled. Leave unset to skip login (fine as long as every renovated app's image is public). The underlying package's own "Manage Actions access" setting must grant read to this workflow's repository, since GITHUB_TOKEN only carries that far.
+    required: false
+    default: ""
   tailscale-oauth-client-id:
     description: Tailscale OAuth client ID used to join the tailnet. Leave unset to skip joining a tailnet (e.g. when the runner already has network access to the hosts).
     required: false
@@ -64,6 +68,7 @@ runs:
       env:
         APPS: ${{ inputs.apps }}
         TARGET_MANIFEST: ${{ inputs.target-manifest }}
+        GH_TOKEN: ${{ inputs.github-token }}
       run: |
         jq -n --argjson apps "$APPS" --arg target_manifest "$TARGET_MANIFEST" \
           '{apps: $apps, target_manifest: $target_manifest}' \

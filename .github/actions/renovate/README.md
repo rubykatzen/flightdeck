@@ -18,6 +18,7 @@ jobs:
           apps: ${{ inputs.apps }}                                         # required, JSON array e.g. '["traefik","rybbit"]'
           target-manifest: ${{ matrix.manifest }}                          # required, path in this repository
           ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
+          # github-token: ${{ secrets.GITHUB_TOKEN }}                       # optional, default: unset (skip ghcr.io login)
           # tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}  # optional, default: unset (skip joining a tailnet)
           # tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}    # required only if tailscale-oauth-client-id is set
       - name: Notify Telegram
@@ -37,3 +38,5 @@ After every requested app has been pulled and recreated on a host, that host get
 The action prepares a host-grouped message as `telegram-message` only when something changed, but never sends it or receives Telegram credentials. Sending the message is the *caller's* job, as a separate step reading that output, same as shown above - a different caller is free to wire up a different channel, or none, without forking this action.
 
 Same checkout model as [`deploy`](../deploy): this action never checks out anything itself, it just reads `target-manifest` from whatever the caller's own preceding `actions/checkout` step already put on disk.
+
+`github-token` is optional, unlike in `deploy` - this action never resolves/downloads anything, so the only use for it is forwarding `GITHUB_TOKEN` to each host for a `docker login ghcr.io` before `docker compose pull`, letting a private GHCR image get re-pulled. Leave it unset if every renovated app's image is public. That login is scoped to a throwaway `DOCKER_CONFIG` directory, removed once the pull finishes, rather than the host's default `~/.docker/config.json` - see the main README's "Automated Deploy" section.

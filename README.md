@@ -32,7 +32,11 @@ The deploy is push-based and runs entirely on the GitHub Actions runner:
 4. Decrypt each app's env with the target's private SOPS age key (a GitHub Secret) and write it straight into that app's `.env` in the release tree.
 5. Render that app's `*.tpl` config files in place, next to its `docker-compose.yml`, using the decrypted values — the same substitution `envsubst` does, run here instead of on the host.
 6. Write a `manifest.json` into the release tree — resolved `app_refs`/`env_refs` (the actual tag pulled, not `@latest`) and the desired app set, no secrets.
-7. Push the finished release (real `.env`, already-rendered config, the manifest, one tarball) to each host over SSH. Before switching `current`, compare the new desired app set against the previous release's `manifest.json` and `docker compose down` anything no longer desired, then switch the `current` symlink and run `docker compose pull && docker compose up -d` per app.
+7. Push the finished release (real `.env`, already-rendered config, the manifest, one tarball) to each host over SSH. Before switching `current`, log into `ghcr.io` using the Actions run's own `GITHUB_TOKEN` (forwarded over the same SSH connection via stdin, scoped to a throwaway `DOCKER_CONFIG` directory removed once the pulls finish, rather than the host's default `~/.docker/config.json` - see below), compare the new desired app set against the previous release's `manifest.json` and `docker compose down` anything no longer desired, then switch the `current` symlink and run `docker compose pull && docker compose up -d` per app.
+
+The `ghcr.io` login (step 7) only ever covers `ghcr.io` itself, not arbitrary private registries — it rides on the Actions run's own `GITHUB_TOKEN`, which is scoped to that one workflow run and only ever authenticates to GHCR, never a third-party registry. This is enough to pull a private image published from a *different* repository under the same org/user (e.g. an app whose own repo publishes `ghcr.io/<org>/<app>`, included in a target's `apps`), as long as that package's own **Package settings → Manage Actions access** grants read to this workflow's repository — `GITHUB_TOKEN` doesn't reach further than that by default. No separate registry credential ever needs to be minted, stored, or rotated as a GitHub Secret.
+
+A plain `docker login` writes into the host's default `~/.docker/config.json`, which would leave the short-lived `GITHUB_TOKEN` sitting on disk after the run ends and silently replace whatever `ghcr.io` credential was already configured there. Both `deploy.py` and `renovate.py` avoid that by creating a throwaway directory (`mktemp -d` on the host) and pointing `DOCKER_CONFIG` at it for the login and the pull that follows, then removing it afterward - in a `finally` block, so it's cleaned up even if the pull itself fails. The host's own default Docker config is never touched.
 
 What gets deployed — which app bundles, which apps actually run, and which encrypted env sources feed each one — is configured declaratively per target; see "Vaults And Targets" below for the manifest format.
 
@@ -397,6 +401,8 @@ Re-pulls and recreates one-or-more apps' containers on a target already present 
 
 `apps` is a JSON array, so one run can renovate several apps at once (e.g. `["traefik","rybbit"]`) — pass a single-element array for the one-app case, or an empty array for every app the target runs. Not every target runs every requested app; [`renovate.py`](.github/actions/renovate/renovate.py) decides that itself from the target manifest's own `apps` mapping and simply does nothing — never opening an SSH connection — if none of the requested apps are present there.
 
+`github-token` is optional here (unlike [`deploy`](#deploy), where it's required for resolving release refs) — `renovate.py` never downloads anything, so it only exists to forward `GITHUB_TOKEN` to the host for a `ghcr.io` login before `docker compose pull`, same rationale as `deploy`'s own login step above. Leave it unset if every renovated app's image is public.
+
 It never touches `app_refs`/`env_refs`, never re-decrypts a vault, never rebuilds the release tree; it just picks up a new image behind an existing tag. To tell whether a host's image actually changed (rather than the pull being a no-op), it compares `docker compose images -q` output before and after the pull, and exposes `updated`/`updated-hosts`/`updated-items`/`target-name` (derived from the manifest's own filename) as action outputs. `updated-items` is a JSON array of `{app, host}` objects for structured consumers such as notification formatters; `updated-hosts` retains the original comma-separated `app@host` representation for compatibility.
 
 The action prepares a host-grouped notification as its `telegram-message` output only when something changed. It never sends the message or receives Telegram credentials; `renovate.yml` below owns delivery in a separate step. A different caller can wire up another channel, or none at all, without forking the action.
@@ -417,6 +423,7 @@ jobs:
           apps: ${{ inputs.apps || '[]' }}             # JSON array, e.g. '["traefik","rybbit"]'; '[]' on the nightly cron run
           target-manifest: ${{ matrix.manifest }}
           ssh-private-key: ${{ secrets[matrix.ssh_private_key_secret] }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}        # optional, default: unset (skip ghcr.io login)
           # tailscale-oauth-client-id: ${{ vars.TAILSCALE_OAUTH_CLIENT_ID }}
           # tailscale-oauth-secret: ${{ secrets.TAILSCALE_OAUTH_SECRET }}
       - name: Notify Telegram

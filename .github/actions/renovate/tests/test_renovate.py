@@ -26,14 +26,19 @@ class FakeConnection:
         self.host = host
         self.client = SimpleNamespace(set_missing_host_key_policy=lambda policy: None)
         self.commands = []
+        self.stdins = []
         self.snapshots = list(snapshots or [{}, {}])
         self.current_snapshot = {}
         self.labels = labels or {}
 
-    def run(self, command, hide=False):
+    def run(self, command, hide=False, in_stream=None):
         self.commands.append(command)
+        if in_stream is not None:
+            self.stdins.append(in_stream.read())
         if command == "echo $HOME":
             return SimpleNamespace(stdout="/home/deploy\n")
+        if command == "mktemp -d":
+            return SimpleNamespace(stdout="/tmp/fakeconfig\n")
         if command.endswith("docker compose ps --all -q"):
             self.current_snapshot = self.snapshots.pop(0)
             return SimpleNamespace(stdout="\n".join(self.current_snapshot))
@@ -67,17 +72,99 @@ class ExpandHomeTest(unittest.TestCase):
         self.assertEqual(renovate.expand_home("/opt/flightdeck", "/home/deploy"), "/opt/flightdeck")
 
 
+class LoginRegistryTest(unittest.TestCase):
+    def test_does_nothing_without_a_token(self):
+        fake = FakeConnection("deploy@host")
+        with patch.dict(os.environ, {}, clear=True):
+            result = renovate.login_registry(fake)
+
+        self.assertEqual(fake.commands, [])
+        self.assertIsNone(result)
+
+    def test_logs_in_with_the_token_over_stdin_not_the_command_line_scoped_to_a_temp_docker_config(self):
+        fake = FakeConnection("deploy@host")
+        with patch.dict(os.environ, {"GH_TOKEN": "ghs_secret123", "GITHUB_ACTOR": "flightdeck-bot"}, clear=True):
+            result = renovate.login_registry(fake)
+
+        self.assertEqual(
+            fake.commands,
+            [
+                "mktemp -d",
+                "DOCKER_CONFIG=/tmp/fakeconfig docker login ghcr.io -u flightdeck-bot --password-stdin",
+            ],
+        )
+        self.assertNotIn("ghs_secret123", fake.commands[1])
+        self.assertEqual(fake.stdins, ["ghs_secret123"])
+        self.assertEqual(result, "/tmp/fakeconfig")
+
+    def test_defaults_actor_when_github_actor_is_unset(self):
+        fake = FakeConnection("deploy@host")
+        with patch.dict(os.environ, {"GH_TOKEN": "ghs_secret123"}, clear=True):
+            renovate.login_registry(fake)
+
+        self.assertEqual(
+            fake.commands,
+            [
+                "mktemp -d",
+                "DOCKER_CONFIG=/tmp/fakeconfig docker login ghcr.io -u flightdeck --password-stdin",
+            ],
+        )
+
+
 class RenovateHostTest(unittest.TestCase):
     def test_pulls_and_recreates_without_touching_the_release(self):
         fake = FakeConnection("deploy@host")
-        with patch.object(renovate, "Connection", return_value=fake):
+        with (
+            patch.object(renovate, "Connection", return_value=fake),
+            patch.dict(os.environ, {"GH_TOKEN": ""}),
+        ):
             renovate.renovate_host("deploy@host", "~/flightdeck", "beszel")
 
         joined = "\n".join(fake.commands)
+        self.assertNotIn("docker login", joined)
         self.assertIn("cd /home/deploy/flightdeck/current/apps/beszel", joined)
         self.assertIn("docker compose pull", joined)
         self.assertIn("docker compose up -d --remove-orphans", joined)
         self.assertEqual(joined.count("docker compose ps --all -q"), 2)
+
+    def test_logs_into_ghcr_before_pulling_when_a_token_is_available(self):
+        fake = FakeConnection("deploy@host")
+        with (
+            patch.object(renovate, "Connection", return_value=fake),
+            patch.dict(os.environ, {"GH_TOKEN": "ghs_secret123", "GITHUB_ACTOR": "flightdeck-bot"}),
+        ):
+            renovate.renovate_host("deploy@host", "~/flightdeck", "beszel")
+
+        login_index = fake.commands.index(
+            "DOCKER_CONFIG=/tmp/fakeconfig docker login ghcr.io -u flightdeck-bot --password-stdin"
+        )
+        pull_index = next(i for i, command in enumerate(fake.commands) if "docker compose pull" in command)
+        cleanup_index = fake.commands.index("rm -rf /tmp/fakeconfig")
+        self.assertLess(login_index, pull_index)
+        self.assertIn("DOCKER_CONFIG=/tmp/fakeconfig docker compose pull", fake.commands[pull_index])
+        self.assertGreater(cleanup_index, pull_index)
+        self.assertEqual(fake.stdins, ["ghs_secret123"])
+
+    def test_cleans_up_the_temporary_docker_config_even_if_pull_fails(self):
+        fake = FakeConnection("deploy@host")
+        original_run = fake.run
+
+        def failing_run(command, hide=False, in_stream=None):
+            result = original_run(command, hide=hide, in_stream=in_stream)
+            if "docker compose pull" in command:
+                raise RuntimeError("pull failed")
+            return result
+
+        fake.run = failing_run
+
+        with (
+            patch.object(renovate, "Connection", return_value=fake),
+            patch.dict(os.environ, {"GH_TOKEN": "ghs_secret123", "GITHUB_ACTOR": "flightdeck-bot"}),
+            self.assertRaises(RuntimeError),
+        ):
+            renovate.renovate_host("deploy@host", "~/flightdeck", "beszel")
+
+        self.assertIn("rm -rf /tmp/fakeconfig", fake.commands)
 
     def test_returns_version_transition_when_the_image_changed(self):
         before = {
